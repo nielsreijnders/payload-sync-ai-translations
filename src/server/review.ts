@@ -1,0 +1,257 @@
+import type { PayloadHandler } from 'payload'
+
+import type {
+  TranslateReviewLocale,
+  TranslateReviewMismatch,
+  TranslateReviewRequestPayload,
+  TranslateReviewSuggestion,
+} from './types.js'
+
+import { extractPlainText, getValueAtPath, MAX_CHARS_PER_CHUNK } from '../utils/localizedFields.js'
+import {
+  type MissingInformationCheckInput,
+  openAiDetectMissingInformation,
+  openAiTranslateTexts,
+} from './openai.js'
+
+type TranslateSuggestionInput = {
+  index: number
+  text: string
+}
+
+function chunkSuggestionInputs(entries: TranslateSuggestionInput[]): TranslateSuggestionInput[][] {
+  const chunks: TranslateSuggestionInput[][] = []
+  let current: TranslateSuggestionInput[] = []
+  let total = 0
+
+  for (const entry of entries) {
+    const length = entry.text.length
+    if (current.length && total + length > MAX_CHARS_PER_CHUNK) {
+      chunks.push(current)
+      current = [entry]
+      total = length
+    } else {
+      current.push(entry)
+      total += length
+    }
+  }
+
+  if (current.length) {
+    chunks.push(current)
+  }
+
+  return chunks
+}
+
+function isTranslateItem(value: unknown): value is TranslateReviewRequestPayload['items'][number] {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { path?: unknown }).path === 'string' &&
+    typeof (value as { text?: unknown }).text === 'string'
+  )
+}
+
+function areTranslateItems(value: unknown): value is TranslateReviewRequestPayload['items'] {
+  return Array.isArray(value) && value.every(isTranslateItem)
+}
+
+function parseBody(body: unknown): TranslateReviewRequestPayload {
+  if (typeof body !== 'object' || body === null) {
+    throw new Error('Invalid JSON body')
+  }
+
+  const candidate = body as Record<string, unknown>
+  const from = candidate.from
+  const collection = candidate.collection
+  const identifier = candidate.id
+  const locales = candidate.locales
+  const items = candidate.items
+
+  if (typeof from !== 'string' || !from) {
+    throw new Error('Missing "from" locale')
+  }
+
+  if (typeof collection !== 'string' || !collection) {
+    throw new Error('Missing "collection" slug')
+  }
+
+  if (typeof identifier !== 'string' && typeof identifier !== 'number') {
+    throw new Error('Missing document "id"')
+  }
+
+  if (typeof identifier === 'string' && !identifier) {
+    throw new Error('Missing document "id"')
+  }
+
+  if (!Array.isArray(locales) || locales.some((locale) => typeof locale !== 'string' || !locale)) {
+    throw new Error('Expected "locales" to be an array of locale codes')
+  }
+
+  if (!areTranslateItems(items)) {
+    throw new Error('Expected "items" to be an array of translation items')
+  }
+
+  const uniqueLocales = Array.from(new Set(locales as string[]))
+
+  if (!uniqueLocales.length) {
+    throw new Error('No target locales provided')
+  }
+
+  return {
+    id: identifier,
+    collection,
+    from,
+    items,
+    locales: uniqueLocales,
+  }
+}
+
+export function createAiTranslateReviewHandler(): PayloadHandler {
+  return async (req) => {
+    try {
+      const payload = req.payload
+      if (!payload) {
+        throw new Error('Payload instance is not available on the request')
+      }
+
+      const parsed = parseBody(await req.json())
+      const locales: TranslateReviewLocale[] = []
+
+      for (const localeCode of parsed.locales) {
+        let localeDoc: null | Record<string, unknown> = null
+
+        try {
+          const result = await payload.findByID({
+            id: parsed.id,
+            collection: parsed.collection,
+            depth: 0,
+            fallbackLocale: false,
+            locale: localeCode,
+          })
+
+          if (result && typeof result === 'object') {
+            localeDoc = result as Record<string, unknown>
+          }
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : `Failed to load locale data for ${localeCode}.`
+          return Response.json({ message }, { status: 500 })
+        }
+
+        const translateIndexes = new Set<number>()
+        const mismatches: TranslateReviewMismatch[] = []
+        const aiInputs: MissingInformationCheckInput[] = []
+        const existingByIndex = new Map<number, string>()
+        let existingCount = 0
+
+        const translateCandidates: TranslateSuggestionInput[] = []
+
+        parsed.items.forEach((item, index) => {
+          const existingValue = localeDoc ? getValueAtPath(localeDoc, item.path) : undefined
+          const existingText = extractPlainText(existingValue) ?? ''
+
+          if (!existingText) {
+            translateIndexes.add(index)
+            translateCandidates.push({ index, text: item.text })
+            return
+          }
+
+          existingCount += 1
+          existingByIndex.set(index, existingText)
+          aiInputs.push({
+            defaultText: item.text,
+            index,
+            translatedText: existingText,
+          })
+        })
+
+        if (aiInputs.length) {
+          try {
+            const results = await openAiDetectMissingInformation(aiInputs, parsed.from, localeCode)
+            for (const result of results) {
+              if (!result.missing) {
+                continue
+              }
+
+              translateIndexes.add(result.index)
+
+              const sourceItem = parsed.items[result.index]
+              mismatches.push({
+                defaultText: sourceItem?.text ?? '',
+                existingText: existingByIndex.get(result.index) ?? '',
+                index: result.index,
+                path: sourceItem?.path ?? '',
+                reason: result.reason || 'Ontbrekende informatie gedetecteerd.',
+              })
+              if (sourceItem) {
+                translateCandidates.push({ index: result.index, text: sourceItem.text })
+              }
+            }
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : 'Controle van bestaande vertalingen mislukt.'
+            return Response.json({ message }, { status: 500 })
+          }
+        }
+
+        const sortedIndexes = Array.from(translateIndexes).sort((a, b) => a - b)
+
+        let suggestions: TranslateReviewSuggestion[] = []
+
+        if (translateCandidates.length) {
+          try {
+            const uniqueCandidates = new Map<number, string>()
+            for (const entry of translateCandidates) {
+              if (!uniqueCandidates.has(entry.index)) {
+                uniqueCandidates.set(entry.index, entry.text)
+              }
+            }
+
+            const orderedCandidates = sortedIndexes
+              .map((index) =>
+                uniqueCandidates.has(index)
+                  ? { index, text: uniqueCandidates.get(index) ?? '' }
+                  : null,
+              )
+              .filter((entry): entry is TranslateSuggestionInput => Boolean(entry))
+
+            const chunks = chunkSuggestionInputs(orderedCandidates)
+
+            const collected: TranslateReviewSuggestion[] = []
+            for (const chunk of chunks) {
+              const translated = await openAiTranslateTexts(
+                chunk.map((item) => item.text),
+                parsed.from,
+                localeCode,
+              )
+
+              chunk.forEach((item, chunkIndex) => {
+                const text = translated[chunkIndex] ?? ''
+                collected.push({ index: item.index, text })
+              })
+            }
+
+            suggestions = collected
+          } catch (_error) {
+            suggestions = []
+          }
+        }
+
+        locales.push({
+          code: localeCode,
+          existingCount,
+          mismatches,
+          suggestions: suggestions.length ? suggestions : undefined,
+          translateIndexes: sortedIndexes,
+        })
+      }
+
+      return Response.json({ locales })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid request body'
+      return Response.json({ message }, { status: 400 })
+    }
+  }
+}
+
