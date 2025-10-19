@@ -1,5 +1,9 @@
 # payload-sync-ai-translations
 
+## Warning
+
+This plugin is in active development and may have breaking changes. It’s currently being tested on a client project. I recommend not using the 1.0.0 release in production yet.
+
 ## Overview
 
 **payload-sync-ai-translations** is a Payload CMS plugin that adds a powerful one-click translation workflow to your projects.  
