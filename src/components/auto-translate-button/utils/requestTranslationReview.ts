@@ -75,13 +75,13 @@ export async function requestTranslationReview(request: ReviewRequest): Promise<
   })
 
   if (!response.ok) {
-    const message = await response.text().catch(() => 'Vertaalcontrole mislukt.')
-    throw new Error(message || 'Vertaalcontrole mislukt.')
+    const message = await response.text().catch(() => 'Translation review failed.')
+    throw new Error(message || 'Translation review failed.')
   }
 
   const body = (await response.json()) as TranslateReviewResponse
   if (!body || !Array.isArray(body.locales)) {
-    throw new Error('Onverwachte reactie van de vertaalcontrole.')
+    throw new Error('Unexpected response from translation review.')
   }
 
   const locales = body.locales
@@ -90,4 +90,3 @@ export async function requestTranslationReview(request: ReviewRequest): Promise<
 
   return { locales }
 }
-

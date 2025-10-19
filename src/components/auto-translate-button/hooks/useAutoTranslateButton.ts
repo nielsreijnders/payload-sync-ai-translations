@@ -55,7 +55,10 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
   const formApi = (documentForm ?? form) as FormApi | undefined
 
   const prepareLocalesForTranslation = React.useCallback(
-    (items: PendingReview['items'], locales: PendingReviewLocale[]): LocaleTranslationSelection[] => {
+    (
+      items: PendingReview['items'],
+      locales: PendingReviewLocale[],
+    ): LocaleTranslationSelection[] => {
       return locales
         .map((locale) => {
           const skipSet = new Set(locale.skipped)
@@ -102,11 +105,11 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
   const buildTranslationRequest = React.useCallback(
     (items: PendingReview['items'], locales: LocaleTranslationSelection[]) => {
       if (!collectionSlug) {
-        throw new Error('Localization instellingen ontbreken.')
+        throw new Error('Localization settings are missing.')
       }
 
       if (!id) {
-        throw new Error('Document-ID ontbreekt.')
+        throw new Error('Document ID is missing.')
       }
 
       const identifier = typeof id === 'string' ? id : String(id)
@@ -139,35 +142,35 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       const translationRequest = buildTranslationRequest(items, locales)
 
       if (!translationRequest.locales.length) {
-        toast.info('Geen velden om te synchroniseren.')
+        toast.info('No fields to sync.')
         return { finished: true, hadError: false }
       }
 
       const toastId = 'ai-translate-progress'
       return performTranslations(translationRequest, {
         onApplied: (locale) => {
-          toast.message(`Vertalingen opgeslagen voor ${locale}.`, { id: toastId })
+          toast.message(`Translations saved for ${locale}.`, { id: toastId })
         },
         onDone: () => {
-          toast.success('Alle vertalingen gesynchroniseerd.', { id: toastId })
+          toast.success('All translations synchronized.', { id: toastId })
         },
         onError: (message) => {
           toast.error(message, { id: toastId })
         },
         onMissingBody: () => {
-          toast.error('De server heeft geen gegevens teruggestuurd.', { id: toastId })
+          toast.error('The server did not return any data.', { id: toastId })
         },
         onProgress: ({ completed, locale, total }) => {
           const percentage = total ? Math.round((completed / total) * 100) : 100
-          toast.message(`Vertalen ${locale}… ${completed}/${total} (${percentage}%)`, {
+          toast.message(`Translating ${locale}… ${completed}/${total} (${percentage}%)`, {
             id: toastId,
           })
         },
         onStart: () => {
-          toast.message('Vertalingen starten…', { id: toastId })
+          toast.message('Translations starting…', { id: toastId })
         },
         onUnexpectedResponse: (status, statusText, bodyText) => {
-          toast.error(`Serverfout: ${status} ${statusText} ${bodyText}`, { id: toastId })
+          toast.error(`Server error: ${status} ${statusText} ${bodyText}`, { id: toastId })
         },
       })
     },
@@ -181,17 +184,17 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
     }
 
     if (!id) {
-      toast.error('Sla het document eerst op voordat je vertaalt.')
+      toast.error('Save the document first before translating.')
       return
     }
 
     if (!defaultLocale || !collectionSlug) {
-      toast.error('Localization instellingen ontbreken.')
+      toast.error('Localization settings are missing.')
       return
     }
 
     if (!otherLocales.length) {
-      toast.info('Geen andere talen om te synchroniseren.')
+      toast.info('No other languages to synchronize.')
       return
     }
 
@@ -202,7 +205,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       const items = buildTranslatableItems(data, fieldPatterns)
 
       if (!items.length) {
-        toast.info('Geen vertaalbare velden gevonden.')
+        toast.info('No translatable fields found.')
         return
       }
 
@@ -211,7 +214,8 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
         collection: collectionSlug,
         defaultLocale,
         items,
-        locales: otherLocales,
+        // Oopsie for later
+        locales: otherLocales as any,
       })
 
       const localesToTranslate: PendingReviewLocale[] = review.locales
@@ -242,7 +246,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
         .filter((locale) => locale.translateIndexes.length || Object.keys(locale.overrides).length)
 
       if (!localesToTranslate.length) {
-        toast.info('Alle vertalingen zijn up-to-date.')
+        toast.info('All translations are up-to-date.')
         return
       }
 
@@ -252,7 +256,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
 
       if (requiresReview) {
         setPendingReview({ items, locales: localesToTranslate })
-        toast.info('Controleer ontbrekende informatie voordat je de vertalingen doorvoert.')
+        toast.info('Check missing information before proceeding with translations.')
         return
       }
 
@@ -260,10 +264,10 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       const { finished, hadError } = await runTranslations(items, preparedLocales)
 
       if (!hadError && !finished) {
-        toast.success('Vertalingen gesynchroniseerd.')
+        toast.success('Translations synchronized.')
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Vertalen mislukt.'
+      const message = error instanceof Error ? error.message : 'Translation failed.'
       toast.error(message)
     } finally {
       setBusy(false)
@@ -345,18 +349,18 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       const locales = prepareLocalesForTranslation(pendingReview.items, pendingReview.locales)
 
       if (!locales.length) {
-        toast.info('Geen velden geselecteerd voor vertaling.')
+        toast.info('No fields selected for translation.')
         setPendingReview(null)
         return
       }
 
       const { finished, hadError } = await runTranslations(pendingReview.items, locales)
       if (!hadError && !finished) {
-        toast.success('Vertalingen gesynchroniseerd.')
+        toast.success('Translations synchronized.')
       }
       setPendingReview(null)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Vertalen mislukt.'
+      const message = error instanceof Error ? error.message : 'Translation failed.'
       toast.error(message)
     } finally {
       setBusy(false)

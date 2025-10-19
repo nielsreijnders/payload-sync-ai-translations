@@ -97,7 +97,7 @@ export async function performTranslations(
               stop = true
               break
             case 'error':
-              callbacks.onError(parsed.message || 'Vertalen mislukt.')
+              callbacks.onError(parsed.message || 'Translation failed.')
               hadError = true
               stop = true
               break

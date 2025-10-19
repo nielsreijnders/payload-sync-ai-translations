@@ -55,9 +55,9 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
     <Modal slug={slug}>
       <div className={styles.modalContent}>
         <header className={styles.introMinimal}>
-          <h2 className={styles.introTitle}>Controleer ontbrekende informatie</h2>
+          <h2 className={styles.introTitle}>Review missing information</h2>
           <p className={styles.introDescription}>
-            Velden hieronder hebben aandacht nodig t.o.v. de hoofdtaal.
+            Fields below need attention compared to the default language.
           </p>
         </header>
 
@@ -70,7 +70,7 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
 
             {locale.mismatches.length === 0 ? (
               <p className={styles.emptyState}>
-                Geen bestaande vertalingen, ontbrekende velden worden vertaald.
+                No existing translations, missing fields will be translated.
               </p>
             ) : (
               <ul className={styles.diffList}>
@@ -97,7 +97,7 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
                             onClick={() => setExpanded((s) => ({ ...s, [id]: !s[id] }))}
                             type="button"
                           >
-                            {showEditor ? 'Sluit editor' : 'Bewerk'}
+                            {showEditor ? 'Close editor' : 'Edit'}
                           </button>
 
                           <button
@@ -106,7 +106,7 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
                             onClick={() => updateLocaleSkip(locale.code, item.index, !isSkipped)}
                             type="button"
                           >
-                            {isSkipped ? 'Opnemen' : 'Overslaan'}
+                            {isSkipped ? 'Include' : 'Skip'}
                           </button>
                         </div>
                       </div>
@@ -123,13 +123,13 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
                             onChange={(e) =>
                               updateLocaleOverride(locale.code, item.index, e.target.value)
                             }
-                            placeholder="Voer aangepaste vertaling in (leeg = gebruik bestaande)"
+                            placeholder="Enter custom translation (empty = use existing)"
                             rows={3}
                             value={overrideValue}
                           />
                           {effectiveTarget ? (
                             <div className={styles.previewBox}>
-                              <div className={styles.previewLabel}>Voorbeeld</div>
+                              <div className={styles.previewLabel}>Preview</div>
                               <pre className={`${styles.diffLine} ${styles.diffAdd}`}>
                                 + {effectiveTarget}
                               </pre>
@@ -146,11 +146,11 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
         ))}
 
         <footer className={styles.actionsMinimal}>
-          <Button disabled={modalBusy} onClick={cancelReview} type="button" variant="secondary">
-            Annuleren
+          <Button disabled={modalBusy} onClick={cancelReview} type="button">
+            Cancel
           </Button>
           <Button disabled={modalBusy} onClick={confirmReview} type="button">
-            {modalBusy ? 'Bezig…' : 'Doorvoeren'}
+            {modalBusy ? 'Working…' : 'Apply changes'}
           </Button>
         </footer>
       </div>

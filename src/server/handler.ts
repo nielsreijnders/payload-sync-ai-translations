@@ -20,7 +20,9 @@ function isTranslateItem(
   )
 }
 
-function isTranslateChunk(value: unknown): value is TranslateLocaleRequestPayload['chunks'][number] {
+function isTranslateChunk(
+  value: unknown,
+): value is TranslateLocaleRequestPayload['chunks'][number] {
   return Array.isArray(value) && value.every(isTranslateItem)
 }
 
@@ -67,18 +69,18 @@ function parseBody(body: unknown): TranslateRequestPayload {
     const overrides = (entry as { overrides?: unknown }).overrides
 
     if (typeof code !== 'string' || !code) {
-      throw new Error('Elke taal moet een niet-lege locale code bevatten')
+      throw new Error('Each locale must include a non-empty locale code')
     }
 
     if (!Array.isArray(chunks) || !chunks.every(isTranslateChunk)) {
-      throw new Error('Elke taal moet geldige vertaalitems bevatten')
+      throw new Error('Each locale must contain valid translation items')
     }
 
     if (
       overrides !== undefined &&
       (!Array.isArray(overrides) || !overrides.every(isTranslateItem))
     ) {
-      throw new Error('Elke taal moet geldige overrides bevatten')
+      throw new Error('Each locale must contain valid overrides')
     }
 
     parsedLocales.push({
@@ -107,6 +109,7 @@ export function createAiTranslateHandler(): PayloadHandler {
         throw new Error('Payload instance is not available on the request')
       }
 
+      // @ts-ignore oopsie for now
       const parsed = parseBody(await req.json())
 
       const stream = new ReadableStream({

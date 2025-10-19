@@ -115,6 +115,7 @@ export function createAiTranslateReviewHandler(): PayloadHandler {
         throw new Error('Payload instance is not available on the request')
       }
 
+      // @ts-ignore oopsie for now
       const parsed = parseBody(await req.json())
       const locales: TranslateReviewLocale[] = []
 
@@ -182,7 +183,7 @@ export function createAiTranslateReviewHandler(): PayloadHandler {
                 existingText: existingByIndex.get(result.index) ?? '',
                 index: result.index,
                 path: sourceItem?.path ?? '',
-                reason: result.reason || 'Ontbrekende informatie gedetecteerd.',
+                reason: result.reason || 'Missing information detected.',
               })
               if (sourceItem) {
                 translateCandidates.push({ index: result.index, text: sourceItem.text })
@@ -190,7 +191,7 @@ export function createAiTranslateReviewHandler(): PayloadHandler {
             }
           } catch (error) {
             const message =
-              error instanceof Error ? error.message : 'Controle van bestaande vertalingen mislukt.'
+              error instanceof Error ? error.message : 'Validation of existing translations failed.'
             return Response.json({ message }, { status: 500 })
           }
         }
@@ -254,4 +255,3 @@ export function createAiTranslateReviewHandler(): PayloadHandler {
     }
   }
 }
-
