@@ -11,7 +11,7 @@ function transformPath(target, condition) {
     return target;
   }
 
-  let updated = target.replace(/^\.\/src\//, './dist/');
+  let updated = target.replace(/^\.\/src\//, './');
 
   if (condition === 'types') {
     updated = updated.replace(/\.[mc]?tsx?$/u, '.d.ts');
@@ -28,9 +28,9 @@ function transformExports(exportsField = {}) {
   if (entries.length === 0) {
     return {
       '.': {
-        import: './dist/index.js',
-        types: './dist/index.d.ts',
-        default: './dist/index.js',
+        import: './index.js',
+        types: './index.d.ts',
+        default: './index.js',
       },
     };
   }
@@ -66,8 +66,8 @@ async function main() {
     version: pkg.version,
     license: pkg.license,
     type: pkg.type,
-    main: './dist/index.js',
-    types: './dist/index.d.ts',
+    main: './index.js',
+    types: './index.d.ts',
     exports: transformExports(pkg.exports),
     peerDependencies: pkg.peerDependencies,
     engines: pkg.engines,
