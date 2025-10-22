@@ -56,6 +56,10 @@
     "@payloadcms/richtext-lexical": "3.37.0",
     "@payloadcms/ui": "3.37.0",
     "@playwright/test": "^1.52.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.0",
+    "@semantic-release/npm": "^13.1.1",
     "@swc-node/register": "1.10.9",
     "@swc/cli": "0.6.0",
     "@types/node": "^22.5.4",
@@ -66,22 +70,23 @@
     "eslint": "^9.23.0",
     "eslint-config-next": "15.4.4",
     "graphql": "^16.8.1",
+    "lucide-react": "0.437.0",
     "mongodb-memory-server": "10.1.4",
     "next": "15.4.4",
     "open": "^10.1.0",
+    "openai": "4.73.0",
     "payload": "3.37.0",
     "prettier": "^3.4.2",
     "qs-esm": "7.0.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "rimraf": "3.0.2",
+    "semantic-release": "^25.0.1",
     "sharp": "0.34.2",
     "sort-package-json": "^2.10.0",
     "typescript": "5.7.3",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.1.2",
-    "openai": "4.73.0",
-    "lucide-react": "0.437.0"
+    "vitest": "^3.1.2"
   },
   "peerDependencies": {
     "payload": "^3.37.0"
@@ -100,6 +105,5 @@
       "unrs-resolver"
     ]
   },
-  "registry": "https://registry.npmjs.org/",
-  "dependencies": {}
+  "registry": "https://registry.npmjs.org/"
 }
