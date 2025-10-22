@@ -1,3 +1,10 @@
+## [1.1.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.1.1...v1.1.2) (2025-10-22)
+
+
+### Bug Fixes
+
+* update AutoTranslateButtonProps to support list of supported locales with labels ([17121df](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/17121df1a37b4d01ac3c4c7db16dd0e8b88a8266))
+
 ## [1.1.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.1.0...v1.1.1) (2025-10-22)
 
 
