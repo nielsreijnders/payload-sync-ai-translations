@@ -1,4 +1,4 @@
-import type { TypedLocale } from 'payload'
+import type { LocalizationConfig, TypedLocale } from 'payload'
 
 import { toast, useDocumentForm, useDocumentInfo, useForm, useLocale } from '@payloadcms/ui'
 import * as React from 'react'
@@ -13,7 +13,7 @@ import { useLocalizedFieldPatterns } from './useLocalizedFieldPatterns.js'
 
 export type AutoTranslateButtonProps = {
   defaultLocale: TypedLocale
-  locales: TypedLocale[]
+  locales: LocalizationConfig['locales']
 }
 
 export type FormApi = ReturnType<typeof useForm>
@@ -48,7 +48,16 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
 
   const defaultLocale = configDefaultLocale || 'en'
   const otherLocales = React.useMemo(
-    () => configLocales.filter((locale) => locale !== defaultLocale).map((locale) => locale),
+    () =>
+      configLocales
+        .filter((locale) => {
+          if (typeof locale === 'object') {
+            return locale.code !== defaultLocale
+          }
+
+          return locale !== defaultLocale
+        })
+        .map((locale) => locale),
     [configLocales, defaultLocale],
   )
 
