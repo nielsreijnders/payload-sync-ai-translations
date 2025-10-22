@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.1.0...v1.1.1) (2025-10-22)
+
+
+### Bug Fixes
+
+* update repository URL format and improve package.json structure ([18b7aaf](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/18b7aaf9d57a98ed0048b00831a389e8d70514fd))
+
 # [1.1.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.0.0...v1.1.0) (2025-10-22)
 
 
