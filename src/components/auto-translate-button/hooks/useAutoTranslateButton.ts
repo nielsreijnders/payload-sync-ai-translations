@@ -1,4 +1,4 @@
-import type { TypedLocale } from 'payload'
+import type { LocalizationConfig } from 'payload/dist/config/types.js'
 
 import { toast, useDocumentForm, useDocumentInfo, useForm, useLocale } from '@payloadcms/ui'
 import * as React from 'react'
@@ -11,9 +11,47 @@ import { performTranslations } from '../utils/performTranslations.js'
 import { requestTranslationReview } from '../utils/requestTranslationReview.js'
 import { useLocalizedFieldPatterns } from './useLocalizedFieldPatterns.js'
 
+type LocalizationLocale = LocalizationConfig extends { locales: Array<infer Locale> }
+  ? Locale
+  : never
+
+type LocaleInput = ReadonlyArray<LocalizationLocale> | string[]
+
 export type AutoTranslateButtonProps = {
-  defaultLocale: TypedLocale
-  locales: TypedLocale[]
+  defaultLocale?: null | string
+  locales?: LocaleInput | null
+}
+
+function extractLocaleCode(locale: unknown): null | string {
+  if (typeof locale === 'string') {
+    return locale
+  }
+
+  if (locale && typeof locale === 'object') {
+    const candidate = locale as { code?: unknown; value?: unknown }
+
+    if (typeof candidate.code === 'string' && candidate.code.length > 0) {
+      return candidate.code
+    }
+
+    if (typeof candidate.value === 'string' && candidate.value.length > 0) {
+      return candidate.value
+    }
+  }
+
+  return null
+}
+
+function normalizeLocaleCodes(locales: AutoTranslateButtonProps['locales']): string[] {
+  if (!Array.isArray(locales)) {
+    return []
+  }
+
+  const codes = locales
+    .map((locale) => extractLocaleCode(locale))
+    .filter((locale): locale is string => typeof locale === 'string' && locale.length > 0)
+
+  return Array.from(new Set(codes))
 }
 
 export type FormApi = ReturnType<typeof useForm>
@@ -35,7 +73,18 @@ type LocaleTranslationSelection = {
 }
 
 export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
-  const { defaultLocale: configDefaultLocale, locales: configLocales } = props
+  const localeCodes = React.useMemo(() => normalizeLocaleCodes(props.locales), [props.locales])
+  const defaultLocale = React.useMemo(() => {
+    if (typeof props.defaultLocale === 'string' && props.defaultLocale.length > 0) {
+      return props.defaultLocale
+    }
+
+    return localeCodes[0] ?? ''
+  }, [localeCodes, props.defaultLocale])
+  const otherLocales = React.useMemo(
+    () => localeCodes.filter((locale) => locale !== defaultLocale),
+    [defaultLocale, localeCodes],
+  )
   const { id, collectionSlug, docConfig } = useDocumentInfo()
   const form = useForm()
   const documentForm = useDocumentForm()
@@ -45,12 +94,6 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
   const [pendingReview, setPendingReview] = React.useState<null | PendingReview>(null)
 
   const fieldPatterns = useLocalizedFieldPatterns((docConfig as { fields?: AnyField[] })?.fields)
-
-  const defaultLocale = configDefaultLocale || 'en'
-  const otherLocales = React.useMemo(
-    () => configLocales.filter((locale) => locale !== defaultLocale).map((locale) => locale),
-    [configLocales, defaultLocale],
-  )
 
   const formApi = (documentForm ?? form) as FormApi | undefined
 
@@ -214,8 +257,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
         collection: collectionSlug,
         defaultLocale,
         items,
-        // Oopsie for later
-        locales: otherLocales as any,
+        locales: otherLocales,
       })
 
       const localesToTranslate: PendingReviewLocale[] = review.locales

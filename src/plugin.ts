@@ -1,11 +1,51 @@
-import type { CollectionConfig, Config } from 'payload'
+import type { CollectionConfig, Config, SanitizedConfig } from 'payload'
+
+import type { AutoTranslateButtonProps } from './components/auto-translate-button/hooks/useAutoTranslateButton.js'
 
 import { createAiTranslateHandler } from './server/handler.js'
 import { createAiTranslateReviewHandler } from './server/review.js'
 import { setOpenAISettings } from './server/settings.js'
 
+type PayloadLocalizationConfig = Exclude<Config['localization'], false>
+type PayloadSanitizedLocalizationConfig = Exclude<SanitizedConfig['localization'], false>
+type SupportedLocalizationConfig = PayloadLocalizationConfig | PayloadSanitizedLocalizationConfig
+
+function extractLocaleCodes(localization: SupportedLocalizationConfig): string[] {
+  if ('localeCodes' in localization && Array.isArray(localization.localeCodes)) {
+    return localization.localeCodes.filter((locale): locale is string => typeof locale === 'string' && locale.length > 0)
+  }
+
+  const locales = localization.locales ?? []
+
+  return locales
+    .map((locale) => {
+      if (typeof locale === 'string') {
+        return locale
+      }
+
+      if (locale && typeof locale === 'object') {
+        if ('code' in locale) {
+          const { code } = locale as { code?: unknown }
+          if (typeof code === 'string' && code.length > 0) {
+            return code
+          }
+        }
+
+        if ('value' in locale) {
+          const { value } = locale as { value?: unknown }
+          if (typeof value === 'string' && value.length > 0) {
+            return value
+          }
+        }
+      }
+
+      return null
+    })
+    .filter((locale): locale is string => typeof locale === 'string' && locale.length > 0)
+}
+
 export type AiLocalizationCollectionOptions = {
-  clientProps?: Record<string, unknown> // add this
+  clientProps?: null | (Partial<AutoTranslateButtonProps> & Record<string, unknown>)
   excludeFields?: string[]
 }
 
@@ -35,7 +75,13 @@ export const payloadSyncAiTranslations =
 
     setOpenAISettings(options.openai)
 
-    const { defaultLocale, locales = [] } = config.localization
+    const localization = config.localization
+    const { defaultLocale } = localization
+    const localeCodes = extractLocaleCodes(localization)
+    const normalizedLocaleCodes =
+      typeof defaultLocale === 'string' && defaultLocale.length
+        ? [defaultLocale, ...localeCodes.filter((code) => code !== defaultLocale)]
+        : localeCodes
 
     const collections = (config.collections ?? []).map((collection) => {
       const perColl = options.collections[collection.slug]
@@ -44,10 +90,10 @@ export const payloadSyncAiTranslations =
       }
 
       // Merge any user-supplied clientProps with helpful defaults
-      const clientProps = {
+      const clientProps: AutoTranslateButtonProps & Record<string, unknown> = {
         // your defaults coming from Payload localization config:
         defaultLocale,
-        locales,
+        locales: normalizedLocaleCodes,
         // user-provided overrides / extras:
         ...(perColl.clientProps ?? {}),
       }
