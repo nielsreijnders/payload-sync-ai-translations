@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.0.0...v1.1.0) (2025-10-22)
+
+
+### Features
+
+* add semantic-release for dist only ([e499fe4](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/e499fe4014eba54a7e391ee8a88ade42799bc74e))
+
 # 1.0.0 (2025-10-22)
 
 
