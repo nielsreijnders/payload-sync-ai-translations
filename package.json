@@ -2,6 +2,10 @@
   "name": "payload-sync-ai-translations",
   "version": "1.0.0",
   "description": "A blank template to get started with Payload 3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nielsreijnders/payload-sync-ai-translations.git"
+  },
   "license": "MIT",
   "type": "module",
   "exports": {
