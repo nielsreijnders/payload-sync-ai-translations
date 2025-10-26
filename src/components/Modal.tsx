@@ -6,6 +6,7 @@ import * as React from 'react'
 
 import type { TranslateReviewLocale } from '../server/types.js'
 
+import { stripLexicalMarkers } from '../utils/lexical.js'
 import styles from './Modal.module.css'
 
 type PendingReviewLocale = {
@@ -26,10 +27,13 @@ type AutoTranslateReviewModalProps = {
 }
 
 function DiffBlock({ defaultText, existingText }: { defaultText: string; existingText?: string }) {
+  const formattedDefault = stripLexicalMarkers(defaultText)
+  const formattedExisting = existingText ? stripLexicalMarkers(existingText) : existingText
+
   return (
     <div className={styles.diff}>
-      <pre className={`${styles.diffLine} ${styles.diffDel}`}>- {defaultText || '—'}</pre>
-      <pre className={`${styles.diffLine} ${styles.diffAdd}`}>+ {existingText || '—'}</pre>
+      <pre className={`${styles.diffLine} ${styles.diffDel}`}>- {formattedDefault || '—'}</pre>
+      <pre className={`${styles.diffLine} ${styles.diffAdd}`}>+ {formattedExisting || '—'}</pre>
     </div>
   )
 }
@@ -81,6 +85,9 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
                   const showEditor = !!expanded[id]
 
                   const effectiveTarget = overrideValue || item.existingText || ''
+                  const previewText = effectiveTarget
+                    ? stripLexicalMarkers(effectiveTarget)
+                    : effectiveTarget
 
                   return (
                     <li
@@ -131,7 +138,7 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
                             <div className={styles.previewBox}>
                               <div className={styles.previewLabel}>Preview</div>
                               <pre className={`${styles.diffLine} ${styles.diffAdd}`}>
-                                + {effectiveTarget}
+                                + {previewText}
                               </pre>
                             </div>
                           ) : null}

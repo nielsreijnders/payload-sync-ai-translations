@@ -8,6 +8,7 @@ import type {
   TranslateReviewSuggestion,
 } from './types.js'
 
+import { stripLexicalMarkers } from '../utils/lexical.js'
 import { extractPlainText, getValueAtPath, MAX_CHARS_PER_CHUNK } from '../utils/localizedFields.js'
 import {
   type MissingInformationCheckInput,
@@ -144,6 +145,7 @@ export async function generateTranslationReview(
     const translateCandidates: TranslateSuggestionInput[] = []
 
     request.items.forEach((item, index) => {
+      const defaultText = item.lexical ? stripLexicalMarkers(item.text) : item.text
       const existingValue = localeDoc ? getValueAtPath(localeDoc, item.path) : undefined
       const existingText = extractPlainText(existingValue) ?? ''
 
@@ -156,7 +158,7 @@ export async function generateTranslationReview(
       existingCount += 1
       existingByIndex.set(index, existingText)
       aiInputs.push({
-        defaultText: item.text,
+        defaultText,
         index,
         translatedText: existingText,
       })
@@ -174,7 +176,9 @@ export async function generateTranslationReview(
 
           const sourceItem = request.items[result.index]
           mismatches.push({
-            defaultText: sourceItem?.text ?? '',
+            defaultText: sourceItem?.lexical
+              ? stripLexicalMarkers(sourceItem.text)
+              : sourceItem?.text ?? '',
             existingText: existingByIndex.get(result.index) ?? '',
             index: result.index,
             path: sourceItem?.path ?? '',

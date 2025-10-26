@@ -60,6 +60,7 @@ export async function openAiTranslateTexts(
   const userPrompt = [
     `Translate each line from ${from} to ${to}.`,
     'Keep formatting and punctuation.',
+    'If text includes markers like [[LEX-0]]...[[/LEX-0]], preserve them exactly as-is.',
     `Return strict JSON in the shape {"t": [...]} with exactly ${inputs.length} entries.`,
     numbered,
   ].join('\n')
