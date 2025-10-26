@@ -109,5 +109,8 @@
       "unrs-resolver"
     ]
   },
-  "registry": "https://registry.npmjs.org/"
+  "registry": "https://registry.npmjs.org/",
+  "dependencies": {
+    "jsdom": "^27.0.1"
+  }
 }

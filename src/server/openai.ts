@@ -7,7 +7,7 @@ const DEFAULT_MODEL = 'gpt-4o-mini'
 const SYSTEM_PROMPT = [
   'You are a translation engine.',
   'Reply using strict JSON that matches {"t": ["..."]}.',
-  'Preserve order, punctuation, inline formatting, and casing.',
+  'Preserve order, punctuation, inline formatting, casing, and any HTML tags or placeholders exactly as provided.',
   'Do not translate product names, slugs, codes, or URLs.',
 ].join(' ')
 
@@ -59,7 +59,7 @@ export async function openAiTranslateTexts(
   const numbered = inputs.map((value, index) => `${index + 1}. ${value}`).join('\n')
   const userPrompt = [
     `Translate each line from ${from} to ${to}.`,
-    'Keep formatting and punctuation.',
+    'Keep formatting, punctuation, and all HTML tags or placeholders unchanged.',
     `Return strict JSON in the shape {"t": [...]} with exactly ${inputs.length} entries.`,
     numbered,
   ].join('\n')

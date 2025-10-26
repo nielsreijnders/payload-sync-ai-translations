@@ -7,7 +7,8 @@ import type {
   TranslateStreamEvent,
 } from './types.js'
 
-import { toLexical } from '../utils/lexical.js'
+import { getValueAtPath, isLexicalValue } from '../utils/localizedFields.js'
+import { htmlToLexicalValue, lexicalValueToHTML } from './lexical.js'
 import { openAiTranslateTexts } from './openai.js'
 
 function cloneLocaleData<T>(value: T): T {
@@ -164,7 +165,23 @@ export async function* streamTranslations(
     let completed = 0
 
     for (const chunk of chunks) {
-      const texts = chunk.map((item) => item.text)
+      const texts = await Promise.all(
+        chunk.map(async (item) => {
+          if (!item.lexical) {
+            return item.text
+          }
+
+          const originalValue = baseDoc ? getValueAtPath(baseDoc, item.path) : undefined
+          if (isLexicalValue(originalValue)) {
+            const html = await lexicalValueToHTML(originalValue)
+            if (html) {
+              return html
+            }
+          }
+
+          return item.text
+        }),
+      )
 
       let translated: string[]
       try {
@@ -192,7 +209,12 @@ export async function* streamTranslations(
       for (let index = 0; index < chunk.length; index += 1) {
         const item = chunk[index]
         const translatedText = translated[index]
-        const nextValue = item.lexical ? toLexical(translatedText) : translatedText
+        let nextValue: unknown = translatedText
+
+        if (item.lexical) {
+          nextValue = await htmlToLexicalValue(payload, translatedText)
+        }
+
         localeData = setValueAtPath(baseDoc, localeData, item.path, nextValue)
       }
 
@@ -202,7 +224,9 @@ export async function* streamTranslations(
 
     if (overrideItems.length) {
       for (const override of overrideItems) {
-        const nextValue = override.lexical ? toLexical(override.text) : override.text
+        const nextValue = override.lexical
+          ? await htmlToLexicalValue(payload, override.text)
+          : override.text
         localeData = setValueAtPath(baseDoc, localeData, override.path, nextValue)
         completed += 1
         yield { type: 'progress', completed, locale, total: localeTotalItems }

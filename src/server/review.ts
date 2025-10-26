@@ -9,6 +9,7 @@ import type {
 } from './types.js'
 
 import { extractPlainText, getValueAtPath, MAX_CHARS_PER_CHUNK } from '../utils/localizedFields.js'
+import { lexicalValueToHTML } from './lexical.js'
 import {
   type MissingInformationCheckInput,
   openAiDetectMissingInformation,
@@ -112,6 +113,41 @@ export async function generateTranslationReview(
   payload: Payload,
   request: TranslateReviewRequestPayload,
 ): Promise<TranslateReviewResponse> {
+  let baseDoc: null | Record<string, unknown> = null
+
+  try {
+    const result = await payload.findByID({
+      id: request.id,
+      collection: request.collection,
+      depth: 0,
+      fallbackLocale: false,
+      locale: request.from,
+    })
+
+    if (result && typeof result === 'object') {
+      baseDoc = result as Record<string, unknown>
+    }
+  } catch {
+    baseDoc = null
+  }
+
+  const defaultLexicalHTMLByIndex = new Map<number, string>()
+
+  if (baseDoc) {
+    for (let index = 0; index < request.items.length; index += 1) {
+      const item = request.items[index]
+      if (!item?.lexical) {
+        continue
+      }
+
+      const value = getValueAtPath(baseDoc, item.path)
+      const html = await lexicalValueToHTML(value)
+      if (html) {
+        defaultLexicalHTMLByIndex.set(index, html)
+      }
+    }
+  }
+
   const locales: TranslateReviewLocale[] = []
 
   for (const localeCode of request.locales) {
@@ -149,7 +185,8 @@ export async function generateTranslationReview(
 
       if (!existingText) {
         translateIndexes.add(index)
-        translateCandidates.push({ index, text: item.text })
+        const sourceText = item.lexical ? defaultLexicalHTMLByIndex.get(index) ?? item.text : item.text
+        translateCandidates.push({ index, text: sourceText })
         return
       }
 
@@ -181,7 +218,10 @@ export async function generateTranslationReview(
             reason: result.reason || 'Missing information detected.',
           })
           if (sourceItem) {
-            translateCandidates.push({ index: result.index, text: sourceItem.text })
+            const sourceText = sourceItem.lexical
+              ? defaultLexicalHTMLByIndex.get(result.index) ?? sourceItem.text
+              : sourceItem.text
+            translateCandidates.push({ index: result.index, text: sourceText })
           }
         }
       } catch (error) {
