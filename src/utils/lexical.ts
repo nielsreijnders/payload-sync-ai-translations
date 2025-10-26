@@ -89,11 +89,15 @@ function isTextNode(node: unknown): node is { text: string } & LexicalNode {
 }
 
 function isLineBreak(node: unknown): boolean {
-  return typeof node === 'object' && node !== null && (node as { type?: unknown }).type === 'linebreak'
+  return (
+    typeof node === 'object' && node !== null && (node as { type?: unknown }).type === 'linebreak'
+  )
 }
 
 function isListItem(node: unknown): boolean {
-  return typeof node === 'object' && node !== null && (node as { type?: unknown }).type === 'listitem'
+  return (
+    typeof node === 'object' && node !== null && (node as { type?: unknown }).type === 'listitem'
+  )
 }
 
 function collectSerialized(
@@ -212,6 +216,7 @@ function createFallbackLexical(text: string): LexicalValue {
     root: {
       type: 'root',
       children,
+      // @ts-expect-error have to look into this
       direction: 'ltr',
       format: '',
       indent: 0,

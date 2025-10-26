@@ -1,139 +1,280 @@
+/* BulkTranslate.module.css */
+
+/* Layout */
 .wrapper {
-  background: var(--theme-elevation-200);
-  border: 1px solid var(--theme-elevation-400);
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 1rem;
-  padding: 1.5rem;
 }
 
+/* Header */
 .header {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.toprow {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
 }
 
 .summary {
-  color: var(--theme-elevation-600);
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--theme-elevation-900);
+}
+.quickStats {
+  display: inline-flex;
+  gap: 0.75rem;
   font-size: 0.9rem;
+  color: var(--theme-elevation-800);
+}
+.quickStats strong {
+  font-weight: 700;
 }
 
-.selection {
+/* Controls */
+.controls {
   display: grid;
-  gap: 0.5rem;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
 }
-
-.option {
+.collections {
+  display: grid;
+  gap: 0.4rem;
+}
+.masterLabel {
+  display: inline-flex;
   align-items: center;
-  background: var(--theme-elevation-100);
-  border: 1px solid var(--theme-elevation-300);
-  border-radius: 6px;
-  display: flex;
   gap: 0.5rem;
-  padding: 0.75rem;
+  color: var(--theme-elevation-900);
+  font-size: 0.92rem;
 }
-
-.optionInput {
-  cursor: pointer;
-}
-
-.optionLabel {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-  cursor: pointer;
-}
-
-.optionSlug {
-  color: var(--theme-elevation-600);
-  font-size: 0.8rem;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.progressBar {
-  background: var(--theme-elevation-100);
-  border: 1px solid var(--theme-elevation-300);
-  border-radius: 999px;
-  height: 12px;
-  overflow: hidden;
-  position: relative;
-  width: 260px;
-}
-
-.progressFill {
-  background: var(--theme-success-500);
-  height: 100%;
-  transition: width 0.2s ease;
-  width: 0;
-}
-
-.progressMeta {
-  color: var(--theme-elevation-700);
+.collectionMeta {
+  margin-left: 0.25rem;
   font-size: 0.85rem;
-}
-
-.status {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.statusItem {
   color: var(--theme-elevation-700);
-  font-size: 0.85rem;
 }
-
-.log {
-  border-top: 1px solid var(--theme-elevation-400);
-  padding-top: 1rem;
-}
-
-.logList {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+.list {
   list-style: none;
   margin: 0;
-  max-height: 280px;
-  overflow-y: auto;
   padding: 0;
+  display: grid;
+  gap: 0.25rem;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 }
-
-.logItem {
-  border-radius: 6px;
-  padding: 0.5rem 0.75rem;
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 10px;
+  background: var(--theme-elevation-50);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
-
-.log-info {
+.item:hover {
   background: var(--theme-elevation-100);
+  border-color: var(--theme-elevation-200);
+}
+.itemText {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.92rem;
+  color: var(--theme-elevation-900);
+}
+.slug {
+  font-size: 0.75rem;
+  color: var(--theme-elevation-700);
+  background: var(--theme-elevation-75, var(--theme-elevation-50));
+  padding: 0.05rem 0.35rem;
+  border-radius: 6px;
+}
+
+/* Actions */
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Progress */
+.progressArea {
+  display: grid;
+  gap: 0.5rem;
+}
+.meter {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--theme-elevation-150);
+  overflow: hidden;
+  appearance: none;
+  color-scheme: light dark;
+}
+.meter::-webkit-meter-bar {
+  background: transparent;
+}
+.meter::-webkit-meter-optimum-value {
+  background: var(--theme-success-500);
+}
+.meter::-moz-meter-bar {
+  background: var(--theme-success-500);
+}
+
+.progressRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+.progressMeta {
+  font-size: 0.85rem;
   color: var(--theme-elevation-700);
 }
-
-.log-success {
-  background: rgba(34, 197, 94, 0.15);
-  color: var(--theme-success-700);
+.currentTask {
+  font-size: 0.9rem;
+  color: var(--theme-elevation-900);
 }
 
-.log-error {
-  background: rgba(239, 68, 68, 0.15);
-  color: var(--theme-error-700);
+/* Logs container */
+.log {
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 10px;
+  background: var(--theme-elevation-50);
+  overflow: hidden;
 }
-
-.log-skip {
-  background: rgba(251, 191, 36, 0.15);
-  color: var(--theme-warning-700);
+.log[open] {
+  background: var(--theme-elevation-75, var(--theme-elevation-50));
 }
-
-.currentDocument {
+.logSummary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--theme-elevation-900);
+}
+.inlineControls {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
   color: var(--theme-elevation-700);
   font-size: 0.85rem;
+}
+.selectWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Fix: select was white — laat het thema volgen */
+.select {
+  appearance: none;
+  border: 1px solid var(--theme-elevation-200);
+  background: var(--theme-elevation-50); /* geen wit */
+  padding: 0.2rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: var(--theme-elevation-900);
+  color-scheme: light dark; /* correcte contrasten in dark mode */
+}
+.select:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--theme-elevation-300),
+    0 0 0 4px var(--theme-elevation-150);
+  border-color: var(--theme-elevation-300);
+}
+
+/* Log list met kleur per status */
+.logList {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+  max-height: 260px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.86rem;
+  background: transparent;
+}
+.logItem {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.35rem 0.5rem;
+  border-left: 4px solid transparent;
+  border-radius: 6px;
+  margin: 0 0.25rem;
+}
+.logTime {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--theme-elevation-600);
+}
+.logMessage {
+  color: var(--theme-elevation-900);
+}
+
+/* Kleuren */
+.log-success {
+  border-left-color: var(--theme-success-500);
+  background: color-mix(in oklab, var(--theme-success-100), transparent 60%);
+}
+.log-error {
+  border-left-color: var(--theme-error-500);
+  background: color-mix(in oklab, var(--theme-error-100), transparent 60%);
+}
+.log-skip {
+  border-left-color: var(--theme-warning-500);
+  background: color-mix(in oklab, var(--theme-warning-100), transparent 60%);
+}
+.log-info {
+  border-left-color: var(--theme-elevation-300);
+  background: color-mix(in oklab, var(--theme-elevation-100), transparent 60%);
+}
+.logEmpty {
+  opacity: 0.8;
+}
+
+/* A11y focus */
+:where(.item, .select, summary) {
+  outline: none;
+}
+:where(.item, .select, summary):focus-visible {
+  box-shadow:
+    0 0 0 2px var(--theme-elevation-300),
+    0 0 0 4px var(--theme-elevation-150);
+  border-color: var(--theme-elevation-300);
+}
+
+/* Scrollbars (alleen logs) */
+.logList::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+.logList::-webkit-scrollbar-thumb {
+  background: var(--theme-elevation-200);
+  border-radius: 999px;
+}
+.logList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  .log {
+    border-color: var(--theme-elevation-200);
+  }
+  .select {
+    background: var(--theme-elevation-75);
+  }
 }
