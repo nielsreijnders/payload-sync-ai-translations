@@ -1,3 +1,16 @@
+# [1.2.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.1.2...v1.2.0) (2025-10-26)
+
+
+### Bug Fixes
+
+* ts error ([6b8a7ef](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/6b8a7ef1aa81d01d5f11e012ad76a8442ab90851))
+
+
+### Features
+
+* add bulk translation workflow ([cc7e1fe](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/cc7e1fe47185651f0052a91a03804319a8b95754))
+* add BulkTranslateGlobal to import map ([2d5be9d](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/2d5be9d11b96b9347341c991282f3791d3c79b14))
+
 ## [1.1.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.1.1...v1.1.2) (2025-10-22)
 
 
