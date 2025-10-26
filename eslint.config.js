@@ -20,10 +20,15 @@ export const defaultESLintIgnores = [
   '**/build/',
   '**/node_modules/',
   '**/temp/',
+  'dev/**',
+  'scripts/prepare-package.mjs',
 ]
 
 export default [
   ...payloadEsLintConfig,
+  {
+    ignores: ['dev/**', 'scripts/prepare-package.mjs'],
+  },
   {
     rules: {
       'no-restricted-exports': 'off',

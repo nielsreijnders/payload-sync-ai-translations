@@ -1,4 +1,4 @@
-import type { CollectionConfig, Config } from 'payload'
+import type { CollectionConfig, Config, GlobalConfig } from 'payload'
 
 import { createAiTranslateHandler } from './server/handler.js'
 import { createAiTranslateReviewHandler } from './server/review.js'
@@ -18,6 +18,8 @@ export type AiLocalizationConfig = {
 }
 
 const CLIENT_EXPORT = 'payload-sync-ai-translations/client#AutoTranslateButton'
+const BULK_CLIENT_EXPORT = 'payload-sync-ai-translations/client#BulkTranslateGlobal'
+const BULK_GLOBAL_SLUG = 'ai-bulk-translate'
 
 export const payloadSyncAiTranslations =
   (options: AiLocalizationConfig) =>
@@ -37,11 +39,29 @@ export const payloadSyncAiTranslations =
 
     const { defaultLocale, locales = [] } = config.localization
 
+    const collectionLabels = new Map<string, string>()
+
     const collections = (config.collections ?? []).map((collection) => {
       const perColl = options.collections[collection.slug]
       if (!perColl) {
         return collection
       }
+
+      const labels = collection.labels
+      let label: string | undefined
+      if (labels && typeof labels === 'object') {
+        if (typeof labels.plural === 'string' && labels.plural) {
+          label = labels.plural
+        } else if (typeof labels.singular === 'string' && labels.singular) {
+          label = labels.singular
+        }
+      }
+
+      if (!label && typeof (collection as { label?: unknown }).label === 'string') {
+        label = (collection as { label: string }).label
+      }
+
+      collectionLabels.set(collection.slug, label ?? collection.slug)
 
       // Merge any user-supplied clientProps with helpful defaults
       const clientProps = {
@@ -73,6 +93,58 @@ export const payloadSyncAiTranslations =
       } satisfies CollectionConfig
     })
 
+    const collectionOptions = collectionSlugs
+      .map((slug) => {
+        const label = collectionLabels.get(slug)
+        if (!label) {
+          return null
+        }
+
+        return { slug, label }
+      })
+      .filter((entry): entry is { label: string; slug: string } => Boolean(entry))
+
+    const localeCodes = locales
+      .map((locale) => (typeof locale === 'object' ? locale.code : locale))
+      .filter((code): code is string => typeof code === 'string' && code.length > 0)
+
+    const bulkGlobal: GlobalConfig = {
+      slug: BULK_GLOBAL_SLUG,
+      admin: {
+        components: {
+          elements: {
+            beforeDocumentControls: [
+              {
+                clientProps: {
+                  collections: collectionOptions,
+                  defaultLocale,
+                  locales: localeCodes,
+                },
+                path: BULK_CLIENT_EXPORT,
+              },
+            ],
+          },
+        },
+      },
+      fields: [
+        {
+          name: 'collections',
+          type: 'select',
+          admin: {
+            description:
+              'Select the collections that should be included when running the AI bulk translator.',
+          },
+          hasMany: true,
+          label: 'Collections',
+          options: collectionOptions.map((option) => ({ label: option.label, value: option.slug })),
+        },
+      ],
+      label: 'AI Bulk Translation',
+    }
+
+    const existingGlobals = config.globals ?? []
+    const globals = [...existingGlobals.filter((global) => global.slug !== BULK_GLOBAL_SLUG), bulkGlobal]
+
     return {
       ...config,
       collections,
@@ -81,5 +153,6 @@ export const payloadSyncAiTranslations =
         { handler: createAiTranslateHandler(), method: 'post', path: '/ai-translate' },
         { handler: createAiTranslateReviewHandler(), method: 'post', path: '/ai-translate/review' },
       ],
+      globals,
     }
   }

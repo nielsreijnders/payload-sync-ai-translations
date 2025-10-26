@@ -5,7 +5,13 @@ import * as React from 'react'
 
 import type { TranslateReviewLocale } from '../../../server/types.js'
 
-import { type AnyField, chunkItems } from '../../../utils/localizedFields.js'
+import { type AnyField } from '../../../utils/localizedFields.js'
+import {
+  buildTranslationRequest,
+  type LocalePreparationInput,
+  type LocaleTranslationSelection,
+  prepareLocalesForTranslation,
+} from '../../../utils/translationPlan.js'
 import { buildTranslatableItems } from '../utils/buildTranslatableItems.js'
 import { performTranslations } from '../utils/performTranslations.js'
 import { requestTranslationReview } from '../utils/requestTranslationReview.js'
@@ -21,17 +27,13 @@ export type FormApi = ReturnType<typeof useForm>
 type PendingReviewLocale = {
   overrides: Record<number, string>
   skipped: number[]
-} & TranslateReviewLocale
+} &
+  LocalePreparationInput &
+  TranslateReviewLocale
 
 type PendingReview = {
   items: ReturnType<typeof buildTranslatableItems>
   locales: PendingReviewLocale[]
-}
-
-type LocaleTranslationSelection = {
-  code: string
-  overrides: PendingReview['items'][number][]
-  translateIndexes: number[]
 }
 
 export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
@@ -50,69 +52,17 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
   const otherLocales = React.useMemo(
     () =>
       configLocales
-        .filter((locale) => {
-          if (typeof locale === 'object') {
-            return locale.code !== defaultLocale
-          }
-
-          return locale !== defaultLocale
-        })
-        .map((locale) => locale),
+        .map((locale) => (typeof locale === 'string' ? locale : locale?.code))
+        .filter(
+          (code): code is string => typeof code === 'string' && code.length > 0 && code !== defaultLocale,
+        ),
     [configLocales, defaultLocale],
   )
 
   const formApi = (documentForm ?? form) as FormApi | undefined
 
-  const prepareLocalesForTranslation = React.useCallback(
-    (
-      items: PendingReview['items'],
-      locales: PendingReviewLocale[],
-    ): LocaleTranslationSelection[] => {
-      return locales
-        .map((locale) => {
-          const skipSet = new Set(locale.skipped)
-          const overrideEntries = Object.entries(locale.overrides)
-            .map(([key, value]) => {
-              const parsedIndex = Number(key)
-              if (!Number.isInteger(parsedIndex)) {
-                return null
-              }
-
-              const item = items[parsedIndex]
-              if (!item) {
-                return null
-              }
-
-              const text = value.trim()
-              if (!text) {
-                return null
-              }
-
-              return { index: parsedIndex, item: { ...item, text } }
-            })
-            .filter((entry): entry is { index: number; item: PendingReview['items'][number] } =>
-              Boolean(entry),
-            )
-
-          const overrideIndexes = new Set(overrideEntries.map((entry) => entry.index))
-
-          const translateIndexes = Array.from(new Set(locale.translateIndexes))
-            .filter((index) => Number.isInteger(index) && index >= 0 && index < items.length)
-            .filter((index) => !skipSet.has(index) && !overrideIndexes.has(index))
-
-          return {
-            code: locale.code,
-            overrides: overrideEntries.map((entry) => entry.item),
-            translateIndexes,
-          }
-        })
-        .filter((locale) => locale.translateIndexes.length || locale.overrides.length)
-    },
-    [],
-  )
-
-  const buildTranslationRequest = React.useCallback(
-    (items: PendingReview['items'], locales: LocaleTranslationSelection[]) => {
+  const runTranslations = React.useCallback(
+    async (items: PendingReview['items'], locales: LocaleTranslationSelection[]) => {
       if (!collectionSlug) {
         throw new Error('Localization settings are missing.')
       }
@@ -122,35 +72,16 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       }
 
       const identifier = typeof id === 'string' ? id : String(id)
-      const localesWithChunks = locales
-        .map((locale) => {
-          const selected = locale.translateIndexes
-            .filter((index) => Number.isInteger(index) && index >= 0 && index < items.length)
-            .map((index) => items[index])
 
-          return {
-            chunks: chunkItems(selected),
-            code: locale.code,
-            overrides: locale.overrides,
-          }
-        })
-        .filter((locale) => locale.chunks.length || (locale.overrides?.length ?? 0) > 0)
-
-      return {
-        id: identifier,
+      const translationRequest = buildTranslationRequest({
         collection: collectionSlug,
         defaultLocale,
-        locales: localesWithChunks,
-      }
-    },
-    [collectionSlug, defaultLocale, id],
-  )
+        documentID: identifier,
+        items,
+        locales,
+      })
 
-  const runTranslations = React.useCallback(
-    async (items: PendingReview['items'], locales: LocaleTranslationSelection[]) => {
-      const translationRequest = buildTranslationRequest(items, locales)
-
-      if (!translationRequest.locales.length) {
+      if (!translationRequest) {
         toast.info('No fields to sync.')
         return { finished: true, hadError: false }
       }
@@ -183,7 +114,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
         },
       })
     },
-    [buildTranslationRequest],
+    [collectionSlug, defaultLocale, id],
   )
 
   const handleClick = React.useCallback(async () => {
@@ -223,8 +154,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
         collection: collectionSlug,
         defaultLocale,
         items,
-        // Oopsie for later
-        locales: otherLocales as any,
+        locales: otherLocales,
       })
 
       const localesToTranslate: PendingReviewLocale[] = review.locales
