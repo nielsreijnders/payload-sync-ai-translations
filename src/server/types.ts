@@ -78,3 +78,30 @@ export type TranslateStreamEvent =
   | TranslateDoneEvent
   | TranslateErrorEvent
   | TranslateProgressEvent
+
+export type BulkTranslateLogLevel = 'error' | 'info' | 'success' | 'warning'
+
+export type BulkTranslateLogEvent = {
+  level: BulkTranslateLogLevel
+  message: string
+  type: 'log'
+}
+
+export type BulkTranslateProgressEvent = {
+  completed: number
+  total: number
+  type: 'progress'
+}
+
+export type BulkTranslateErrorEvent = {
+  message: string
+  type: 'error'
+}
+
+export type BulkTranslateDoneEvent = { type: 'done' }
+
+export type BulkTranslateStreamEvent =
+  | BulkTranslateDoneEvent
+  | BulkTranslateErrorEvent
+  | BulkTranslateLogEvent
+  | BulkTranslateProgressEvent

@@ -3,6 +3,11 @@ export { payloadSyncAiTranslations } from './plugin.js'
 
 export { streamTranslations } from './server/stream.js'
 export type {
+  BulkTranslateDoneEvent,
+  BulkTranslateErrorEvent,
+  BulkTranslateLogEvent,
+  BulkTranslateProgressEvent,
+  BulkTranslateStreamEvent,
   TranslateChunk,
   TranslateDoneEvent,
   TranslateErrorEvent,

@@ -1,0 +1,66 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--base, 1rem);
+}
+
+.actions {
+  align-items: center;
+  display: flex;
+  gap: var(--base, 1rem);
+}
+
+.progress {
+  background: var(--theme-elevation-100, #f0f0f0);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.progressFill {
+  background: var(--theme-success-500, #2ecc71);
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.logList {
+  background: var(--theme-elevation-0, #fff);
+  border: 1px solid var(--theme-elevation-150, #e0e0e0);
+  border-radius: var(--style-radius-m, 8px);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85rem;
+  gap: 0.5rem;
+  max-height: 240px;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.logEntry {
+  line-height: 1.3;
+  white-space: pre-wrap;
+}
+
+.logEntryInfo {
+  color: var(--theme-elevation-600, #555);
+}
+
+.logEntrySuccess {
+  color: var(--theme-success-600, #1e8449);
+}
+
+.logEntryWarning {
+  color: var(--theme-warning-600, #b9770e);
+}
+
+.logEntryError {
+  color: var(--theme-error-600, #c0392b);
+}
+
+.statusLine {
+  color: var(--theme-elevation-600, #555);
+  font-size: 0.9rem;
+}

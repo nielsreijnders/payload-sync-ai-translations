@@ -20,6 +20,7 @@ Built using the official [Payload Plugin Template](https://payloadcms.com/docs/p
 - 🧠 **AI context detection:** Detects missing or incomplete context rather than stylistic differences.
 - 💬 **Interactive review modal:** Review, skip, or edit translations before applying.
 - 🚀 **Auto-sync updates:** Apply all confirmed translations across all languages.
+- 📦 **Bulk translation dashboard:** Configure collections in a global and translate them all at once with streaming logs and progress.
 - 📝 **Manual override:** Preserve manually edited content automatically.
 
 ---
@@ -59,6 +60,12 @@ export default buildConfig({
   ],
 })
 ```
+
+### Bulk translations
+
+The plugin registers an **AI Bulk Translations** global. Open it from the admin navigation, pick the collections you want to
+include, save, and then use the embedded runner to start a bulk translation. The runner streams progress updates, logs
+successes and errors, and displays an overall progress bar.
 
 ---
 
