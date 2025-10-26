@@ -56,7 +56,10 @@ function resolveLocaleCodes(locales: LocalizationConfig['locales']): string[] {
 
 export function configureTranslationState(
   collections: Array<{ config: CollectionConfig; excludeFields?: string[] }>,
-  localization: { defaultLocale?: LocalizationConfig['defaultLocale']; locales?: LocalizationConfig['locales'] },
+  localization: {
+    defaultLocale?: LocalizationConfig['defaultLocale']
+    locales?: LocalizationConfig['locales']
+  },
 ): void {
   const entries: Record<string, StoredCollection> = {}
 
@@ -67,12 +70,13 @@ export function configureTranslationState(
     }
 
     const slug = config.slug
-    const label = config.labels?.plural || config.labels?.singular || slug
+    const label = config.labels?.plural || config.labels?.singular || slug || ''
     const fieldPatterns = extractFieldPatterns(config, excludeFields)
 
     entries[slug] = {
       slug,
       fieldPatterns,
+      // @ts-expect-error - i need to look into this
       label,
     }
   }

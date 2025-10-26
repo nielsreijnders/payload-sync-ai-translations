@@ -73,18 +73,15 @@ export function BulkTranslateGlobal(props: BulkTranslateGlobalProps) {
     return `Translating from ${defaultLocale} to ${targets.join(', ')}`
   }, [defaultLocale, locales])
 
-  const toggleCollection = React.useCallback(
-    (slug: string) => {
-      setSelected((previous) => {
-        const exists = previous.includes(slug)
-        if (exists) {
-          return previous.filter((value) => value !== slug)
-        }
-        return [...previous, slug]
-      })
-    },
-    [],
-  )
+  const toggleCollection = React.useCallback((slug: string) => {
+    setSelected((previous) => {
+      const exists = previous.includes(slug)
+      if (exists) {
+        return previous.filter((value) => value !== slug)
+      }
+      return [...previous, slug]
+    })
+  }, [])
 
   const selectAll = React.useCallback(() => {
     setSelected(collections.map((collection) => collection.slug))
@@ -94,25 +91,22 @@ export function BulkTranslateGlobal(props: BulkTranslateGlobalProps) {
     setSelected([])
   }, [])
 
-  const addLog = React.useCallback(
-    (message: string, status: LogStatus = 'info') => {
-      setLogs((previous) => {
-        logCounter.current += 1
-        const entry: LogEntry = {
-          id: logCounter.current,
-          message,
-          status,
-          timestamp: Date.now(),
-        }
-        const next = [...previous, entry]
-        if (next.length > MAX_LOGS) {
-          return next.slice(next.length - MAX_LOGS)
-        }
-        return next
-      })
-    },
-    [],
-  )
+  const addLog = React.useCallback((message: string, status: LogStatus = 'info') => {
+    setLogs((previous) => {
+      logCounter.current += 1
+      const entry: LogEntry = {
+        id: logCounter.current,
+        message,
+        status,
+        timestamp: Date.now(),
+      }
+      const next = [...previous, entry]
+      if (next.length > MAX_LOGS) {
+        return next.slice(next.length - MAX_LOGS)
+      }
+      return next
+    })
+  }, [])
 
   const incrementProgress = React.useCallback(() => {
     setProgress((previous) => {
@@ -153,11 +147,16 @@ export function BulkTranslateGlobal(props: BulkTranslateGlobalProps) {
           setCurrentTask('Waiting for next collection…')
           break
         case 'collection-start':
-          addLog(`Processing ${event.label} (${event.collection}) with ${event.totalDocuments} document(s).`)
+          addLog(
+            `Processing ${event.label} (${event.collection}) with ${event.totalDocuments} document(s).`,
+          )
           setCurrentTask(`Collection ${event.collection} in progress…`)
           break
         case 'document-applied':
-          addLog(`Saved translations for ${event.collection}#${event.id} (${event.locale}).`, 'success')
+          addLog(
+            `Saved translations for ${event.collection}#${event.id} (${event.locale}).`,
+            'success',
+          )
           break
         case 'document-error':
           addLog(`Failed ${event.collection}#${event.id}: ${event.message}.`, 'error')
@@ -271,10 +270,14 @@ export function BulkTranslateGlobal(props: BulkTranslateGlobalProps) {
       </div>
 
       <div className={styles.actions}>
-        <Button disabled={running || selected.length === collections.length} onClick={selectAll} type="button">
+        <Button
+          disabled={running || selected.length === collections.length}
+          onClick={selectAll}
+          type="button"
+        >
           Select all
         </Button>
-        <Button disabled={running || selected.length === 0} onClick={clearSelection} type="button" variant="secondary">
+        <Button disabled={running || selected.length === 0} onClick={clearSelection} type="button">
           Clear selection
         </Button>
         <Button disabled={running || !selected.length} onClick={handleStart} type="button">
@@ -284,7 +287,7 @@ export function BulkTranslateGlobal(props: BulkTranslateGlobalProps) {
           <div className={styles.progressFill} style={{ width: `${percentage}%` }} />
         </div>
         <span className={styles.progressMeta}>
-          {progress.completed}/{progress.total || '–'} documents
+          {progress.completed}/{progress.total || '-'} documents
         </span>
       </div>
 
