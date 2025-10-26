@@ -1,9 +1,10 @@
-import type { PayloadHandler } from 'payload'
+import type { Payload, PayloadHandler } from 'payload'
 
 import type {
   TranslateReviewLocale,
   TranslateReviewMismatch,
   TranslateReviewRequestPayload,
+  TranslateReviewResponse,
   TranslateReviewSuggestion,
 } from './types.js'
 
@@ -107,6 +108,144 @@ function parseBody(body: unknown): TranslateReviewRequestPayload {
   }
 }
 
+export async function generateTranslationReview(
+  payload: Payload,
+  request: TranslateReviewRequestPayload,
+): Promise<TranslateReviewResponse> {
+  const locales: TranslateReviewLocale[] = []
+
+  for (const localeCode of request.locales) {
+    let localeDoc: null | Record<string, unknown> = null
+
+    try {
+      const result = await payload.findByID({
+        id: request.id,
+        collection: request.collection,
+        depth: 0,
+        fallbackLocale: false,
+        locale: localeCode,
+      })
+
+      if (result && typeof result === 'object') {
+        localeDoc = result as Record<string, unknown>
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : `Failed to load locale data for ${localeCode}.`
+      throw new Error(message)
+    }
+
+    const translateIndexes = new Set<number>()
+    const mismatches: TranslateReviewMismatch[] = []
+    const aiInputs: MissingInformationCheckInput[] = []
+    const existingByIndex = new Map<number, string>()
+    let existingCount = 0
+
+    const translateCandidates: TranslateSuggestionInput[] = []
+
+    request.items.forEach((item, index) => {
+      const existingValue = localeDoc ? getValueAtPath(localeDoc, item.path) : undefined
+      const existingText = extractPlainText(existingValue) ?? ''
+
+      if (!existingText) {
+        translateIndexes.add(index)
+        translateCandidates.push({ index, text: item.text })
+        return
+      }
+
+      existingCount += 1
+      existingByIndex.set(index, existingText)
+      aiInputs.push({
+        defaultText: item.text,
+        index,
+        translatedText: existingText,
+      })
+    })
+
+    if (aiInputs.length) {
+      try {
+        const results = await openAiDetectMissingInformation(aiInputs, request.from, localeCode)
+        for (const result of results) {
+          if (!result.missing) {
+            continue
+          }
+
+          translateIndexes.add(result.index)
+
+          const sourceItem = request.items[result.index]
+          mismatches.push({
+            defaultText: sourceItem?.text ?? '',
+            existingText: existingByIndex.get(result.index) ?? '',
+            index: result.index,
+            path: sourceItem?.path ?? '',
+            reason: result.reason || 'Missing information detected.',
+          })
+          if (sourceItem) {
+            translateCandidates.push({ index: result.index, text: sourceItem.text })
+          }
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Validation of existing translations failed.'
+        throw new Error(message)
+      }
+    }
+
+    const sortedIndexes = Array.from(translateIndexes).sort((a, b) => a - b)
+
+    let suggestions: TranslateReviewSuggestion[] = []
+
+    if (translateCandidates.length) {
+      try {
+        const uniqueCandidates = new Map<number, string>()
+        for (const entry of translateCandidates) {
+          if (!uniqueCandidates.has(entry.index)) {
+            uniqueCandidates.set(entry.index, entry.text)
+          }
+        }
+
+        const orderedCandidates = sortedIndexes
+          .map((index) =>
+            uniqueCandidates.has(index)
+              ? { index, text: uniqueCandidates.get(index) ?? '' }
+              : null,
+          )
+          .filter((entry): entry is TranslateSuggestionInput => Boolean(entry))
+
+        const chunks = chunkSuggestionInputs(orderedCandidates)
+
+        const collected: TranslateReviewSuggestion[] = []
+        for (const chunk of chunks) {
+          const translated = await openAiTranslateTexts(
+            chunk.map((item) => item.text),
+            request.from,
+            localeCode,
+          )
+
+          chunk.forEach((item, chunkIndex) => {
+            const text = translated[chunkIndex] ?? ''
+            collected.push({ index: item.index, text })
+          })
+        }
+
+        suggestions = collected
+      } catch (_error) {
+        suggestions = []
+      }
+    }
+
+    locales.push({
+      code: localeCode,
+      existingCount,
+      mismatches,
+      suggestions: suggestions.length ? suggestions : undefined,
+      translateIndexes: sortedIndexes,
+    })
+  }
+
+  return { locales }
+}
+
 export function createAiTranslateReviewHandler(): PayloadHandler {
   return async (req) => {
     try {
@@ -117,138 +256,9 @@ export function createAiTranslateReviewHandler(): PayloadHandler {
 
       // @ts-ignore oopsie for now
       const parsed = parseBody(await req.json())
-      const locales: TranslateReviewLocale[] = []
+      const review = await generateTranslationReview(payload, parsed)
 
-      for (const localeCode of parsed.locales) {
-        let localeDoc: null | Record<string, unknown> = null
-
-        try {
-          const result = await payload.findByID({
-            id: parsed.id,
-            collection: parsed.collection,
-            depth: 0,
-            fallbackLocale: false,
-            locale: localeCode,
-          })
-
-          if (result && typeof result === 'object') {
-            localeDoc = result as Record<string, unknown>
-          }
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : `Failed to load locale data for ${localeCode}.`
-          return Response.json({ message }, { status: 500 })
-        }
-
-        const translateIndexes = new Set<number>()
-        const mismatches: TranslateReviewMismatch[] = []
-        const aiInputs: MissingInformationCheckInput[] = []
-        const existingByIndex = new Map<number, string>()
-        let existingCount = 0
-
-        const translateCandidates: TranslateSuggestionInput[] = []
-
-        parsed.items.forEach((item, index) => {
-          const existingValue = localeDoc ? getValueAtPath(localeDoc, item.path) : undefined
-          const existingText = extractPlainText(existingValue) ?? ''
-
-          if (!existingText) {
-            translateIndexes.add(index)
-            translateCandidates.push({ index, text: item.text })
-            return
-          }
-
-          existingCount += 1
-          existingByIndex.set(index, existingText)
-          aiInputs.push({
-            defaultText: item.text,
-            index,
-            translatedText: existingText,
-          })
-        })
-
-        if (aiInputs.length) {
-          try {
-            const results = await openAiDetectMissingInformation(aiInputs, parsed.from, localeCode)
-            for (const result of results) {
-              if (!result.missing) {
-                continue
-              }
-
-              translateIndexes.add(result.index)
-
-              const sourceItem = parsed.items[result.index]
-              mismatches.push({
-                defaultText: sourceItem?.text ?? '',
-                existingText: existingByIndex.get(result.index) ?? '',
-                index: result.index,
-                path: sourceItem?.path ?? '',
-                reason: result.reason || 'Missing information detected.',
-              })
-              if (sourceItem) {
-                translateCandidates.push({ index: result.index, text: sourceItem.text })
-              }
-            }
-          } catch (error) {
-            const message =
-              error instanceof Error ? error.message : 'Validation of existing translations failed.'
-            return Response.json({ message }, { status: 500 })
-          }
-        }
-
-        const sortedIndexes = Array.from(translateIndexes).sort((a, b) => a - b)
-
-        let suggestions: TranslateReviewSuggestion[] = []
-
-        if (translateCandidates.length) {
-          try {
-            const uniqueCandidates = new Map<number, string>()
-            for (const entry of translateCandidates) {
-              if (!uniqueCandidates.has(entry.index)) {
-                uniqueCandidates.set(entry.index, entry.text)
-              }
-            }
-
-            const orderedCandidates = sortedIndexes
-              .map((index) =>
-                uniqueCandidates.has(index)
-                  ? { index, text: uniqueCandidates.get(index) ?? '' }
-                  : null,
-              )
-              .filter((entry): entry is TranslateSuggestionInput => Boolean(entry))
-
-            const chunks = chunkSuggestionInputs(orderedCandidates)
-
-            const collected: TranslateReviewSuggestion[] = []
-            for (const chunk of chunks) {
-              const translated = await openAiTranslateTexts(
-                chunk.map((item) => item.text),
-                parsed.from,
-                localeCode,
-              )
-
-              chunk.forEach((item, chunkIndex) => {
-                const text = translated[chunkIndex] ?? ''
-                collected.push({ index: item.index, text })
-              })
-            }
-
-            suggestions = collected
-          } catch (_error) {
-            suggestions = []
-          }
-        }
-
-        locales.push({
-          code: localeCode,
-          existingCount,
-          mismatches,
-          suggestions: suggestions.length ? suggestions : undefined,
-          translateIndexes: sortedIndexes,
-        })
-      }
-
-      return Response.json({ locales })
+      return Response.json(review)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Invalid request body'
       return Response.json({ message }, { status: 400 })

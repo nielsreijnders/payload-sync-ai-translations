@@ -107,6 +107,11 @@ export async function* streamTranslations(
     return
   }
 
+  const localeList = locales.map((locale) => locale.code).join(', ')
+  payload.logger?.info?.(
+    `[AI Translate] Starting translation for ${collection}#${id} from ${from} to [${localeList}].`,
+  )
+
   // Fetch base document once (default locale) to preserve structural data such as blockType
   let baseDoc: null | Record<string, unknown> = null
   try {
@@ -166,6 +171,9 @@ export async function* streamTranslations(
         translated = await openAiTranslateTexts(texts, from, locale)
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to translate chunk'
+        payload.logger?.error?.(
+          `[AI Translate] OpenAI translation failed for ${collection}#${id} (${locale}): ${message}`,
+        )
         yield { type: 'error', message }
         return
       }
@@ -175,6 +183,9 @@ export async function* streamTranslations(
           type: 'error',
           message: `Translator mismatch: expected ${chunk.length}, received ${translated.length}`,
         }
+        payload.logger?.error?.(
+          `[AI Translate] Translation mismatch for ${collection}#${id} (${locale}).`,
+        )
         return
       }
 
@@ -213,12 +224,19 @@ export async function* streamTranslations(
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : `Failed to update locale ${locale}`
+      payload.logger?.error?.(
+        `[AI Translate] Failed to save ${collection}#${id} (${locale}): ${message}`,
+      )
       yield { type: 'error', message }
       return
     }
 
+    payload.logger?.info?.(
+      `[AI Translate] Saved translations for ${collection}#${id} (${locale}).`,
+    )
     yield { type: 'applied', locale }
   }
 
+  payload.logger?.info?.(`[AI Translate] Completed translation for ${collection}#${id}.`)
   yield { type: 'done' }
 }
