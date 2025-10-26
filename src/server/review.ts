@@ -8,26 +8,28 @@ import type {
   TranslateReviewSuggestion,
 } from './types.js'
 
-import { extractPlainText, getValueAtPath, MAX_CHARS_PER_CHUNK } from '../utils/localizedFields.js'
-import { lexicalValueToHTML } from './lexical.js'
+import { extractPlainText, getValueAtPath, isLexicalValue, MAX_CHARS_PER_CHUNK } from '../utils/localizedFields.js'
+import { createLexicalTranslationPlan, lexicalValueToHTML } from './lexical.js'
 import {
   type MissingInformationCheckInput,
   openAiDetectMissingInformation,
   openAiTranslateTexts,
 } from './openai.js'
 
-type TranslateSuggestionInput = {
+type TranslateSuggestionPlan = {
+  apply(translated: string[]): Promise<string> | string
   index: number
-  text: string
+  segments: string[]
+  totalLength: number
 }
 
-function chunkSuggestionInputs(entries: TranslateSuggestionInput[]): TranslateSuggestionInput[][] {
-  const chunks: TranslateSuggestionInput[][] = []
-  let current: TranslateSuggestionInput[] = []
+function chunkSuggestionPlans(entries: TranslateSuggestionPlan[]): TranslateSuggestionPlan[][] {
+  const chunks: TranslateSuggestionPlan[][] = []
+  let current: TranslateSuggestionPlan[] = []
   let total = 0
 
   for (const entry of entries) {
-    const length = entry.text.length
+    const length = entry.totalLength || entry.segments.reduce((sum, segment) => sum + segment.length, 0)
     if (current.length && total + length > MAX_CHARS_PER_CHUNK) {
       chunks.push(current)
       current = [entry]
@@ -131,7 +133,10 @@ export async function generateTranslationReview(
     baseDoc = null
   }
 
-  const defaultLexicalHTMLByIndex = new Map<number, string>()
+  const lexicalSuggestionDataByIndex = new Map<
+    number,
+    { defaultHTML: string; plan: ReturnType<typeof createLexicalTranslationPlan> }
+  >()
 
   if (baseDoc) {
     for (let index = 0; index < request.items.length; index += 1) {
@@ -141,10 +146,16 @@ export async function generateTranslationReview(
       }
 
       const value = getValueAtPath(baseDoc, item.path)
-      const html = await lexicalValueToHTML(value)
-      if (html) {
-        defaultLexicalHTMLByIndex.set(index, html)
+      if (!isLexicalValue(value)) {
+        continue
       }
+
+      const plan = createLexicalTranslationPlan(value, item.text)
+      const html = await lexicalValueToHTML(value)
+      lexicalSuggestionDataByIndex.set(index, {
+        defaultHTML: html ?? '',
+        plan,
+      })
     }
   }
 
@@ -177,7 +188,63 @@ export async function generateTranslationReview(
     const existingByIndex = new Map<number, string>()
     let existingCount = 0
 
-    const translateCandidates: TranslateSuggestionInput[] = []
+    const suggestionPlans = new Map<number, TranslateSuggestionPlan>()
+
+    const ensureSuggestionPlan = (index: number, fallbackText: string) => {
+      if (suggestionPlans.has(index)) {
+        return
+      }
+
+      const item = request.items[index]
+      if (!item) {
+        return
+      }
+
+      if (item.lexical) {
+        const lexicalEntry = lexicalSuggestionDataByIndex.get(index)
+        if (lexicalEntry) {
+          const { defaultHTML, plan } = lexicalEntry
+          suggestionPlans.set(index, {
+            apply: async (translated) => {
+              const lexicalValue = plan.apply(translated)
+              if (isLexicalValue(lexicalValue)) {
+                const html = await lexicalValueToHTML(lexicalValue)
+                if (html) {
+                  return html
+                }
+              }
+              const joined = translated.length ? translated.join(' ').trim() : ''
+              if (joined) {
+                return joined
+              }
+              return defaultHTML || fallbackText
+            },
+            index,
+            segments: plan.segments,
+            totalLength: plan.segments.reduce((sum, segment) => sum + segment.length, 0),
+          })
+          return
+        }
+
+        suggestionPlans.set(index, {
+          apply: (translated) => {
+            const joined = translated.length ? translated.join(' ').trim() : ''
+            return joined || fallbackText
+          },
+          index,
+          segments: [fallbackText],
+          totalLength: fallbackText.length,
+        })
+        return
+      }
+
+      suggestionPlans.set(index, {
+        apply: (translated) => translated[0] ?? fallbackText,
+        index,
+        segments: [fallbackText],
+        totalLength: fallbackText.length,
+      })
+    }
 
     request.items.forEach((item, index) => {
       const existingValue = localeDoc ? getValueAtPath(localeDoc, item.path) : undefined
@@ -185,8 +252,10 @@ export async function generateTranslationReview(
 
       if (!existingText) {
         translateIndexes.add(index)
-        const sourceText = item.lexical ? defaultLexicalHTMLByIndex.get(index) ?? item.text : item.text
-        translateCandidates.push({ index, text: sourceText })
+        const fallbackText = item.lexical
+          ? lexicalSuggestionDataByIndex.get(index)?.defaultHTML ?? item.text
+          : item.text
+        ensureSuggestionPlan(index, fallbackText)
         return
       }
 
@@ -218,10 +287,10 @@ export async function generateTranslationReview(
             reason: result.reason || 'Missing information detected.',
           })
           if (sourceItem) {
-            const sourceText = sourceItem.lexical
-              ? defaultLexicalHTMLByIndex.get(result.index) ?? sourceItem.text
+            const fallbackText = sourceItem.lexical
+              ? lexicalSuggestionDataByIndex.get(result.index)?.defaultHTML ?? sourceItem.text
               : sourceItem.text
-            translateCandidates.push({ index: result.index, text: sourceText })
+            ensureSuggestionPlan(result.index, fallbackText)
           }
         }
       } catch (error) {
@@ -235,40 +304,36 @@ export async function generateTranslationReview(
 
     let suggestions: TranslateReviewSuggestion[] = []
 
-    if (translateCandidates.length) {
+    if (suggestionPlans.size) {
       try {
-        const uniqueCandidates = new Map<number, string>()
-        for (const entry of translateCandidates) {
-          if (!uniqueCandidates.has(entry.index)) {
-            uniqueCandidates.set(entry.index, entry.text)
+        const orderedPlans = sortedIndexes
+          .map((index) => suggestionPlans.get(index) ?? null)
+          .filter((plan): plan is TranslateSuggestionPlan => Boolean(plan))
+
+        if (orderedPlans.length) {
+          const chunks = chunkSuggestionPlans(orderedPlans)
+          const collected: TranslateReviewSuggestion[] = []
+
+          for (const chunk of chunks) {
+            const inputs = chunk.flatMap((plan) => plan.segments)
+            if (!inputs.length) {
+              continue
+            }
+
+            const translated = await openAiTranslateTexts(inputs, request.from, localeCode)
+
+            let cursor = 0
+            for (const plan of chunk) {
+              const count = plan.segments.length
+              const slice = translated.slice(cursor, cursor + count)
+              cursor += count
+              const text = await plan.apply(slice)
+              collected.push({ index: plan.index, text })
+            }
           }
+
+          suggestions = collected
         }
-
-        const orderedCandidates = sortedIndexes
-          .map((index) =>
-            uniqueCandidates.has(index)
-              ? { index, text: uniqueCandidates.get(index) ?? '' }
-              : null,
-          )
-          .filter((entry): entry is TranslateSuggestionInput => Boolean(entry))
-
-        const chunks = chunkSuggestionInputs(orderedCandidates)
-
-        const collected: TranslateReviewSuggestion[] = []
-        for (const chunk of chunks) {
-          const translated = await openAiTranslateTexts(
-            chunk.map((item) => item.text),
-            request.from,
-            localeCode,
-          )
-
-          chunk.forEach((item, chunkIndex) => {
-            const text = translated[chunkIndex] ?? ''
-            collected.push({ index: item.index, text })
-          })
-        }
-
-        suggestions = collected
       } catch (_error) {
         suggestions = []
       }

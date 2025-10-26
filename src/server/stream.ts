@@ -7,8 +7,9 @@ import type {
   TranslateStreamEvent,
 } from './types.js'
 
+import { toLexical } from '../utils/lexical.js'
 import { getValueAtPath, isLexicalValue } from '../utils/localizedFields.js'
-import { htmlToLexicalValue, lexicalValueToHTML } from './lexical.js'
+import { createLexicalTranslationPlan, htmlToLexicalValue } from './lexical.js'
 import { openAiTranslateTexts } from './openai.js'
 
 function cloneLocaleData<T>(value: T): T {
@@ -165,23 +166,31 @@ export async function* streamTranslations(
     let completed = 0
 
     for (const chunk of chunks) {
-      const texts = await Promise.all(
-        chunk.map(async (item) => {
-          if (!item.lexical) {
-            return item.text
+      const plans = chunk.map((item) => {
+        if (!item.lexical) {
+          return {
+            apply(translated: string[]) {
+              return translated[0] ?? item.text
+            },
+            segments: [item.text],
           }
+        }
 
-          const originalValue = baseDoc ? getValueAtPath(baseDoc, item.path) : undefined
-          if (isLexicalValue(originalValue)) {
-            const html = await lexicalValueToHTML(originalValue)
-            if (html) {
-              return html
-            }
-          }
+        const originalValue = baseDoc ? getValueAtPath(baseDoc, item.path) : undefined
+        if (isLexicalValue(originalValue)) {
+          return createLexicalTranslationPlan(originalValue, item.text)
+        }
 
-          return item.text
-        }),
-      )
+        return {
+          apply(translated: string[]) {
+            const next = translated[0] ?? item.text
+            return toLexical(next)
+          },
+          segments: [item.text],
+        }
+      })
+
+      const texts = plans.flatMap((plan) => plan.segments)
 
       let translated: string[]
       try {
@@ -195,10 +204,10 @@ export async function* streamTranslations(
         return
       }
 
-      if (translated.length !== chunk.length) {
+      if (translated.length !== texts.length) {
         yield {
           type: 'error',
-          message: `Translator mismatch: expected ${chunk.length}, received ${translated.length}`,
+          message: `Translator mismatch: expected ${texts.length}, received ${translated.length}`,
         }
         payload.logger?.error?.(
           `[AI Translate] Translation mismatch for ${collection}#${id} (${locale}).`,
@@ -206,16 +215,33 @@ export async function* streamTranslations(
         return
       }
 
+      let cursor = 0
       for (let index = 0; index < chunk.length; index += 1) {
         const item = chunk[index]
-        const translatedText = translated[index]
-        let nextValue: unknown = translatedText
+        const plan = plans[index]
+        const segmentCount = plan.segments.length
+        const slice = translated.slice(cursor, cursor + segmentCount)
+        cursor += segmentCount
+        const nextValue = plan.apply(slice)
 
-        if (item.lexical) {
-          nextValue = await htmlToLexicalValue(payload, translatedText)
+        if (item.lexical && !isLexicalValue(nextValue)) {
+          const fallbackText = slice.length ? slice.join(' ').trim() : ''
+          localeData = setValueAtPath(
+            baseDoc,
+            localeData,
+            item.path,
+            toLexical(fallbackText || item.text),
+          )
+          continue
         }
 
         localeData = setValueAtPath(baseDoc, localeData, item.path, nextValue)
+      }
+
+      if (cursor !== translated.length) {
+        payload.logger?.warn?.(
+          `[AI Translate] Translation cursor mismatch for ${collection}#${id} (${locale}).`,
+        )
       }
 
       completed += chunk.length
