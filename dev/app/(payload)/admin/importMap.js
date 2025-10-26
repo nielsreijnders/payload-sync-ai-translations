@@ -22,6 +22,7 @@ import { UnderlineFeatureClient as UnderlineFeatureClient_e70f5e05f09f93e00b997e
 import { BoldFeatureClient as BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { AutoTranslateButton as AutoTranslateButton_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
+import { BulkTranslateGlobal as BulkTranslateGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
 
 export const importMap = {
   "@payloadcms/richtext-lexical/rsc#RscEntryLexicalCell": RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e,
@@ -47,5 +48,6 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#UnderlineFeatureClient": UnderlineFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#BoldFeatureClient": BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "@payloadcms/richtext-lexical/client#ItalicFeatureClient": ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
-  "payload-sync-ai-translations/client#AutoTranslateButton": AutoTranslateButton_2043071721ce9b13e636c3dacf801366
+  "payload-sync-ai-translations/client#AutoTranslateButton": AutoTranslateButton_2043071721ce9b13e636c3dacf801366,
+  "payload-sync-ai-translations/client#BulkTranslateGlobal": BulkTranslateGlobal_2043071721ce9b13e636c3dacf801366
 }

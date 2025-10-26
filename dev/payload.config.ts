@@ -1,6 +1,5 @@
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
-import { posts } from 'collections/posts.collection.js'
 import { MongoMemoryReplSet } from 'mongodb-memory-server'
 import path from 'path'
 import { buildConfig } from 'payload'
@@ -8,6 +7,7 @@ import { payloadSyncAiTranslations } from 'payload-sync-ai-translations'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
+import { posts } from './collections/posts.collection.js'
 import { testEmailAdapter } from './helpers/testEmailAdapter.js'
 import { seed } from './seed.js'
 
