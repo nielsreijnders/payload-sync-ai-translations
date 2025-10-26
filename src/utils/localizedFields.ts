@@ -1,3 +1,5 @@
+import { isLexicalValue } from './lexical.js'
+
 export type AnyField = {
   blocks?: { fields: AnyField[]; slug: string }[]
   fields?: AnyField[]
@@ -124,19 +126,6 @@ export function getValueAtPath(data: unknown, path: string): unknown {
     }
     return undefined
   }, data)
-}
-
-export function isLexicalValue(
-  value: unknown,
-): value is { root: { children?: unknown[]; type?: string } } {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-  const root = (value as { root?: unknown }).root
-  if (typeof root !== 'object' || root === null) {
-    return false
-  }
-  return (root as { type?: unknown }).type === 'root'
 }
 
 export function extractPlainText(value: unknown): null | string {

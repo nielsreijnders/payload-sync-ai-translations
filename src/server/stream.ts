@@ -8,6 +8,7 @@ import type {
 } from './types.js'
 
 import { toLexical } from '../utils/lexical.js'
+import { getValueAtPath } from '../utils/localizedFields.js'
 import { openAiTranslateTexts } from './openai.js'
 
 function cloneLocaleData<T>(value: T): T {
@@ -192,7 +193,8 @@ export async function* streamTranslations(
       for (let index = 0; index < chunk.length; index += 1) {
         const item = chunk[index]
         const translatedText = translated[index]
-        const nextValue = item.lexical ? toLexical(translatedText) : translatedText
+        const templateValue = baseDoc ? getValueAtPath(baseDoc, item.path) : undefined
+        const nextValue = item.lexical ? toLexical(translatedText, templateValue) : translatedText
         localeData = setValueAtPath(baseDoc, localeData, item.path, nextValue)
       }
 
@@ -202,7 +204,10 @@ export async function* streamTranslations(
 
     if (overrideItems.length) {
       for (const override of overrideItems) {
-        const nextValue = override.lexical ? toLexical(override.text) : override.text
+        const templateValue = baseDoc ? getValueAtPath(baseDoc, override.path) : undefined
+        const nextValue = override.lexical
+          ? toLexical(override.text, templateValue)
+          : override.text
         localeData = setValueAtPath(baseDoc, localeData, override.path, nextValue)
         completed += 1
         yield { type: 'progress', completed, locale, total: localeTotalItems }
