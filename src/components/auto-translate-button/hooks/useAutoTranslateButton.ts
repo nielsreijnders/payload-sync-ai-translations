@@ -76,10 +76,10 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       const data = formApi.getData()
       const items = buildTranslatableItems(data, fieldPatterns)
 
-      if (items) {
-        console.log('Translatable items:', items)
-        return console.log('end here for debugging')
-      }
+      // if (items) {
+      //   console.log('Translatable items:', items)
+      //   return console.log('end here for debugging')
+      // }
 
       if (!items.length) {
         return toast.info('No translatable fields found.')
