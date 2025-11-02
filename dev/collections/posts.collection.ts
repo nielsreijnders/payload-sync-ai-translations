@@ -56,6 +56,17 @@ export const posts: CollectionConfig = {
                 },
               ],
             },
+            {
+              name: 'group',
+              type: 'group',
+              fields: [
+                {
+                  name: 'subText',
+                  type: 'richText',
+                  localized: true,
+                },
+              ],
+            },
           ],
         },
         {
