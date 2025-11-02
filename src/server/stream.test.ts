@@ -1,9 +1,11 @@
 import type { Payload } from 'payload'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-import { streamTranslations } from './stream.js'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { TranslateRequestPayload } from './types.js'
+
 import { openAiTranslateTexts } from './openai.js'
+import { streamTranslations } from './stream.js'
 
 vi.mock('./openai.js', () => ({
   openAiTranslateTexts: vi.fn(),
@@ -28,31 +30,28 @@ describe('streamTranslations', () => {
     }
 
     const payloadMock = {
-      findByID: vi
-        .fn<Payload['findByID']>()
-        .mockImplementation(async ({ locale }) => {
-          if (locale === 'en') {
-            return baseDoc
-          }
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
 
-          return { id: '1' }
-        }),
-      update: vi.fn<Payload['update']>(async (args) => args),
+        return { id: '1' }
+      }),
       logger: {
-        info: vi.fn(),
         error: vi.fn(),
+        info: vi.fn(),
       },
+      update: vi.fn<Payload['update']>(async (args) => args),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Hallo wereld'])
 
     const request: TranslateRequestPayload = {
+      id: '1',
       collection: 'pages',
       from: 'en',
-      id: '1',
       locales: [
         {
-          code: 'nl',
           chunks: [
             [
               {
@@ -62,6 +61,7 @@ describe('streamTranslations', () => {
               },
             ],
           ],
+          code: 'nl',
         },
       ],
     }
@@ -75,10 +75,8 @@ describe('streamTranslations', () => {
     expect(payloadMock.update).toHaveBeenCalledTimes(1)
     expect(payloadMock.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        collection: 'pages',
         id: '1',
-        locale: 'nl',
-        overrideAccess: true,
+        collection: 'pages',
         data: {
           layout: [
             {
@@ -87,12 +85,14 @@ describe('streamTranslations', () => {
             },
           ],
         },
+        locale: 'nl',
+        overrideAccess: true,
       }),
     )
 
     expect(events).toEqual([
-      { completed: 1, locale: 'nl', total: 1, type: 'progress' },
-      { locale: 'nl', type: 'applied' },
+      { type: 'progress', completed: 1, locale: 'nl', total: 1 },
+      { type: 'applied', locale: 'nl' },
       { type: 'done' },
     ])
   })
@@ -111,32 +111,28 @@ describe('streamTranslations', () => {
     }
 
     const payloadMock = {
-      findByID: vi
-        .fn<Payload['findByID']>()
-        .mockImplementation(async ({ locale }) => {
-          if (locale === 'en') {
-            return baseDoc
-          }
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
 
-          return { id: '1', settings: {} }
-        }),
-      update: vi.fn<Payload['update']>(async (args) => args),
+        return { id: '1', settings: {} }
+      }),
       logger: {
-        info: vi.fn(),
         error: vi.fn(),
+        info: vi.fn(),
       },
+      update: vi.fn<Payload['update']>(async (args) => args),
     } satisfies Partial<Payload>
 
-    translateTextsMock
-      .mockResolvedValueOnce(['Hallo daar', 'Welkom bezoeker'])
+    translateTextsMock.mockResolvedValueOnce(['Hallo daar', 'Welkom bezoeker'])
 
     const request: TranslateRequestPayload = {
+      id: '1',
       collection: 'pages',
       from: 'en',
-      id: '1',
       locales: [
         {
-          code: 'nl',
           chunks: [
             [
               {
@@ -151,6 +147,7 @@ describe('streamTranslations', () => {
               },
             ],
           ],
+          code: 'nl',
         },
       ],
     }
@@ -160,11 +157,7 @@ describe('streamTranslations', () => {
       events.push(event)
     }
 
-    expect(translateTextsMock).toHaveBeenCalledWith(
-      ['Greetings', 'Welcome visitor'],
-      'en',
-      'nl',
-    )
+    expect(translateTextsMock).toHaveBeenCalledWith(['Greetings', 'Welcome visitor'], 'en', 'nl')
 
     expect(payloadMock.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -182,8 +175,8 @@ describe('streamTranslations', () => {
     )
 
     expect(events).toEqual([
-      { completed: 2, locale: 'nl', total: 2, type: 'progress' },
-      { locale: 'nl', type: 'applied' },
+      { type: 'progress', completed: 2, locale: 'nl', total: 2 },
+      { type: 'applied', locale: 'nl' },
       { type: 'done' },
     ])
   })
@@ -195,31 +188,28 @@ describe('streamTranslations', () => {
     }
 
     const payloadMock = {
-      findByID: vi
-        .fn<Payload['findByID']>()
-        .mockImplementation(async ({ locale }) => {
-          if (locale === 'en') {
-            return baseDoc
-          }
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
 
-          return { id: '1' }
-        }),
-      update: vi.fn<Payload['update']>(async (args) => args),
+        return { id: '1' }
+      }),
       logger: {
-        info: vi.fn(),
         error: vi.fn(),
+        info: vi.fn(),
       },
+      update: vi.fn<Payload['update']>(async (args) => args),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce([])
 
     const request: TranslateRequestPayload = {
+      id: '1',
       collection: 'pages',
       from: 'en',
-      id: '1',
       locales: [
         {
-          code: 'nl',
           chunks: [
             [
               {
@@ -229,6 +219,7 @@ describe('streamTranslations', () => {
               },
             ],
           ],
+          code: 'nl',
         },
       ],
     }
@@ -240,8 +231,8 @@ describe('streamTranslations', () => {
 
     expect(events).toEqual([
       {
-        message: 'Translator mismatch: expected 1, received 0',
         type: 'error',
+        message: 'Translator mismatch: expected 1, received 0',
       },
     ])
     expect(payloadMock.update).not.toHaveBeenCalled()
