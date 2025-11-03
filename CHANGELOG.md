@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.4.0...v1.4.1) (2025-11-03)
+
+
+### Bug Fixes
+
+* simplify structure key handling and streamline logger messages ([990cd23](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/990cd23d55c7e025f160ca92af580f82bce39136))
+
 # [1.4.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.3.0...v1.4.0) (2025-11-03)
 
 
