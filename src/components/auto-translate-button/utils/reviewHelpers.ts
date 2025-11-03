@@ -1,4 +1,4 @@
-import type { PendingReview, PendingReviewLocale } from '../types'
+import type { PendingReview, PendingReviewLocale } from '../hooks/types.js'
 
 /**
  * sanitizeLocalesFromReviewResponse
@@ -19,7 +19,11 @@ export function sanitizeLocalesFromReviewResponse(
 ): PendingReview['locales'] {
   return rawLocales
     .map((locale: any) => {
-      const sanitizedIndexes = Array.from(new Set(locale.translateIndexes)).filter(
+      const translateIndexes = Array.isArray(locale.translateIndexes)
+        ? (locale.translateIndexes as number[])
+        : []
+
+      const sanitizedIndexes = Array.from(new Set<number>(translateIndexes)).filter(
         (index) => Number.isInteger(index) && index >= 0 && index < itemsLength,
       )
 
