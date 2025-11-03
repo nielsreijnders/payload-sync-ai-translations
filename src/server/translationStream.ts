@@ -23,7 +23,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-const STRUCTURE_SKIP_KEYS = new Set(['id', '_id', 'createdAt', 'updatedAt'])
+const STRUCTURE_SKIP_KEYS = new Set(['_id', 'createdAt', 'id', 'updatedAt'])
 
 function cloneStructuralShape(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -31,7 +31,7 @@ function cloneStructuralShape(value: unknown): unknown {
   }
 
   if (isPlainObject(value)) {
-    const record = value as Record<string, unknown>
+    const record = value
     const out: Record<string, unknown> = {}
 
     if (typeof record.blockType === 'string') {
@@ -78,8 +78,8 @@ function mergeStructuralData(base: unknown, target: unknown): unknown {
   }
 
   if (isPlainObject(base)) {
-    const baseRecord = base as Record<string, unknown>
-    const targetRecord = isPlainObject(target) ? { ...(target as Record<string, unknown>) } : {}
+    const baseRecord = base
+    const targetRecord = isPlainObject(target) ? { ...target } : {}
 
     if (typeof baseRecord.blockType === 'string' && typeof targetRecord.blockType !== 'string') {
       targetRecord.blockType = baseRecord.blockType
@@ -291,9 +291,7 @@ export async function* streamTranslations(
     if (overrideItems.length) {
       for (const override of overrideItems) {
         const templateValue = baseDoc ? getValueAtPath(baseDoc, override.path) : undefined
-        const nextValue = override.lexical
-          ? toLexical(override.text, templateValue)
-          : override.text
+        const nextValue = override.lexical ? toLexical(override.text, templateValue) : override.text
         localeData = setValueAtPath(baseDoc, localeData, override.path, nextValue)
         completed += 1
         yield { type: 'progress', completed, locale, total: localeTotalItems }
@@ -322,9 +320,7 @@ export async function* streamTranslations(
       return
     }
 
-    payload.logger?.info?.(
-      `[AI Translate] Saved translations for ${collection}#${id} (${locale}).`,
-    )
+    payload.logger?.info?.(`[AI Translate] Saved translations for ${collection}#${id} (${locale}).`)
     yield { type: 'applied', locale }
   }
 
