@@ -1,7 +1,7 @@
 export type { AiLocalizationCollectionOptions, AiLocalizationConfig } from './plugin.js'
 export { payloadSyncAiTranslations } from './plugin.js'
 
-export { streamTranslations } from './server/stream.js'
+export { streamTranslations } from './server/translationStream.js'
 export type {
   TranslateChunk,
   TranslateDoneEvent,
@@ -9,4 +9,4 @@ export type {
   TranslateItem,
   TranslateRequestPayload,
   TranslateStreamEvent,
-} from './server/types.js'
+} from './server/translationTypes.js'

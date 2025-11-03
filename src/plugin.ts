@@ -1,10 +1,10 @@
 import type { CollectionConfig, Config, GlobalConfig } from 'payload'
 
-import { createAiBulkTranslateHandler } from './server/bulk.js'
-import { createAiTranslateHandler } from './server/handler.js'
-import { createAiTranslateReviewHandler } from './server/review.js'
-import { setOpenAISettings } from './server/settings.js'
-import { configureTranslationState, listStoredCollections } from './server/state.js'
+import { createAiBulkTranslateHandler } from './server/bulkTranslationHandler.js'
+import { createAiTranslateHandler } from './server/translationRequestHandler.js'
+import { createAiTranslateReviewHandler } from './server/translationReviewService.js'
+import { setOpenAISettings } from './server/openAiSettings.js'
+import { configureTranslationState, listStoredCollections } from './server/translationStateStore.js'
 
 export type AiLocalizationCollectionOptions = {
   clientProps?: Record<string, unknown> // add this

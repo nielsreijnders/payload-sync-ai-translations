@@ -1,4 +1,4 @@
-import type { TranslateStreamEvent } from '../../../server/types.js'
+import type { TranslateStreamEvent } from '../../../server/translationTypes.js'
 import type { TranslatableItem } from './buildTranslatableItems.js'
 
 export type LocaleTranslationPlan = {

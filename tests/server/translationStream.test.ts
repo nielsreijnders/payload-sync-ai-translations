@@ -2,12 +2,12 @@ import type { Payload } from 'payload'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { TranslateRequestPayload } from './types.js'
+import type { TranslateRequestPayload } from '../../src/server/translationTypes.js'
 
-import { openAiTranslateTexts } from './openai.js'
-import { streamTranslations } from './stream.js'
+import { openAiTranslateTexts } from '../../src/server/openAiTranslationClient.js'
+import { streamTranslations } from '../../src/server/translationStream.js'
 
-vi.mock('./openai.js', () => ({
+vi.mock('../../src/server/openAiTranslationClient.js', () => ({
   openAiTranslateTexts: vi.fn(),
 }))
 

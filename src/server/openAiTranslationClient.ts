@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 
-import { getOpenAISettings } from './settings.js'
+import { getOpenAISettings } from './openAiSettings.js'
 
 const DEFAULT_MODEL = 'gpt-4o-mini'
 

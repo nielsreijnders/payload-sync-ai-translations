@@ -1,4 +1,4 @@
-import type { BulkStreamEvent } from '../../../server/types.js'
+import type { BulkStreamEvent } from '../../../server/translationTypes.js'
 
 export type BulkTranslationCallbacks = {
   onEvent(event: BulkStreamEvent): void

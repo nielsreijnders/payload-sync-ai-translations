@@ -6,7 +6,7 @@ import type {
   TranslateReviewRequestPayload,
   TranslateReviewResponse,
   TranslateReviewSuggestion,
-} from './types.js'
+} from './translationTypes.js'
 
 import { stripLexicalMarkers } from '../utils/lexical.js'
 import { extractPlainText, getValueAtPath, MAX_CHARS_PER_CHUNK } from '../utils/localizedFields.js'
@@ -14,7 +14,7 @@ import {
   type MissingInformationCheckInput,
   openAiDetectMissingInformation,
   openAiTranslateTexts,
-} from './openai.js'
+} from './openAiTranslationClient.js'
 
 type TranslateSuggestionInput = {
   index: number
