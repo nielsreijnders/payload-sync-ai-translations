@@ -19,6 +19,88 @@ function cloneLocaleData<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+const STRUCTURE_SKIP_KEYS = new Set(['_id', 'createdAt', 'id', 'updatedAt'])
+
+function cloneStructuralShape(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => cloneStructuralShape(entry))
+  }
+
+  if (isPlainObject(value)) {
+    const record = value
+    const out: Record<string, unknown> = {}
+
+    if (typeof record.blockType === 'string') {
+      out.blockType = record.blockType
+    }
+
+    for (const [key, child] of Object.entries(record)) {
+      if (STRUCTURE_SKIP_KEYS.has(key)) {
+        continue
+      }
+
+      if (Array.isArray(child) || isPlainObject(child)) {
+        out[key] = cloneStructuralShape(child)
+        continue
+      }
+
+      out[key] = child
+    }
+
+    return out
+  }
+
+  return undefined
+}
+
+function mergeStructuralData(base: unknown, target: unknown): unknown {
+  if (Array.isArray(base)) {
+    const baseArray = base as unknown[]
+    const targetArray = Array.isArray(target) ? [...target] : []
+
+    baseArray.forEach((item, index) => {
+      const existing = targetArray[index]
+      if (existing === undefined) {
+        const cloned = cloneStructuralShape(item)
+        if (cloned !== undefined) {
+          targetArray[index] = cloned
+        }
+      } else {
+        targetArray[index] = mergeStructuralData(item, existing)
+      }
+    })
+
+    return targetArray
+  }
+
+  if (isPlainObject(base)) {
+    const baseRecord = base
+    const targetRecord = isPlainObject(target) ? { ...target } : {}
+
+    if (typeof baseRecord.blockType === 'string' && typeof targetRecord.blockType !== 'string') {
+      targetRecord.blockType = baseRecord.blockType
+    }
+
+    for (const [key, value] of Object.entries(baseRecord)) {
+      if (STRUCTURE_SKIP_KEYS.has(key)) {
+        continue
+      }
+
+      if (Array.isArray(value) || isPlainObject(value)) {
+        targetRecord[key] = mergeStructuralData(value, targetRecord[key])
+      }
+    }
+
+    return targetRecord
+  }
+
+  return target
+}
+
 function countItems(chunks: TranslateChunk[]): number {
   return chunks.reduce((total, chunk) => total + chunk.length, 0)
 }
@@ -162,6 +244,10 @@ export async function* streamTranslations(
     delete (localeData as Record<string, unknown>).createdAt
     delete (localeData as Record<string, unknown>).updatedAt
 
+    if (baseDoc) {
+      localeData = mergeStructuralData(baseDoc, localeData)
+    }
+
     let completed = 0
 
     for (const chunk of chunks) {
@@ -205,9 +291,7 @@ export async function* streamTranslations(
     if (overrideItems.length) {
       for (const override of overrideItems) {
         const templateValue = baseDoc ? getValueAtPath(baseDoc, override.path) : undefined
-        const nextValue = override.lexical
-          ? toLexical(override.text, templateValue)
-          : override.text
+        const nextValue = override.lexical ? toLexical(override.text, templateValue) : override.text
         localeData = setValueAtPath(baseDoc, localeData, override.path, nextValue)
         completed += 1
         yield { type: 'progress', completed, locale, total: localeTotalItems }
@@ -236,9 +320,7 @@ export async function* streamTranslations(
       return
     }
 
-    payload.logger?.info?.(
-      `[AI Translate] Saved translations for ${collection}#${id} (${locale}).`,
-    )
+    payload.logger?.info?.(`[AI Translate] Saved translations for ${collection}#${id} (${locale}).`)
     yield { type: 'applied', locale }
   }
 
