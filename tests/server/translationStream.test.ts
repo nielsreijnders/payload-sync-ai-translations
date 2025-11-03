@@ -77,14 +77,14 @@ describe('streamTranslations', () => {
       expect.objectContaining({
         id: '1',
         collection: 'pages',
-        data: {
+        data: expect.objectContaining({
           layout: [
             {
               blockType: 'hero',
               title: 'Hallo wereld',
             },
           ],
-        },
+        }),
         locale: 'nl',
         overrideAccess: true,
       }),
@@ -156,7 +156,7 @@ describe('streamTranslations', () => {
 
     expect(payloadMock.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: {
+        data: expect.objectContaining({
           layout: [
             {
               blockType: 'hero',
@@ -167,7 +167,7 @@ describe('streamTranslations', () => {
               style: 'simple',
             },
           ],
-        },
+        }),
         id: '2',
         locale: 'nl',
       }),
@@ -178,6 +178,105 @@ describe('streamTranslations', () => {
       { type: 'applied', locale: 'nl' },
       { type: 'done' },
     ])
+  })
+
+  it('aligns flexible content by block identity before applying translations', async () => {
+    const baseDoc = {
+      id: '3',
+      layout: [
+        {
+          _id: 'hero-1',
+          blockType: 'hero',
+          title: 'Primary heading',
+        },
+        {
+          _id: 'feature-1',
+          blockType: 'feature',
+          title: 'Key features',
+        },
+      ],
+    }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return {
+          id: '3',
+          layout: [
+            {
+              _id: 'feature-1',
+              blockType: 'feature',
+              title: 'Key features',
+            },
+            {
+              _id: 'hero-1',
+              blockType: 'hero',
+              title: 'Primary heading',
+            },
+          ],
+        }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Primaire heading', 'Belangrijkste functies'])
+
+    const request: TranslateRequestPayload = {
+      id: '3',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'layout.0.title',
+                text: 'Primary heading',
+              },
+              {
+                lexical: false,
+                path: 'layout.1.title',
+                text: 'Key features',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    for await (const _event of streamTranslations(payloadMock as Payload, request)) {
+      // drain iterator
+    }
+
+    expect(payloadMock.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          layout: [
+            {
+              _id: 'hero-1',
+              blockType: 'hero',
+              title: 'Primaire heading',
+            },
+            {
+              _id: 'feature-1',
+              blockType: 'feature',
+              title: 'Belangrijkste functies',
+            },
+          ],
+        }),
+        id: '3',
+        locale: 'nl',
+      }),
+    )
   })
 
   it('updates nested group fields with translated values', async () => {
@@ -244,7 +343,7 @@ describe('streamTranslations', () => {
 
     expect(payloadMock.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: {
+        data: expect.objectContaining({
           settings: {
             hero: {
               headline: 'Hallo daar',
@@ -253,7 +352,7 @@ describe('streamTranslations', () => {
               },
             },
           },
-        },
+        }),
       }),
     )
 
@@ -355,7 +454,7 @@ describe('streamTranslations', () => {
 
     expect(payloadMock.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: {
+        data: expect.objectContaining({
           layout: [
             {
               blockType: 'accordion',
@@ -378,7 +477,7 @@ describe('streamTranslations', () => {
               ],
             },
           ],
-        },
+        }),
       }),
     )
 

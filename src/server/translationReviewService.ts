@@ -115,6 +115,25 @@ export async function generateTranslationReview(
 ): Promise<TranslateReviewResponse> {
   const locales: TranslateReviewLocale[] = []
 
+  let baseDoc: null | Record<string, unknown> = null
+
+  try {
+    const doc = await payload.findByID({
+      id: request.id,
+      collection: request.collection,
+      depth: 0,
+      fallbackLocale: false,
+      locale: request.from,
+    })
+
+    if (doc && typeof doc === 'object') {
+      baseDoc = doc as Record<string, unknown>
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to load base document.'
+    throw new Error(message)
+  }
+
   for (const localeCode of request.locales) {
     let localeDoc: null | Record<string, unknown> = null
 
@@ -146,7 +165,9 @@ export async function generateTranslationReview(
 
     request.items.forEach((item, index) => {
       const defaultText = item.lexical ? stripLexicalMarkers(item.text) : item.text
-      const existingValue = localeDoc ? getValueAtPath(localeDoc, item.path) : undefined
+      const existingValue = localeDoc
+        ? getValueAtPath(localeDoc, item.path, { base: baseDoc })
+        : undefined
       const existingText = extractPlainText(existingValue) ?? ''
 
       if (!existingText) {
