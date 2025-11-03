@@ -9,97 +9,8 @@ import type {
 
 import { toLexical } from '../utils/lexical.js'
 import { getValueAtPath } from '../utils/localizedFields.js'
+import { cloneLocaleData, mergeStructuralData, setValueAtPath } from './localeStructure.js'
 import { openAiTranslateTexts } from './openAiTranslationClient.js'
-
-function cloneLocaleData<T>(value: T): T {
-  if (typeof structuredClone === 'function') {
-    return structuredClone(value)
-  }
-
-  return JSON.parse(JSON.stringify(value)) as T
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-const STRUCTURE_SKIP_KEYS = new Set(['_id', 'createdAt', 'id', 'updatedAt'])
-
-function cloneStructuralShape(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((entry) => cloneStructuralShape(entry))
-  }
-
-  if (isPlainObject(value)) {
-    const record = value
-    const out: Record<string, unknown> = {}
-
-    if (typeof record.blockType === 'string') {
-      out.blockType = record.blockType
-    }
-
-    for (const [key, child] of Object.entries(record)) {
-      if (STRUCTURE_SKIP_KEYS.has(key)) {
-        continue
-      }
-
-      if (Array.isArray(child) || isPlainObject(child)) {
-        out[key] = cloneStructuralShape(child)
-        continue
-      }
-
-      out[key] = child
-    }
-
-    return out
-  }
-
-  return undefined
-}
-
-function mergeStructuralData(base: unknown, target: unknown): unknown {
-  if (Array.isArray(base)) {
-    const baseArray = base as unknown[]
-    const targetArray = Array.isArray(target) ? [...target] : []
-
-    baseArray.forEach((item, index) => {
-      const existing = targetArray[index]
-      if (existing === undefined) {
-        const cloned = cloneStructuralShape(item)
-        if (cloned !== undefined) {
-          targetArray[index] = cloned
-        }
-      } else {
-        targetArray[index] = mergeStructuralData(item, existing)
-      }
-    })
-
-    return targetArray
-  }
-
-  if (isPlainObject(base)) {
-    const baseRecord = base
-    const targetRecord = isPlainObject(target) ? { ...target } : {}
-
-    if (typeof baseRecord.blockType === 'string' && typeof targetRecord.blockType !== 'string') {
-      targetRecord.blockType = baseRecord.blockType
-    }
-
-    for (const [key, value] of Object.entries(baseRecord)) {
-      if (STRUCTURE_SKIP_KEYS.has(key)) {
-        continue
-      }
-
-      if (Array.isArray(value) || isPlainObject(value)) {
-        targetRecord[key] = mergeStructuralData(value, targetRecord[key])
-      }
-    }
-
-    return targetRecord
-  }
-
-  return target
-}
 
 function countItems(chunks: TranslateChunk[]): number {
   return chunks.reduce((total, chunk) => total + chunk.length, 0)
@@ -114,63 +25,6 @@ function countLocalesItems(locales: TranslateLocaleRequestPayload[]): number {
     (total, locale) => total + countItems(locale.chunks) + countOverrides(locale.overrides),
     0,
   )
-}
-
-// setValueAtPath but preserves blockType when creating new block entries by referencing original doc structure
-function setValueAtPath(original: unknown, source: unknown, path: string, value: unknown): unknown {
-  const segments = path.split('.')
-
-  const apply = (origBranch: unknown, current: unknown, index: number): unknown => {
-    if (index >= segments.length) {
-      return value
-    }
-
-    const segment = segments[index]
-    const isIndex = /^\d+$/.test(segment)
-
-    if (isIndex) {
-      const position = Number(segment)
-      const origArray = Array.isArray(origBranch) ? origBranch : undefined
-      const targetArray = Array.isArray(current) ? [...current] : []
-      const nextOrig = origArray && origArray.length > position ? origArray[position] : undefined
-      const existing = targetArray[position]
-      const applied = apply(nextOrig, existing, index + 1)
-
-      // If we created a new block object and original has a blockType, carry it over.
-      if (
-        applied &&
-        typeof applied === 'object' &&
-        !Array.isArray(applied) &&
-        nextOrig &&
-        typeof nextOrig === 'object' &&
-        (nextOrig as { blockType?: unknown }).blockType &&
-        !(applied as { blockType?: unknown }).blockType
-      ) {
-        ;(applied as Record<string, unknown>).blockType = (
-          nextOrig as {
-            blockType?: unknown
-          }
-        ).blockType as string
-      }
-
-      targetArray[position] = applied
-      return targetArray
-    }
-
-    const origRecord =
-      typeof origBranch === 'object' && origBranch !== null && !Array.isArray(origBranch)
-        ? (origBranch as Record<string, unknown>)
-        : undefined
-    const targetRecord =
-      typeof current === 'object' && current !== null && !Array.isArray(current)
-        ? { ...(current as Record<string, unknown>) }
-        : {}
-    const nextOrig = origRecord ? origRecord[segment] : undefined
-    targetRecord[segment] = apply(nextOrig, targetRecord[segment], index + 1)
-    return targetRecord
-  }
-
-  return apply(original, source, 0)
 }
 
 export async function* streamTranslations(
@@ -246,6 +100,10 @@ export async function* streamTranslations(
 
     if (baseDoc) {
       localeData = mergeStructuralData(baseDoc, localeData)
+      delete (localeData as Record<string, unknown>).id
+      delete (localeData as Record<string, unknown>)._id
+      delete (localeData as Record<string, unknown>).createdAt
+      delete (localeData as Record<string, unknown>).updatedAt
     }
 
     let completed = 0

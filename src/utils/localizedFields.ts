@@ -1,5 +1,28 @@
 import { isLexicalValue } from './lexical.js'
 
+type GetValueAtPathOptions = {
+  base?: unknown
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getIdentity(value: unknown): string | number | null {
+  if (!isPlainObject(value)) {
+    return null
+  }
+
+  const record = value as { _id?: unknown; id?: unknown }
+  const identifier = record._id ?? record.id
+
+  if (typeof identifier === 'string' || typeof identifier === 'number') {
+    return identifier
+  }
+
+  return null
+}
+
 export type AnyField = {
   blocks?: { fields: AnyField[]; slug: string }[]
   fields?: AnyField[]
@@ -109,23 +132,73 @@ export function expandConcretePathsFromPattern(data: unknown, pattern: string): 
   return out
 }
 
-export function getValueAtPath(data: unknown, path: string): unknown {
-  return path.split('.').reduce<unknown>((acc, part) => {
-    if (acc === undefined || acc === null) {
+export function getValueAtPath(data: unknown, path: string, options?: GetValueAtPathOptions): unknown {
+  const segments = path.split('.')
+  let current: unknown = data
+  let baseCurrent: unknown = options?.base
+
+  for (const segment of segments) {
+    if (current === undefined || current === null) {
       return undefined
     }
-    const key = /^\d+$/.test(part) ? Number(part) : part
-    if (typeof key === 'number') {
-      if (!Array.isArray(acc) || acc.length <= key) {
+
+    if (/^\d+$/.test(segment)) {
+      const index = Number(segment)
+
+      if (options?.base !== undefined) {
+        const baseArray = Array.isArray(baseCurrent) ? baseCurrent : undefined
+        const targetArray = Array.isArray(current) ? current : undefined
+        const baseNext = baseArray && baseArray.length > index ? baseArray[index] : undefined
+        baseCurrent = baseNext
+
+        if (!targetArray) {
+          current = undefined
+          continue
+        }
+
+        if (baseNext !== undefined) {
+          const identity = getIdentity(baseNext)
+          if (identity !== null) {
+            const match = targetArray.find((entry) => getIdentity(entry) === identity)
+            if (match !== undefined) {
+              current = match
+              continue
+            }
+
+            current = undefined
+            continue
+          }
+        }
+
+        current = targetArray[index]
+        continue
+      }
+
+      if (!Array.isArray(current) || current.length <= index) {
         return undefined
       }
-      return acc[key]
+
+      current = current[index]
+      continue
     }
-    if (typeof acc === 'object') {
-      return (acc as Record<string, unknown>)[key]
+
+    if (typeof current !== 'object' || current === null) {
+      return undefined
     }
-    return undefined
-  }, data)
+
+    const record = current as Record<string, unknown>
+    current = record[segment]
+
+    if (options?.base !== undefined) {
+      if (isPlainObject(baseCurrent)) {
+        baseCurrent = (baseCurrent as Record<string, unknown>)[segment]
+      } else {
+        baseCurrent = undefined
+      }
+    }
+  }
+
+  return current
 }
 
 export function extractPlainText(value: unknown): null | string {
