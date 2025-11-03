@@ -4,9 +4,9 @@ import type {
   TranslateLocaleRequestPayload,
   TranslateRequestPayload,
   TranslateStreamEvent,
-} from './types.js'
+} from './translationTypes.js'
 
-import { streamTranslations } from './stream.js'
+import { streamTranslations } from './translationStream.js'
 
 const encoder = new TextEncoder()
 

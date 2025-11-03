@@ -2,9 +2,9 @@ import type { Payload } from 'payload'
 
 import { describe, expect, it, vi } from 'vitest'
 
-import type { TranslateRequestPayload } from './types.js'
+import type { TranslateRequestPayload } from '../../src/server/translationTypes.js'
 
-import { streamTranslations } from './stream.js'
+import { streamTranslations } from '../../src/server/translationStream.js'
 
 const describeIfApiKey = process.env.OPENAI_API_KEY ? describe : describe.skip
 

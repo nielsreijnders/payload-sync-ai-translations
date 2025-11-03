@@ -5,13 +5,13 @@ import type {
   BulkTranslateRequestPayload,
   TranslateLocaleRequestPayload,
   TranslateReviewLocale,
-} from './types.js'
+} from './translationTypes.js'
 
 import { buildTranslatableItems } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
 import { chunkItems } from '../utils/localizedFields.js'
-import { generateTranslationReview } from './review.js'
-import { getStoredCollection, getTranslationState } from './state.js'
-import { streamTranslations } from './stream.js'
+import { generateTranslationReview } from './translationReviewService.js'
+import { getStoredCollection, getTranslationState } from './translationStateStore.js'
+import { streamTranslations } from './translationStream.js'
 
 const encoder = new TextEncoder()
 

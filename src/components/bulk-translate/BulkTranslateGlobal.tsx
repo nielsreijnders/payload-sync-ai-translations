@@ -4,7 +4,7 @@
 import { Button } from '@payloadcms/ui'
 import * as React from 'react'
 
-import type { BulkStreamEvent } from '../../server/types.js'
+import type { BulkStreamEvent } from '../../server/translationTypes.js'
 
 import styles from './BulkTranslate.module.css'
 import { runBulkTranslation } from './utils/runBulkTranslation.js'

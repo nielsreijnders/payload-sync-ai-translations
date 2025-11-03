@@ -4,7 +4,7 @@
 import { Button, Modal } from '@payloadcms/ui'
 import * as React from 'react'
 
-import type { TranslateReviewLocale } from '../server/types.js'
+import type { TranslateReviewLocale } from '../server/translationTypes.js'
 
 import { stripLexicalMarkers } from '../utils/lexical.js'
 import styles from './Modal.module.css'

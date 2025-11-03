@@ -5,11 +5,11 @@ import type {
   TranslateLocaleRequestPayload,
   TranslateRequestPayload,
   TranslateStreamEvent,
-} from './types.js'
+} from './translationTypes.js'
 
 import { toLexical } from '../utils/lexical.js'
 import { getValueAtPath } from '../utils/localizedFields.js'
-import { openAiTranslateTexts } from './openai.js'
+import { openAiTranslateTexts } from './openAiTranslationClient.js'
 
 function cloneLocaleData<T>(value: T): T {
   if (typeof structuredClone === 'function') {

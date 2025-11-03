@@ -3,7 +3,7 @@ import type {
   TranslateReviewRequestPayload,
   TranslateReviewResponse,
   TranslateReviewSuggestion,
-} from '../../../server/types.js'
+} from '../../../server/translationTypes.js'
 import type { TranslatableItem } from './buildTranslatableItems.js'
 
 export type ReviewRequest = {

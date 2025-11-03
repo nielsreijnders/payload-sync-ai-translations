@@ -1,6 +1,6 @@
 import type { LocalizationConfig, TypedLocale } from 'payload'
 
-import type { TranslateReviewLocale } from '../../../server/types.js'
+import type { TranslateReviewLocale } from '../../../server/translationTypes.js'
 import type { AnyField } from '../../../utils/localizedFields.js'
 import type { buildTranslatableItems } from '../utils/buildTranslatableItems.js'
 
