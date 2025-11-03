@@ -4,134 +4,123 @@ import { devUser } from './helpers/credentials.js'
 
 const createLexicalParagraph = (text: string) => ({
   root: {
+    type: 'root',
     children: [
       {
+        type: 'paragraph',
         children: [
           {
+            type: 'text',
             detail: 0,
             format: 0,
             mode: 'normal',
             style: '',
             text,
-            type: 'text',
             version: 1,
           },
         ],
         direction: 'ltr',
         format: '',
         indent: 0,
-        type: 'paragraph',
         version: 1,
       },
     ],
     direction: 'ltr',
     format: '',
     indent: 0,
-    type: 'root',
     version: 1,
   },
 })
 
 const createTextBlock = ({
-  text,
   buttonLabel,
   buttonUrl,
   subText,
+  text,
 }: {
-  text: string
   buttonLabel: string
   buttonUrl: string
   subText: string
+  text: string
 }) => ({
   blockType: 'textBlock',
-  text: { en: text },
-  button: {
-    label: { en: buttonLabel },
-    url: { en: buttonUrl },
-  },
-  group: {
-    subText: {
-      en: createLexicalParagraph(subText),
-    },
-  },
+  button: { label: buttonLabel, url: buttonUrl },
+  group: { subText: createLexicalParagraph(subText) },
+  text,
 })
 
 const seededPosts = [
   {
-    title: { en: 'Exploring Localization Workflows' },
-    slug: { en: 'exploring-localization-workflows' },
-    content: {
-      en: createLexicalParagraph(
-        'An overview of how Payload can streamline authoring content across multiple locales.',
-      ),
-    },
+    slug: 'exploring-localization-workflows',
     components: [
       createTextBlock({
-        text: 'Discover localization best practices in Payload CMS.',
         buttonLabel: 'Read localization guide',
         buttonUrl: '/posts/exploring-localization-workflows',
-        subText: 'This post walks through configuring locales, syncing translations, and previewing results.',
+        subText:
+          'This post walks through configuring locales, syncing translations, and previewing results.',
+        text: 'Discover localization best practices in Payload CMS.',
       }),
     ],
+    content: createLexicalParagraph(
+      'An overview of how Payload can streamline authoring content across multiple locales.',
+    ),
+    title: 'Exploring Localization Workflows',
   },
   {
-    title: { en: 'AI Translation Tips' },
-    slug: { en: 'ai-translation-tips' },
-    content: {
-      en: createLexicalParagraph(
-        'Practical advice for reviewing and polishing AI assisted translations within your workflow.',
-      ),
-    },
+    slug: 'ai-translation-tips',
     components: [
       createTextBlock({
-        text: 'Level-up your AI assisted translation workflow.',
         buttonLabel: 'Explore AI tips',
         buttonUrl: '/posts/ai-translation-tips',
-        subText: 'From prompt crafting to review checklists, learn how to deliver consistent multilingual content.',
+        subText:
+          'From prompt crafting to review checklists, learn how to deliver consistent multilingual content.',
+        text: 'Level-up your AI assisted translation workflow.',
       }),
     ],
+    content: createLexicalParagraph(
+      'Practical advice for reviewing and polishing AI assisted translations within your workflow.',
+    ),
+    title: 'AI Translation Tips',
   },
   {
-    title: { en: 'Managing Rich Text Components' },
-    slug: { en: 'managing-rich-text-components' },
-    content: {
-      en: createLexicalParagraph(
-        'Learn strategies for organizing localized content inside complex block-based layouts.',
-      ),
-    },
+    slug: 'managing-rich-text-components',
     components: [
       createTextBlock({
-        text: 'Structure rich text components for translators.',
         buttonLabel: 'Review component patterns',
         buttonUrl: '/posts/managing-rich-text-components',
-        subText: 'Break down complex layouts into manageable blocks with clear translation guidance.',
+        subText:
+          'Break down complex layouts into manageable blocks with clear translation guidance.',
+        text: 'Structure rich text components for translators.',
       }),
     ],
+    content: createLexicalParagraph(
+      'Learn strategies for organizing localized content inside complex block-based layouts.',
+    ),
+    title: 'Managing Rich Text Components',
   },
 ]
 
+let hasRun = false
+
 export const seed = async (payload: Payload) => {
-  const { totalDocs } = await payload.count({
+  if (hasRun || (globalThis as any).__seeded) {
+    return
+  }
+  hasRun = true
+  ;(globalThis as any).__seeded = true
+
+  const { totalDocs: userCount } = await payload.count({
     collection: 'users',
-    where: {
-      email: {
-        equals: devUser.email,
-      },
-    },
+    where: { email: { equals: devUser.email } },
   })
 
-  if (!totalDocs) {
-    await payload.create({
-      collection: 'users',
-      data: devUser,
-    })
+  if (!userCount) {
+    await payload.create({ collection: 'users', data: devUser })
   }
 
-  const { totalDocs: existingPosts } = await payload.count({
-    collection: 'posts',
-  })
+  const { totalDocs: postCount } = await payload.count({ collection: 'posts' })
 
-  if (!existingPosts) {
+  if (!postCount) {
     await Promise.all(
       seededPosts.map((post) =>
         payload.create({
