@@ -181,6 +181,131 @@ describe('streamTranslations', () => {
     ])
   })
 
+  it('translates deeply nested blocks without dropping values', async () => {
+    const baseDoc = {
+      id: '1',
+      layout: [
+        {
+          blockType: 'accordion',
+          items: [
+            {
+              title: 'Top level heading',
+              nestedBlocks: [
+                {
+                  blockType: 'callToAction',
+                  label: 'Call to action',
+                  stats: [
+                    {
+                      blockType: 'stat',
+                      description: 'Nested statistic description',
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: '1' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce([
+      'Bovenste kop',
+      'Oproep tot actie',
+      'Geneste statistiekbeschrijving',
+    ])
+
+    const request: TranslateRequestPayload = {
+      id: '1',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'layout.0.items.0.title',
+                text: 'Top level heading',
+              },
+              {
+                lexical: false,
+                path: 'layout.0.items.0.nestedBlocks.0.label',
+                text: 'Call to action',
+              },
+              {
+                lexical: false,
+                path: 'layout.0.items.0.nestedBlocks.0.stats.0.description',
+                text: 'Nested statistic description',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    const events: unknown[] = []
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      events.push(event)
+    }
+
+    expect(translateTextsMock).toHaveBeenCalledWith(
+      ['Top level heading', 'Call to action', 'Nested statistic description'],
+      'en',
+      'nl',
+    )
+
+    expect(payloadMock.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          layout: [
+            {
+              blockType: 'accordion',
+              items: [
+                {
+                  title: 'Bovenste kop',
+                  nestedBlocks: [
+                    {
+                      blockType: 'callToAction',
+                      label: 'Oproep tot actie',
+                      stats: [
+                        {
+                          blockType: 'stat',
+                          description: 'Geneste statistiekbeschrijving',
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(events).toEqual([
+      { type: 'progress', completed: 3, locale: 'nl', total: 3 },
+      { type: 'applied', locale: 'nl' },
+      { type: 'done' },
+    ])
+  })
+
   it('emits an error event when translator output length mismatches the chunk', async () => {
     const baseDoc = {
       id: '1',
