@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.3.0...v1.4.0) (2025-11-03)
+
+
+### Features
+
+* implement auto-translate button functionality with review and translation handling ([5776f25](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/5776f25704e1763fbcb15c4f5b63aaa9cb5420e7))
+
 # [1.3.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.2.0...v1.3.0) (2025-10-26)
 
 
