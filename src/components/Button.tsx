@@ -4,10 +4,8 @@ import { Button, useModal } from '@payloadcms/ui'
 import { Sparkles } from 'lucide-react'
 import * as React from 'react'
 
-import {
-  type AutoTranslateButtonProps,
-  useAutoTranslateButton,
-} from './auto-translate-button/hooks/useAutoTranslateButton.js'
+import type { AutoTranslateButtonProps } from './auto-translate-button/hooks/types.js'
+import { useAutoTranslateButton } from './auto-translate-button/hooks/useAutoTranslateButton.js'
 import styles from './AutoTranslateButton.module.css'
 import { AutoTranslateReviewModal, REVIEW_MODAL_SLUG } from './Modal.js'
 

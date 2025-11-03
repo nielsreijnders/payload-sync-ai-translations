@@ -1,6 +1,6 @@
 import { toast } from '@payloadcms/ui'
 
-import type { LocaleTranslationSelection, PendingReview } from '../types'
+import type { LocaleTranslationSelection, PendingReview } from '../hooks/types.js'
 
 import { performTranslations } from '../utils/performTranslations.js'
 import { buildTranslationRequest } from './buildTranslationRequest.js'

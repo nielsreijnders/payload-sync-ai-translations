@@ -1,4 +1,4 @@
-import type { LocaleTranslationSelection, PendingReview } from '../types'
+import type { LocaleTranslationSelection, PendingReview } from '../hooks/types.js'
 
 import { chunkItems } from '../../../utils/localizedFields.js'
 

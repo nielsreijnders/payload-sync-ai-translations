@@ -1,4 +1,4 @@
-import type { PendingReview } from '../types'
+import type { PendingReview } from '../hooks/types.js'
 
 /**
  * applyLocaleOverride
