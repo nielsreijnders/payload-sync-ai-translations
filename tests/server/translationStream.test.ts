@@ -97,6 +97,89 @@ describe('streamTranslations', () => {
     ])
   })
 
+  it('copies missing flexible content blocks from the base document', async () => {
+    const baseDoc = {
+      id: '2',
+      layout: [
+        {
+          blockType: 'hero',
+          title: 'Primary heading',
+        },
+        {
+          blockType: 'divider',
+          style: 'simple',
+        },
+      ],
+    }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: '2' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Primaire heading'])
+
+    const request: TranslateRequestPayload = {
+      id: '2',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'layout.0.title',
+                text: 'Primary heading',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    const events: unknown[] = []
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      events.push(event)
+    }
+
+    expect(payloadMock.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          layout: [
+            {
+              blockType: 'hero',
+              title: 'Primaire heading',
+            },
+            {
+              blockType: 'divider',
+              style: 'simple',
+            },
+          ],
+        },
+        id: '2',
+        locale: 'nl',
+      }),
+    )
+
+    expect(events).toEqual([
+      { type: 'progress', completed: 1, locale: 'nl', total: 1 },
+      { type: 'applied', locale: 'nl' },
+      { type: 'done' },
+    ])
+  })
+
   it('updates nested group fields with translated values', async () => {
     const baseDoc = {
       id: '1',
