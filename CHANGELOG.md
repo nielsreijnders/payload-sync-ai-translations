@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.5.0...v1.5.1) (2025-11-04)
+
+
+### Bug Fixes
+
+* streamline text handling in translation review generation ([9e3a79c](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/9e3a79c1e566321db468760ccddd787197dee844))
+
 # [1.5.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.4.1...v1.5.0) (2025-11-04)
 
 
