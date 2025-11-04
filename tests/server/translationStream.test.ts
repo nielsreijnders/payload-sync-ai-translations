@@ -536,6 +536,230 @@ describe('streamTranslations', () => {
     ])
   })
 
+  it('removes nested metadata fields before saving complex product translations', async () => {
+    const baseDoc = {
+      id: 118,
+      slug: '/en/products/left-b',
+      title: 'LEFT B EARRINGS',
+      image: 460,
+      images: [460, 461, 462, 463],
+      heading: 'LEFT B',
+      editUrl: 'https://tweek-eek.myshopify.com/admin/products/6897821155487',
+      _status: 'published',
+      slugLock: true,
+      material: 3,
+      shopifyId: '6897821155487',
+      updatedAt: '2025-10-12T16:54:01.527Z',
+      createdAt: '2025-10-04T16:38:04.358Z',
+      categories: [2, 30, 11],
+      meta: {
+        title: 'Left B — Earrings — 24K Gold-Plated Brass — Tweek-Eek',
+        image: 460,
+        noFollow: null,
+        description:
+          'Left B — Tweek-Eek. From the No Leftovers Collection, crafted from one plate to avoid waste. 24K gold-plated brass, 3-micron plating in the Netherlands.',
+      },
+      description:
+        'Introducing THE NO LEFTOVERS COLLECTION. The idea of this collection is using everything from one plate ensuring that there is no leftover waste.',
+      hover_image: 464,
+      singularSlug: 'left-b',
+      accordions: [
+        {
+          id: '68e14d6c4eeba23e6e714a98',
+          heading: 'Description',
+          content: {
+            root: {
+              type: 'root',
+              format: '',
+              indent: 0,
+              version: 1,
+              children: [
+                {
+                  type: 'paragraph',
+                  format: '',
+                  indent: 0,
+                  version: 1,
+                  children: [
+                    {
+                      mode: 'normal',
+                      text: 'Introducing THE NO LEFTOVERS COLLECTION. The idea of this collection is using everything from one plate ensuring that there is no leftover waste.',
+                      type: 'text',
+                      style: '',
+                      detail: 0,
+                      format: 0,
+                      version: 1,
+                    },
+                  ],
+                  direction: null,
+                },
+                {
+                  type: 'paragraph',
+                  format: '',
+                  indent: 0,
+                  version: 1,
+                  children: [
+                    {
+                      mode: 'normal',
+                      text: 'The inspiration for this collection emerged when Roos was experimenting with a skeleton plate from a metal furniture factory. By cutting the plate into pieces, she discovered that new patterns emerged with unique shapes. For THE NO LEFTOVERS COLLECTION we designed pieces of jewelry where we use all the parts, including the leftover skeleton.',
+                      type: 'text',
+                      style: '',
+                      detail: 0,
+                      format: 0,
+                      version: 1,
+                    },
+                  ],
+                  direction: null,
+                },
+                {
+                  type: 'paragraph',
+                  format: '',
+                  indent: 0,
+                  version: 1,
+                  children: [
+                    {
+                      mode: 'normal',
+                      text: 'The refined design in combination with the use of the punching machine and pop rivets gives the collection a rough yet elegant look.',
+                      type: 'text',
+                      style: '',
+                      detail: 0,
+                      format: 0,
+                      version: 1,
+                    },
+                  ],
+                  direction: null,
+                },
+              ],
+              direction: null,
+            },
+          },
+        },
+        {
+          id: '68e14d6c4eeba23e6e714a99',
+          heading: 'Details ',
+          content: {
+            root: {
+              type: 'root',
+              format: '',
+              indent: 0,
+              version: 1,
+              children: [
+                {
+                  type: 'paragraph',
+                  format: '',
+                  indent: 0,
+                  version: 1,
+                  children: [
+                    {
+                      mode: 'normal',
+                      text: 'Material: 3 micron 24K plated, base reused brass\nEar stud parts: 24K plated, base 925 sterling silver\nDimensions: (l x w x h) 20 mm x 13 mm x 1 mm\nWarranty: 1 year\nWeight: by pair 4,4 grams',
+                      type: 'text',
+                      style: '',
+                      detail: 0,
+                      format: 0,
+                      version: 1,
+                    },
+                  ],
+                  direction: null,
+                },
+              ],
+              direction: null,
+            },
+          },
+        },
+      ],
+      small_description: null,
+      materialRelationships: [],
+    }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        throw new Error('Not found')
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce([
+      'LEFT B OORBELLEN',
+      '/nl/products/left-b',
+      'left-b',
+      'LEFT B',
+      'Introductie VAN DE GEEN RESTJES COLLECTIE.',
+      'Left B — Oorbellen — 24K Goudverguld Messing — Tweek-Eek',
+      'Left B — Tweek-Eek. Uit de Geen Restjes Collectie, vervaardigd uit één plaat om afval te voorkomen. 24K goudverguld messing, 3-micron plating in Nederland.',
+    ])
+
+    const request: TranslateRequestPayload = {
+      id: 118,
+      collection: 'products',
+      from: 'en',
+      locales: [
+        {
+          chunks: [
+            [
+              { lexical: false, path: 'title', text: 'LEFT B EARRINGS' },
+              { lexical: false, path: 'slug', text: '/en/products/left-b' },
+              { lexical: false, path: 'singularSlug', text: 'left-b' },
+              { lexical: false, path: 'heading', text: 'LEFT B' },
+              {
+                lexical: false,
+                path: 'description',
+                text: 'Introducing THE NO LEFTOVERS COLLECTION. The idea of this collection is using everything from one plate ensuring that there is no leftover waste.',
+              },
+              {
+                lexical: false,
+                path: 'meta.title',
+                text: 'Left B — Earrings — 24K Gold-Plated Brass — Tweek-Eek',
+              },
+              {
+                lexical: false,
+                path: 'meta.description',
+                text: 'Left B — Tweek-Eek. From the No Leftovers Collection, crafted from one plate to avoid waste. 24K gold-plated brass, 3-micron plating in the Netherlands.',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    const events: unknown[] = []
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      events.push(event)
+    }
+
+    expect(events.at(-1)).toEqual({ type: 'done' })
+    expect(payloadMock.update).toHaveBeenCalledTimes(1)
+
+    const updateArgs = vi.mocked(payloadMock.update).mock.calls[0]?.[0]
+    expect(updateArgs).toBeDefined()
+
+    const data = updateArgs?.data as Record<string, unknown>
+    expect(data).toBeDefined()
+    expect(data?.title).toBe('LEFT B OORBELLEN')
+    expect(data?.shopifyId).toBe('6897821155487')
+
+    const accordions = data?.accordions as Array<Record<string, unknown>>
+    expect(Array.isArray(accordions)).toBe(true)
+    accordions?.forEach((accordion) => {
+      expect(accordion).not.toHaveProperty('id')
+      expect(accordion).not.toHaveProperty('_id')
+    })
+
+    const serialized = JSON.stringify(data)
+    expect(serialized).not.toContain('"id":')
+    expect(serialized).not.toContain('"_id":')
+    expect(serialized).not.toContain('"createdAt":')
+    expect(serialized).not.toContain('"updatedAt":')
+  })
+
   it('emits an error event when translator output length mismatches the chunk', async () => {
     const baseDoc = {
       id: '1',
