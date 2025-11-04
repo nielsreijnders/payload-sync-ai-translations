@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.6.0...v1.6.1) (2025-11-04)
+
+
+### Bug Fixes
+
+* some postgress docs have issues with document ids ([c79ce72](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/c79ce726e970c27a6e2c84379b66d52fafb3856c))
+
 # [1.6.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.5.2...v1.6.0) (2025-11-04)
 
 
