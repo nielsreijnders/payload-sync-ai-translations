@@ -16,15 +16,46 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function stripDocumentMetadata(value: unknown): void {
-  if (!isPlainObject(value)) {
-    return
+type StripDocumentMetadataOptions = {
+  deep?: boolean
+}
+
+function stripDocumentMetadata(value: unknown, options?: StripDocumentMetadataOptions): void {
+  const visit = (current: unknown, depth: number): void => {
+    if (Array.isArray(current)) {
+      if (!options?.deep) {
+        return
+      }
+
+      current.forEach((entry) => {
+        visit(entry, depth + 1)
+      })
+      return
+    }
+
+    if (!isPlainObject(current)) {
+      return
+    }
+
+    delete current.id
+    delete current.createdAt
+    delete current.updatedAt
+
+    if (!options?.deep) {
+      delete current._id
+      return
+    }
+
+    if (depth === 0) {
+      delete current._id
+    }
+
+    for (const child of Object.values(current)) {
+      visit(child, depth + 1)
+    }
   }
 
-  delete value.id
-  delete value._id
-  delete value.createdAt
-  delete value.updatedAt
+  visit(value, 0)
 }
 
 function countItems(chunks: TranslateChunk[]): number {
@@ -173,7 +204,7 @@ export async function* streamTranslations(
     }
 
     try {
-      stripDocumentMetadata(localeData)
+      stripDocumentMetadata(localeData, { deep: true })
       await payload.update({
         id,
         collection,
