@@ -125,37 +125,7 @@ npx create-payload-app@latest --template plugin
 └── /dev                # Local Payload environment for testing
 ```
 
-### Local Development
-
-If you used the template, the `/dev` folder is already configured.
-
-Run locally:
-
-```bash
-cd dev
-pnpm dev
-```
-
 Then open [http://localhost:3000](http://localhost:3000).
-
----
-
-## 🧪 Testing
-
-Use Jest to test your plugin.  
-Example:
-
-```ts
-describe('Plugin tests', () => {
-  it('seeds data accordingly', async () => {
-    const newCollectionQuery = await payload.find({
-      collection: 'newCollection',
-    })
-
-    expect(newCollectionQuery.totalDocs).toEqual(1)
-  })
-})
-```
 
 ---
 
