@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.6.0...v1.6.1) (2025-11-04)
+
+
+### Bug Fixes
+
+* remove outdated publishing instructions from README ([a0634c0](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/a0634c0fb0df8926d32e598f41723f623ac25bf2))
+
 # [1.6.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.5.2...v1.6.0) (2025-11-04)
 
 
