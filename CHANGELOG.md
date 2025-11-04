@@ -1,3 +1,10 @@
+## [1.5.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.5.1...v1.5.2) (2025-11-04)
+
+
+### Bug Fixes
+
+* example commit ([0b8edc9](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/0b8edc9a3e19eb340832a262f00e256461d45c1d))
+
 ## [1.5.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.5.0...v1.5.1) (2025-11-04)
 
 
