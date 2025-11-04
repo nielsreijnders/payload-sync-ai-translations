@@ -87,7 +87,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
 
       // 2) Ask server what needs attention (mismatches, suggestions, etc.)
       const review = await requestTranslationReview({
-        id: typeof id === 'string' ? id : String(id),
+        id,
         collection: collectionSlug,
         defaultLocale,
         items,

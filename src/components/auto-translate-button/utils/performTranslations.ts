@@ -10,7 +10,7 @@ export type LocaleTranslationPlan = {
 export type TranslationRequest = {
   collection: string
   defaultLocale: string
-  id: string
+  id: number | string
   locales: LocaleTranslationPlan[]
 }
 
