@@ -1,3 +1,15 @@
+# [1.6.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.5.2...v1.6.0) (2025-11-04)
+
+
+### Bug Fixes
+
+* debug button types ([41feb9f](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/41feb9f5c8568e3715fb208dd5eb04c6e0679d17))
+
+
+### Features
+
+* add DebugDocumentCopyButton and enable debug mode in configuration ([d5aca9f](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/d5aca9fffa27cf38886a4fc0cd629bfd7215c053))
+
 ## [1.5.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.5.1...v1.5.2) (2025-11-04)
 
 
