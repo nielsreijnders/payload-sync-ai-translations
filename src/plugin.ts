@@ -1,9 +1,9 @@
 import type { CollectionConfig, Config, GlobalConfig } from 'payload'
 
 import { createAiBulkTranslateHandler } from './server/bulkTranslationHandler.js'
+import { setOpenAISettings } from './server/openAiSettings.js'
 import { createAiTranslateHandler } from './server/translationRequestHandler.js'
 import { createAiTranslateReviewHandler } from './server/translationReviewService.js'
-import { setOpenAISettings } from './server/openAiSettings.js'
 import { configureTranslationState, listStoredCollections } from './server/translationStateStore.js'
 
 export type AiLocalizationCollectionOptions = {
@@ -13,6 +13,7 @@ export type AiLocalizationCollectionOptions = {
 
 export type AiLocalizationConfig = {
   collections: Record<string, AiLocalizationCollectionOptions>
+  debug?: boolean
   openai: {
     apiKey: string
     model?: string
@@ -22,6 +23,7 @@ export type AiLocalizationConfig = {
 const CLIENT_EXPORT = 'payload-sync-ai-translations/client#AutoTranslateButton'
 const BULK_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#BulkTranslateGlobal'
 const BULK_GLOBAL_SLUG = 'ai-bulk-translation'
+const DEBUG_CLIENT_EXPORT = 'payload-sync-ai-translations/client#DebugDocumentCopyButton'
 
 export const payloadSyncAiTranslations =
   (options: AiLocalizationConfig) =>
@@ -64,6 +66,15 @@ export const payloadSyncAiTranslations =
         ...(perColl.clientProps ?? {}),
       }
 
+      const debugControls = options.debug
+        ? [
+            {
+              clientProps,
+              path: DEBUG_CLIENT_EXPORT,
+            },
+          ]
+        : []
+
       return {
         ...collection,
         admin: {
@@ -74,6 +85,7 @@ export const payloadSyncAiTranslations =
               ...collection.admin?.components?.edit,
               beforeDocumentControls: [
                 ...(collection.admin?.components?.edit?.beforeDocumentControls ?? []),
+                ...debugControls,
                 {
                   clientProps, // <-- the key bit
                   path: CLIENT_EXPORT,
