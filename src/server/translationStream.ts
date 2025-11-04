@@ -12,6 +12,21 @@ import { getValueAtPath } from '../utils/localizedFields.js'
 import { cloneLocaleData, mergeStructuralData, setValueAtPath } from './localeStructure.js'
 import { openAiTranslateTexts } from './openAiTranslationClient.js'
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function stripDocumentMetadata(value: unknown): void {
+  if (!isPlainObject(value)) {
+    return
+  }
+
+  delete value.id
+  delete value._id
+  delete value.createdAt
+  delete value.updatedAt
+}
+
 function countItems(chunks: TranslateChunk[]): number {
   return chunks.reduce((total, chunk) => total + chunk.length, 0)
 }
@@ -61,6 +76,7 @@ export async function* streamTranslations(
     })
     if (doc && typeof doc === 'object') {
       baseDoc = doc as Record<string, unknown>
+      stripDocumentMetadata(baseDoc)
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load base document.'
@@ -76,6 +92,7 @@ export async function* streamTranslations(
       const localeDoc = await payload.findByID({ id, collection, depth: 0, locale })
       if (localeDoc && typeof localeDoc === 'object') {
         existingLocaleDoc = localeDoc as Record<string, unknown>
+        stripDocumentMetadata(existingLocaleDoc)
       }
     } catch (_error) {
       existingLocaleDoc = null
@@ -89,21 +106,15 @@ export async function* streamTranslations(
 
     let localeData: unknown = existingLocaleDoc ? cloneLocaleData(existingLocaleDoc) : {}
 
-    if (typeof localeData !== 'object' || localeData === null || Array.isArray(localeData)) {
+    if (!isPlainObject(localeData)) {
       localeData = {}
     }
 
-    delete (localeData as Record<string, unknown>).id
-    delete (localeData as Record<string, unknown>)._id
-    delete (localeData as Record<string, unknown>).createdAt
-    delete (localeData as Record<string, unknown>).updatedAt
+    stripDocumentMetadata(localeData)
 
     if (baseDoc) {
       localeData = mergeStructuralData(baseDoc, localeData)
-      delete (localeData as Record<string, unknown>).id
-      delete (localeData as Record<string, unknown>)._id
-      delete (localeData as Record<string, unknown>).createdAt
-      delete (localeData as Record<string, unknown>).updatedAt
+      stripDocumentMetadata(localeData)
     }
 
     let completed = 0
@@ -162,6 +173,7 @@ export async function* streamTranslations(
     }
 
     try {
+      stripDocumentMetadata(localeData)
       await payload.update({
         id,
         collection,
