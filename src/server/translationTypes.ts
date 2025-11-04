@@ -58,6 +58,32 @@ export type BulkTranslateRequestPayload = {
   collections: string[]
 }
 
+export type LinkSyncItem = {
+  lexical: boolean
+  path: string
+  text: string
+}
+
+export type LinkSyncRequestPayload = {
+  collection: string
+  from: string
+  id: number | string
+  items: LinkSyncItem[]
+  locales: string[]
+}
+
+export type LinkSyncLocaleOverride = {
+  index: number
+  text: string
+}
+
+export type LinkSyncResponsePayload = {
+  locales: Array<{
+    code: string
+    overrides: LinkSyncLocaleOverride[]
+  }>
+}
+
 export type BulkStartEvent = {
   totalCollections: number
   totalDocuments: number

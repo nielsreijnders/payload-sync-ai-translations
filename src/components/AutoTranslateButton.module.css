@@ -3,3 +3,12 @@
   display: inline-flex;
   gap: 0.375rem;
 }
+
+.icon {
+  color: inherit;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 0.5rem;
+}

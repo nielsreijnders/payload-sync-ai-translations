@@ -2,8 +2,10 @@ import type { CollectionConfig, Config, GlobalConfig } from 'payload'
 
 import { createAiBulkTranslateHandler } from './server/bulkTranslationHandler.js'
 import { setOpenAISettings } from './server/openAiSettings.js'
+import { createBulkLinkSyncHandler } from './server/bulkLinkSyncHandler.js'
 import { createAiTranslateHandler } from './server/translationRequestHandler.js'
 import { createAiTranslateReviewHandler } from './server/translationReviewService.js'
+import { createLinkSyncHandler } from './server/linkSyncHandler.js'
 import { configureTranslationState, listStoredCollections } from './server/translationStateStore.js'
 
 export type AiLocalizationCollectionOptions = {
@@ -23,6 +25,8 @@ export type AiLocalizationConfig = {
 const CLIENT_EXPORT = 'payload-sync-ai-translations/client#AutoTranslateButton'
 const BULK_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#BulkTranslateGlobal'
 const BULK_GLOBAL_SLUG = 'ai-bulk-translation'
+const LINK_BULK_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#BulkLinkSyncGlobal'
+const LINK_BULK_GLOBAL_SLUG = 'ai-bulk-link-sync'
 const DEBUG_CLIENT_EXPORT = 'payload-sync-ai-translations/client#DebugDocumentCopyButton'
 
 export const payloadSyncAiTranslations =
@@ -110,6 +114,8 @@ export const payloadSyncAiTranslations =
       locales: localeCodes,
     }
 
+    const bulkLinkClientProps = { ...bulkClientProps }
+
     const bulkGlobal: GlobalConfig = {
       slug: BULK_GLOBAL_SLUG,
       fields: [
@@ -132,16 +138,42 @@ export const payloadSyncAiTranslations =
       },
     }
 
+    const bulkLinkGlobal: GlobalConfig = {
+      slug: LINK_BULK_GLOBAL_SLUG,
+      fields: [
+        {
+          name: 'bulkLinkSync',
+          type: 'ui',
+          admin: {
+            components: {
+              Field: {
+                clientProps: bulkLinkClientProps,
+                path: LINK_BULK_GLOBAL_COMPONENT,
+              },
+            },
+          },
+        },
+      ],
+      label: {
+        plural: 'AI Bulk Link Synchronizations',
+        singular: 'AI Bulk Link Synchronization',
+      },
+    }
+
     const existingGlobals = config.globals ?? []
-    const globals = storedCollections.length ? [...existingGlobals, bulkGlobal] : existingGlobals
+    const globals = storedCollections.length
+      ? [...existingGlobals, bulkGlobal, bulkLinkGlobal]
+      : existingGlobals
 
     return {
       ...config,
       collections,
       endpoints: [
         ...(config.endpoints ?? []),
+        { handler: createBulkLinkSyncHandler(), method: 'post', path: '/ai-translate/links/bulk' },
         { handler: createAiBulkTranslateHandler(), method: 'post', path: '/ai-translate/bulk' },
         { handler: createAiTranslateHandler(), method: 'post', path: '/ai-translate' },
+        { handler: createLinkSyncHandler(), method: 'post', path: '/ai-translate/links' },
         { handler: createAiTranslateReviewHandler(), method: 'post', path: '/ai-translate/review' },
       ],
       globals,
