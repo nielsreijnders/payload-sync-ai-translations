@@ -46,13 +46,14 @@ function parseBulkBody(body: unknown): BulkTranslateRequestPayload {
   return { collections: sanitized }
 }
 
-function toIdentifier(value: unknown): null | string {
+function toIdentifier(value: unknown): null | number | string {
   if (typeof value === 'string') {
-    return value
+    const trimmed = value.trim()
+    return trimmed.length ? trimmed : null
   }
 
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return String(value)
+    return value
   }
 
   if (typeof value === 'object' && value !== null && 'id' in value) {
@@ -232,12 +233,12 @@ async function* runBulkTranslations(
       }
 
       for (const doc of docs) {
-        const docId =
+        const docIdentifier =
           toIdentifier((doc as { id?: unknown }).id) ??
           toIdentifier((doc as { _id?: unknown })._id) ??
-          ''
+          null
 
-        if (!docId) {
+        if (docIdentifier === null) {
           collectionSkipped += 1
           overallSkipped += 1
           payload.logger?.warn?.(
@@ -252,10 +253,12 @@ async function* runBulkTranslations(
           continue
         }
 
+        const docLabel = String(docIdentifier)
+
         payload.logger?.info?.(
-          `[AI Translate] Starting bulk translation for ${entry.slug}#${docId}.`,
+          `[AI Translate] Starting bulk translation for ${entry.slug}#${docLabel}.`,
         )
-        yield { id: docId, type: 'document-start', collection: entry.slug }
+        yield { id: docLabel, type: 'document-start', collection: entry.slug }
 
         const items = buildTranslatableItems(doc, entry.fieldPatterns)
 
@@ -263,10 +266,10 @@ async function* runBulkTranslations(
           collectionSkipped += 1
           overallSkipped += 1
           payload.logger?.info?.(
-            `[AI Translate] Skipped ${entry.slug}#${docId}: no translatable fields found.`,
+            `[AI Translate] Skipped ${entry.slug}#${docLabel}: no translatable fields found.`,
           )
           yield {
-            id: docId,
+            id: docLabel,
             type: 'document-skipped',
             collection: entry.slug,
             reason: 'No translatable fields found.',
@@ -277,7 +280,7 @@ async function* runBulkTranslations(
         let review
         try {
           review = await generateTranslationReview(payload, {
-            id: docId,
+            id: docIdentifier,
             collection: entry.slug,
             from: defaultLocale,
             items,
@@ -289,9 +292,9 @@ async function* runBulkTranslations(
           collectionFailed += 1
           overallFailed += 1
           payload.logger?.error?.(
-            `[AI Translate] Review failed for ${entry.slug}#${docId}: ${message}`,
+            `[AI Translate] Review failed for ${entry.slug}#${docLabel}: ${message}`,
           )
-          yield { id: docId, type: 'document-error', collection: entry.slug, message }
+          yield { id: docLabel, type: 'document-error', collection: entry.slug, message }
           continue
         }
 
@@ -301,10 +304,10 @@ async function* runBulkTranslations(
           collectionSkipped += 1
           overallSkipped += 1
           payload.logger?.info?.(
-            `[AI Translate] Skipped ${entry.slug}#${docId}: translations are up to date.`,
+            `[AI Translate] Skipped ${entry.slug}#${docLabel}: translations are up to date.`,
           )
           yield {
-            id: docId,
+            id: docLabel,
             type: 'document-skipped',
             collection: entry.slug,
             reason: 'Translations are already up to date.',
@@ -316,7 +319,7 @@ async function* runBulkTranslations(
 
         try {
           for await (const event of streamTranslations(payload, {
-            id: docId,
+            id: docIdentifier,
             collection: entry.slug,
             from: defaultLocale,
             locales: localeRequests,
@@ -324,10 +327,10 @@ async function* runBulkTranslations(
             switch (event.type) {
               case 'applied':
                 payload.logger?.info?.(
-                  `[AI Translate] Saved translations for ${entry.slug}#${docId} (${event.locale}).`,
+                  `[AI Translate] Saved translations for ${entry.slug}#${docLabel} (${event.locale}).`,
                 )
                 yield {
-                  id: docId,
+                  id: docLabel,
                   type: 'document-applied',
                   collection: entry.slug,
                   locale: event.locale,
@@ -340,10 +343,10 @@ async function* runBulkTranslations(
                 collectionFailed += 1
                 overallFailed += 1
                 payload.logger?.error?.(
-                  `[AI Translate] Failed to translate ${entry.slug}#${docId}: ${event.message}`,
+                  `[AI Translate] Failed to translate ${entry.slug}#${docLabel}: ${event.message}`,
                 )
                 yield {
-                  id: docId,
+                  id: docLabel,
                   type: 'document-error',
                   collection: entry.slug,
                   message: event.message,
@@ -351,7 +354,7 @@ async function* runBulkTranslations(
                 break
               case 'progress':
                 yield {
-                  id: docId,
+                  id: docLabel,
                   type: 'document-progress',
                   collection: entry.slug,
                   completed: event.completed,
@@ -374,9 +377,9 @@ async function* runBulkTranslations(
           collectionFailed += 1
           overallFailed += 1
           payload.logger?.error?.(
-            `[AI Translate] Unexpected error for ${entry.slug}#${docId}: ${message}`,
+            `[AI Translate] Unexpected error for ${entry.slug}#${docLabel}: ${message}`,
           )
-          yield { id: docId, type: 'document-error', collection: entry.slug, message }
+          yield { id: docLabel, type: 'document-error', collection: entry.slug, message }
         }
 
         if (hadError) {
@@ -386,9 +389,9 @@ async function* runBulkTranslations(
         collectionProcessed += 1
         overallProcessed += 1
         payload.logger?.info?.(
-          `[AI Translate] Completed translations for ${entry.slug}#${docId}.`,
+          `[AI Translate] Completed translations for ${entry.slug}#${docLabel}.`,
         )
-        yield { id: docId, type: 'document-success', collection: entry.slug }
+        yield { id: docLabel, type: 'document-success', collection: entry.slug }
       }
     }
 

@@ -9,7 +9,7 @@ import type { TranslatableItem } from './buildTranslatableItems.js'
 export type ReviewRequest = {
   collection: string
   defaultLocale: string
-  id: string
+  id: number | string
   items: TranslatableItem[]
   locales: string[]
 }

@@ -24,11 +24,15 @@ export function buildTranslationRequest(
     throw new Error('Localization settings are missing.')
   }
 
-  if (!id) {
+  if (typeof id !== 'string' && typeof id !== 'number') {
     throw new Error('Document ID is missing.')
   }
 
-  const identifier = typeof id === 'string' ? id : String(id)
+  if (typeof id === 'string' && id.trim().length === 0) {
+    throw new Error('Document ID is missing.')
+  }
+
+  const identifier = typeof id === 'string' ? id.trim() : id
 
   const localesWithChunks = locales
     .map((locale) => {
