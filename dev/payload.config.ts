@@ -66,6 +66,7 @@ const buildConfigWithMemoryDB = async () => {
             excludeFields: ['slug'],
           },
         },
+        debug: true,
         openai: {
           apiKey: process.env.OPENAI_API_KEY || '',
         },

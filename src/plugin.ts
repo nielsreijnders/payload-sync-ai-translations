@@ -1,9 +1,9 @@
 import type { CollectionConfig, Config, GlobalConfig } from 'payload'
 
 import { createAiBulkTranslateHandler } from './server/bulkTranslationHandler.js'
+import { setOpenAISettings } from './server/openAiSettings.js'
 import { createAiTranslateHandler } from './server/translationRequestHandler.js'
 import { createAiTranslateReviewHandler } from './server/translationReviewService.js'
-import { setOpenAISettings } from './server/openAiSettings.js'
 import { configureTranslationState, listStoredCollections } from './server/translationStateStore.js'
 
 export type AiLocalizationCollectionOptions = {
