@@ -150,7 +150,11 @@ export async function openAiDetectMissingInformation(
   }
 
   const issues = Array.isArray((parsed as { issues?: unknown }).issues)
-    ? ((parsed as { issues: unknown[] }).issues as Array<{ index?: unknown; missing?: unknown; reason?: unknown }>)
+    ? ((parsed as { issues: unknown[] }).issues as Array<{
+        index?: unknown
+        missing?: unknown
+        reason?: unknown
+      }>)
     : []
 
   return inputs.map((item) => {
