@@ -152,25 +152,6 @@ Run with:
 PAYLOAD_SEED=true pnpm dev
 ```
 
----
-
-## 🚀 Publishing
-
-When you’re ready to release your plugin:
-
-1. Update your `package.json` metadata
-2. Add your tests to your GitHub CI workflow
-3. Publish to npm:
-
-   ```bash
-   npm publish
-   ```
-
-4. Tag your repository with `payload-plugin` for discoverability
-5. Follow [Semantic Versioning (SemVer)](https://semver.org/)
-
----
-
 ## 💡 Summary
 
 By encapsulating your translation logic in a reusable Payload plugin, you can:
