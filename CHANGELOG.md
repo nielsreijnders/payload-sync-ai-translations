@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.4.1...v1.5.0) (2025-11-04)
+
+
+### Features
+
+* remove local development and testing sections from README ([c6afe38](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/c6afe381f2616eeec7e6fc7972b564a99186506b))
+
 ## [1.4.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.4.0...v1.4.1) (2025-11-03)
 
 
