@@ -199,7 +199,7 @@ export async function generateTranslationReview(
           mismatches.push({
             defaultText: sourceItem?.lexical
               ? stripLexicalMarkers(sourceItem.text)
-              : sourceItem?.text ?? '',
+              : (sourceItem?.text ?? ''),
             existingText: existingByIndex.get(result.index) ?? '',
             index: result.index,
             path: sourceItem?.path ?? '',
@@ -231,9 +231,7 @@ export async function generateTranslationReview(
 
         const orderedCandidates = sortedIndexes
           .map((index) =>
-            uniqueCandidates.has(index)
-              ? { index, text: uniqueCandidates.get(index) ?? '' }
-              : null,
+            uniqueCandidates.has(index) ? { index, text: uniqueCandidates.get(index) ?? '' } : null,
           )
           .filter((entry): entry is TranslateSuggestionInput => Boolean(entry))
 
