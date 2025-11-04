@@ -146,12 +146,6 @@ export const seed = async (payload: Payload): Promise<void> => {
 }
 ```
 
-Run with:
-
-```bash
-PAYLOAD_SEED=true pnpm dev
-```
-
 ## 💡 Summary
 
 By encapsulating your translation logic in a reusable Payload plugin, you can:
