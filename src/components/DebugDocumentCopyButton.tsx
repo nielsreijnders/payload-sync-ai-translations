@@ -4,14 +4,19 @@ import { Button, toast, useDocumentForm, useDocumentInfo, useForm } from '@paylo
 import { Clipboard } from 'lucide-react'
 import * as React from 'react'
 
-import type { AutoTranslateButtonProps, FormApi, LocalizedFieldPatternsInput } from './auto-translate-button/hooks/types.js'
+import type {
+  AutoTranslateButtonProps,
+  FormApi,
+  LocalizedFieldPatternsInput,
+} from './auto-translate-button/hooks/types.js'
+
+import { chunkItems } from '../utils/localizedFields.js'
 import { useLocalizedFieldPatterns } from './auto-translate-button/hooks/useLocalizedFieldPatterns.js'
 import { buildTranslatableItems } from './auto-translate-button/utils/buildTranslatableItems.js'
-import { chunkItems } from '../utils/localizedFields.js'
 import styles from './AutoTranslateButton.module.css'
 
 export function DebugDocumentCopyButton(props: AutoTranslateButtonProps) {
-  const { collectionSlug, docConfig, id } = useDocumentInfo()
+  const { id, collectionSlug, docConfig } = useDocumentInfo()
   const form = useForm()
   const documentForm = useDocumentForm()
   const [busy, setBusy] = React.useState(false)
@@ -45,12 +50,11 @@ export function DebugDocumentCopyButton(props: AutoTranslateButtonProps) {
       const items = buildTranslatableItems(data, fieldPatterns)
       const chunked = chunkItems(items)
 
-      const defaultLocale =
-        typeof props.defaultLocale === 'string'
-          ? props.defaultLocale
-          : props.defaultLocale?.code ?? null
+      const defaultLocale = props.defaultLocale
 
       const payload = {
+        chunks: chunked,
+        documentData: data,
         meta: {
           collectionSlug,
           defaultLocale,
@@ -58,9 +62,7 @@ export function DebugDocumentCopyButton(props: AutoTranslateButtonProps) {
           fieldPatterns,
           locales: props.locales,
         },
-        documentData: data,
         translatableItems: items,
-        chunks: chunked,
       }
 
       const serialized = JSON.stringify(payload, null, 2)
@@ -76,7 +78,7 @@ export function DebugDocumentCopyButton(props: AutoTranslateButtonProps) {
   }, [collectionSlug, fieldPatterns, formApi, id, props.defaultLocale, props.locales])
 
   return (
-    <Button disabled={busy} onClick={handleCopy} type="button" variant="secondary">
+    <Button disabled={busy} onClick={handleCopy} type="button">
       <span className={styles.buttonContent}>
         <Clipboard size={14} />
         Copy translation debug info
