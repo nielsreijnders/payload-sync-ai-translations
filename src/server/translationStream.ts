@@ -101,6 +101,7 @@ export async function* streamTranslations(
     const doc = await payload.findByID({
       id,
       collection,
+      draft: true,
       depth: 0,
       fallbackLocale: false,
       locale: from,
@@ -120,7 +121,14 @@ export async function* streamTranslations(
     let existingLocaleDoc: null | Record<string, unknown> = null
 
     try {
-      const localeDoc = await payload.findByID({ id, collection, depth: 0, locale })
+      const localeDoc = await payload.findByID({
+        id,
+        collection,
+        draft: true,
+        depth: 0,
+        fallbackLocale: false,
+        locale,
+      })
       if (localeDoc && typeof localeDoc === 'object') {
         existingLocaleDoc = localeDoc as Record<string, unknown>
         stripDocumentMetadata(existingLocaleDoc)
@@ -208,6 +216,7 @@ export async function* streamTranslations(
       await payload.update({
         id,
         collection,
+        draft: true,
         data: localeData as Record<string, unknown>,
         locale,
         overrideAccess: true,

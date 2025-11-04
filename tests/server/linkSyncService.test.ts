@@ -63,13 +63,16 @@ describe('generateLinkSyncPlan', () => {
     expect(findMock).toHaveBeenCalledWith(
       expect.objectContaining({
         collection: 'posts',
+        draft: true,
         where: { slug: { equals: 'example-slug' } },
       }),
     )
     expect(findByIdMock).toHaveBeenCalledWith(
       expect.objectContaining({
         collection: 'posts',
-        id: '123',
+        draft: true,
+         id: '123',
+        fallbackLocale: false,
         locale: 'nl',
       }),
     )

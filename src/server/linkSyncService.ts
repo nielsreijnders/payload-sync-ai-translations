@@ -130,6 +130,7 @@ async function findDocumentForLink(
     try {
       const result = await payload.find({
         collection,
+        draft: true,
         depth: 0,
         fallbackLocale: false,
         limit: 2,
@@ -186,6 +187,7 @@ async function loadLocaleSlugs(
         const doc = await payload.findByID({
           id: entry.id,
           collection: entry.collection,
+          draft: true,
           depth: 0,
           fallbackLocale: false,
           locale,
