@@ -97,6 +97,54 @@ describe('streamTranslations', () => {
     ])
   })
 
+  it('strips document identifiers before saving translations', async () => {
+    const baseDoc = {
+      id: 91,
+      title: 'Example product',
+    }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockResolvedValue(baseDoc),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Voorbeeld product'])
+
+    const request: TranslateRequestPayload = {
+      id: 91,
+      collection: 'products',
+      from: 'en',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'title',
+                text: 'Example product',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    for await (const _event of streamTranslations(payloadMock as Payload, request)) {
+      // exhaust generator
+    }
+
+    expect(payloadMock.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ id: expect.anything(), _id: expect.anything() }),
+      }),
+    )
+  })
+
   it('copies missing flexible content blocks from the base document', async () => {
     const baseDoc = {
       id: '2',
