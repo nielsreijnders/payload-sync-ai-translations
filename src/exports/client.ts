@@ -2,3 +2,5 @@ export { BulkTranslateGlobal } from '../components/bulk-translate/BulkTranslateG
 export { AutoTranslateButton } from '../components/Button.js'
 export { AutoTranslateButton as AutoTranslateAllButton } from '../components/Button.js'
 export { DebugDocumentCopyButton } from '../components/DebugDocumentCopyButton.js'
+export { DocumentSyncLinksButton } from '../components/sync-links/DocumentSyncLinksButton.js'
+export { SyncLinksGlobal } from '../components/sync-links/SyncLinksGlobal.js'
