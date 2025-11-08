@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import { isPlainObject, type Payload } from 'payload'
 
 import type {
   TranslateChunk,
@@ -9,23 +9,9 @@ import type {
 
 import { toLexical } from '../utils/lexical.js'
 import { getValueAtPath } from '../utils/localizedFields.js'
+import { stripDocumentMetadata } from './documentUtils.js'
 import { cloneLocaleData, mergeStructuralData, setValueAtPath } from './localeStructure.js'
 import { openAiTranslateTexts } from './openAiTranslationClient.js'
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function stripDocumentMetadata(value: unknown): void {
-  if (!isPlainObject(value)) {
-    return
-  }
-
-  delete value.id
-  delete value._id
-  delete value.createdAt
-  delete value.updatedAt
-}
 
 function countItems(chunks: TranslateChunk[]): number {
   return chunks.reduce((total, chunk) => total + chunk.length, 0)
