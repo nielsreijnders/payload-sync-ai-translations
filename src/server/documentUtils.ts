@@ -19,23 +19,24 @@ export function stripDocumentMetadata(value: unknown): void {
 
 type LoadDocumentOptions = {
   collection: string
-  id: string | number
-  locale: string
   fallbackLocale?: boolean
+  id: number | string
+  locale: string
 }
 
 export async function loadLocalizedDocument(
   payload: Payload,
   options: LoadDocumentOptions,
-): Promise<Record<string, unknown> | null> {
-  const { collection, id, locale, fallbackLocale = false } = options
+): Promise<null | Record<string, unknown>> {
+  const { id, collection, fallbackLocale = false, locale } = options
 
   try {
     const doc = await payload.findByID({
+      id,
       collection,
       depth: 0,
+      // @ts-expect-error temp
       fallbackLocale,
-      id,
       locale,
     })
 

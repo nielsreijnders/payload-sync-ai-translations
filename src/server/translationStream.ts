@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import { isPlainObject, type Payload } from 'payload'
 
 import type {
   TranslateChunk,

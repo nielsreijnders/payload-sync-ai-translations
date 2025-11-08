@@ -12,7 +12,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 const STRUCTURE_SKIP_KEYS = new Set(['createdAt', 'updatedAt'])
 
-function getIdentity(value: unknown): string | number | null {
+function getIdentity(value: unknown): null | number | string {
   if (!isPlainObject(value)) {
     return null
   }
@@ -83,7 +83,12 @@ export function mergeStructuralData(base: unknown, target: unknown): unknown {
         }
       }
 
-      if (matchIndex === -1 && identity === null && index < targetArray.length && !used.has(index)) {
+      if (
+        matchIndex === -1 &&
+        identity === null &&
+        index < targetArray.length &&
+        !used.has(index)
+      ) {
         matchIndex = index
       }
 
@@ -107,8 +112,8 @@ export function mergeStructuralData(base: unknown, target: unknown): unknown {
   }
 
   if (isPlainObject(base)) {
-    const baseRecord = base as Record<string, unknown>
-    const targetRecord = isPlainObject(target) ? { ...(target as Record<string, unknown>) } : {}
+    const baseRecord = base
+    const targetRecord = isPlainObject(target) ? { ...target } : {}
 
     if (typeof baseRecord.blockType === 'string' && typeof targetRecord.blockType !== 'string') {
       targetRecord.blockType = baseRecord.blockType

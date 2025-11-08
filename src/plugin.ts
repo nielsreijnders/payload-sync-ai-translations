@@ -1,10 +1,10 @@
 import type { CollectionConfig, Config, GlobalConfig } from 'payload'
 
 import { createAiBulkTranslateHandler } from './server/bulkTranslationHandler.js'
+import { createBulkSyncLinksHandler, createSyncLinksHandler } from './server/linkSyncHandler.js'
 import { setOpenAISettings } from './server/openAiSettings.js'
 import { createAiTranslateHandler } from './server/translationRequestHandler.js'
 import { createAiTranslateReviewHandler } from './server/translationReviewService.js'
-import { createBulkSyncLinksHandler, createSyncLinksHandler } from './server/linkSyncHandler.js'
 import { configureTranslationState, listStoredCollections } from './server/translationStateStore.js'
 
 export type AiLocalizationCollectionOptions = {

@@ -8,7 +8,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function getIdentity(value: unknown): string | number | null {
+function getIdentity(value: unknown): null | number | string {
   if (!isPlainObject(value)) {
     return null
   }
@@ -132,7 +132,11 @@ export function expandConcretePathsFromPattern(data: unknown, pattern: string): 
   return out
 }
 
-export function getValueAtPath(data: unknown, path: string, options?: GetValueAtPathOptions): unknown {
+export function getValueAtPath(
+  data: unknown,
+  path: string,
+  options?: GetValueAtPathOptions,
+): unknown {
   const segments = path.split('.')
   let current: unknown = data
   let baseCurrent: unknown = options?.base
@@ -191,7 +195,7 @@ export function getValueAtPath(data: unknown, path: string, options?: GetValueAt
 
     if (options?.base !== undefined) {
       if (isPlainObject(baseCurrent)) {
-        baseCurrent = (baseCurrent as Record<string, unknown>)[segment]
+        baseCurrent = baseCurrent[segment]
       } else {
         baseCurrent = undefined
       }
