@@ -1,3 +1,10 @@
+# [1.9.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.8.0...v1.9.0) (2025-11-09)
+
+
+### Features
+
+* shorten locales array for testing ([679f36c](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/679f36cdb6734ff2ca44ebf31ca9f455c9c5801a))
+
 # [1.8.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.7.2...v1.8.0) (2025-11-09)
 
 
