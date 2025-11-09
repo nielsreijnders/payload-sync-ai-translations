@@ -1,3 +1,17 @@
+# [1.7.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.6.0...v1.7.0) (2025-11-09)
+
+
+### Bug Fixes
+
+* a versioning issue lol ([05a6990](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/05a69906c3f47bad5bd0e2ffb4c28edd88d211f2))
+* remove outdated publishing instructions from README ([a0634c0](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/a0634c0fb0df8926d32e598f41723f623ac25bf2))
+
+
+### Features
+
+* add document synchronization link components and improve loadLocalizedDocument function ([2c42c06](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/2c42c06147bce67a92b27cfef42d594fe48c1763))
+* publish link syncing ([34012f7](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/34012f777faeaaefe72206c6cb55ba198094a2aa))
+
 ## [1.6.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.6.0...v1.6.1) (2025-11-04)
 
 
