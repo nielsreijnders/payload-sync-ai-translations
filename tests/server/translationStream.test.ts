@@ -6,6 +6,9 @@ import type { TranslateRequestPayload } from '../../src/server/translationTypes.
 
 import { openAiTranslateTexts } from '../../src/server/openAiTranslationClient.js'
 import { streamTranslations } from '../../src/server/translationStream.js'
+import { serializeLexicalValue, splitLexicalText } from '../../src/utils/lexical.js'
+import { MAX_CHARS_PER_CHUNK } from '../../src/utils/localizedFields.js'
+import { tabbedBlockDocument } from '../fixtures/tabbedBlockLexical.js'
 
 vi.mock('../../src/server/openAiTranslationClient.js', () => ({
   openAiTranslateTexts: vi.fn(),
@@ -594,5 +597,85 @@ describe('streamTranslations', () => {
     expect(payloadMock.logger?.error).toHaveBeenCalledWith(
       '[AI Translate] Translation mismatch for pages#1 (nl).',
     )
+  })
+
+  it('translates lexical rich text fields while preserving structure', async () => {
+    const baseDoc = structuredClone(tabbedBlockDocument)
+    const lexicalValue = baseDoc.components[1]?.tab2?.fieldInTab2
+    const serialized = serializeLexicalValue(lexicalValue)
+    expect(serialized).not.toBeNull()
+
+    const segments = splitLexicalText(serialized!.text, MAX_CHARS_PER_CHUNK)
+    expect(segments.length).toBeGreaterThan(1)
+
+    const replacePlaceholders = (input: string) =>
+      input.replace(
+        /\[\[LEX-(\d+)\]\]([\s\S]*?)\[\[\/LEX-\1\]\]/g,
+        (_match, index) => `[[LEX-${index}]]Vertaling ${index}[[/LEX-${index}]]`,
+      )
+
+    const translatedSegments = segments.map((segment) => replacePlaceholders(segment))
+    const translation = replacePlaceholders(serialized!.text)
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: baseDoc.id }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    let callIndex = 0
+    translateTextsMock.mockImplementation(async (inputs) => {
+      expect(inputs).toHaveLength(1)
+      const segment = inputs[0]
+      expect(segment).toBe(segments[callIndex])
+      const output = translatedSegments[callIndex]
+      callIndex += 1
+      return [output]
+    })
+
+    const request: TranslateRequestPayload = {
+      id: baseDoc.id,
+      collection: 'posts',
+      from: 'en',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: true,
+                path: 'components.1.tab2.fieldInTab2',
+                text: serialized!.text,
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    const events: unknown[] = []
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      events.push(event)
+    }
+
+    expect(events).toContainEqual({ type: 'applied', locale: 'nl' })
+    expect(events).toContainEqual({ type: 'done' })
+    expect(payloadMock.update).toHaveBeenCalledTimes(1)
+    expect(callIndex).toBe(segments.length)
+
+    const saved = payloadMock.update.mock.calls[0][0]
+    const savedValue = serializeLexicalValue(
+      saved.data?.components?.[1]?.tab2?.fieldInTab2,
+    )
+    expect(savedValue?.text).toEqual(translation)
   })
 })
