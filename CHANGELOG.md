@@ -1,3 +1,10 @@
+## [1.10.3](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.10.2...v1.10.3) (2025-11-09)
+
+
+### Bug Fixes
+
+* repair openai faulty json response ([91a406a](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/91a406a2c5f0f303f9ae3237e169fdd296b48925))
+
 ## [1.10.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.10.1...v1.10.2) (2025-11-09)
 
 
