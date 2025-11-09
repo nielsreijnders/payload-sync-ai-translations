@@ -69,7 +69,7 @@ export function createSyncLinksHandler(): PayloadHandler {
         throw new Error('Payload instance is not available on the request')
       }
 
-      const { id, collection } = parseDocumentBody(await req.json())
+      const { id, collection } = parseDocumentBody(await (req as any).json())
       const state = getTranslationState()
       const stored = getStoredCollection(collection)
 
@@ -110,7 +110,7 @@ export function createBulkSyncLinksHandler(): PayloadHandler {
         throw new Error('Payload instance is not available on the request')
       }
 
-      const request = parseBulkBody(await req.json())
+      const request = parseBulkBody(await (req as any).json())
       const state = getTranslationState()
 
       if (!state.defaultLocale) {
