@@ -1,3 +1,10 @@
+## [1.10.4](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.10.3...v1.10.4) (2025-11-09)
+
+
+### Bug Fixes
+
+* add response_format to openai response ([74ea470](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/74ea4705d330e79094ab0202dfc51297d393fd30))
+
 ## [1.10.3](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.10.2...v1.10.3) (2025-11-09)
 
 

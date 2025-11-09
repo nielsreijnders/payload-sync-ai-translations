@@ -291,6 +291,25 @@ export async function openAiTranslateTexts(
       { content: userPrompt, role: 'user' },
     ],
     model,
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'ai_translation_response',
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            t: {
+              type: 'array',
+              items: { type: 'string' },
+              maxItems: inputs.length,
+              minItems: inputs.length,
+            },
+          },
+          required: ['t'],
+        },
+      },
+    },
     temperature: 0,
     response_format: {
       type: 'json_schema',

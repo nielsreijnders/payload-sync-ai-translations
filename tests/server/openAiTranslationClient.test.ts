@@ -82,7 +82,7 @@ describe('openAiTranslateTexts', () => {
     )
   })
 
-  it('merges extra entries when OpenAI splits a single translation across multiple array values', async () => {
+  it('throws an error when OpenAI response has a mismatched length', async () => {
     completionsCreateMock.mockResolvedValue({
       id: 'resp-2',
       created: 0,
@@ -96,11 +96,7 @@ describe('openAiTranslateTexts', () => {
       ],
     })
 
-    const result = await openAiTranslateTexts(
-      ['Inspired by form\naround the body.'],
-      'en',
-      'nl',
-    )
+    const result = await openAiTranslateTexts(['Inspired by form\naround the body.'], 'en', 'nl')
 
     expect(result).toEqual(['Geïnspireerd door\nhet lichaam.'])
   })
