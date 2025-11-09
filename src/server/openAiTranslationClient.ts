@@ -114,7 +114,7 @@ function coerceString(value: unknown): string {
 function safeParseJsonResponse(content: string): unknown {
   const trimmed = content.trim()
 
-  const tryParse = (value: string | null | undefined): unknown => {
+  const tryParse = (value: null | string | undefined): unknown => {
     if (!value) {
       return null
     }
@@ -126,7 +126,7 @@ function safeParseJsonResponse(content: string): unknown {
     }
   }
 
-  const attemptRepair = (value: string): string | null => {
+  const attemptRepair = (value: string): null | string => {
     const trailingWhitespaceMatch = value.match(/\s*$/)
     const trailingWhitespace = trailingWhitespaceMatch ? trailingWhitespaceMatch[0] : ''
     let base = value.slice(0, value.length - trailingWhitespace.length)
@@ -274,7 +274,7 @@ export async function openAiTranslateTexts(
 
   logDebug(null, '[AI Translate] OpenAI raw response content.', { content })
 
-  let parsed: unknown = safeParseJsonResponse(content)
+  const parsed: unknown = safeParseJsonResponse(content)
 
   if (!parsed || typeof parsed !== 'object' || parsed === null) {
     throw new Error('Invalid translation response from OpenAI: unable to parse JSON payload.')
