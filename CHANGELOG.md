@@ -1,3 +1,10 @@
+## [1.7.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.7.0...v1.7.1) (2025-11-09)
+
+
+### Bug Fixes
+
+* issue type blocks ([9dcb1dc](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/9dcb1dc3648b9f19bfe12e3c48d3ade397eb79b2))
+
 # [1.7.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.6.0...v1.7.0) (2025-11-09)
 
 
