@@ -113,6 +113,8 @@ describe('openAiTranslateTexts', () => {
 
     await expect(
       openAiTranslateTexts(['[[LEX-0]]Hello world[[/LEX-0]]'], 'en', 'nl'),
-    ).rejects.toThrow('Invalid translation response from OpenAI: lexical markers were modified or removed.')
+    ).rejects.toThrow(
+      'Invalid translation response from OpenAI: lexical markers were modified or removed.',
+    )
   })
 })

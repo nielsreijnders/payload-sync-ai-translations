@@ -478,7 +478,12 @@ describe('streamTranslations', () => {
     }
 
     expect(translateTextsMock).toHaveBeenCalledTimes(3)
-    expect(translateTextsMock).toHaveBeenNthCalledWith(1, ['Greetings', 'Welcome visitor'], 'en', 'nl')
+    expect(translateTextsMock).toHaveBeenNthCalledWith(
+      1,
+      ['Greetings', 'Welcome visitor'],
+      'en',
+      'nl',
+    )
     expect(translateTextsMock).toHaveBeenNthCalledWith(2, ['Greetings'], 'en', 'nl')
     expect(translateTextsMock).toHaveBeenNthCalledWith(3, ['Welcome visitor'], 'en', 'nl')
 
@@ -560,7 +565,12 @@ describe('streamTranslations', () => {
     }
 
     expect(translateTextsMock).toHaveBeenCalledTimes(2)
-    expect(translateTextsMock).toHaveBeenNthCalledWith(1, ['Greetings', 'Welcome visitor'], 'en', 'nl')
+    expect(translateTextsMock).toHaveBeenNthCalledWith(
+      1,
+      ['Greetings', 'Welcome visitor'],
+      'en',
+      'nl',
+    )
     expect(translateTextsMock).toHaveBeenNthCalledWith(2, ['Greetings'], 'en', 'nl')
 
     expect(events).toEqual([{ type: 'error', message: 'Single failure' }])
@@ -829,9 +839,7 @@ describe('streamTranslations', () => {
     expect(callIndex).toBe(segments.length)
 
     const saved = payloadMock.update.mock.calls[0][0]
-    const savedValue = serializeLexicalValue(
-      saved.data?.components?.[1]?.tab2?.fieldInTab2,
-    )
+    const savedValue = serializeLexicalValue(saved.data?.components?.[1]?.tab2?.fieldInTab2)
     expect(savedValue?.text).toEqual(translation)
   })
 })
