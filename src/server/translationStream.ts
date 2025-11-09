@@ -7,8 +7,8 @@ import type {
   TranslateStreamEvent,
 } from './translationTypes.js'
 
-import { toLexical } from '../utils/lexical.js'
-import { getValueAtPath } from '../utils/localizedFields.js'
+import { splitLexicalText, toLexical } from '../utils/lexical.js'
+import { getValueAtPath, MAX_CHARS_PER_CHUNK } from '../utils/localizedFields.js'
 import { stripDocumentMetadata } from './documentUtils.js'
 import { cloneLocaleData, mergeStructuralData, setValueAtPath } from './localeStructure.js'
 import { openAiTranslateTexts } from './openAiTranslationClient.js'
@@ -26,6 +26,40 @@ function countLocalesItems(locales: TranslateLocaleRequestPayload[]): number {
     (total, locale) => total + countItems(locale.chunks) + countOverrides(locale.overrides),
     0,
   )
+}
+
+type ExpandedChunkEntry = {
+  item: TranslateChunk[number]
+  itemIndex: number
+  partIndex: number
+  parts: number
+  text: string
+}
+
+function expandChunk(chunk: TranslateChunk): ExpandedChunkEntry[] {
+  const expanded: ExpandedChunkEntry[] = []
+
+  chunk.forEach((item, index) => {
+    if (item.lexical && item.text.length > MAX_CHARS_PER_CHUNK) {
+      const segments = splitLexicalText(item.text, MAX_CHARS_PER_CHUNK)
+      if (segments.length) {
+        segments.forEach((segment, segmentIndex) => {
+          expanded.push({
+            item,
+            itemIndex: index,
+            partIndex: segmentIndex,
+            parts: segments.length,
+            text: segment,
+          })
+        })
+        return
+      }
+    }
+
+    expanded.push({ item, itemIndex: index, partIndex: 0, parts: 1, text: item.text })
+  })
+
+  return expanded
 }
 
 export async function* streamTranslations(
@@ -106,7 +140,8 @@ export async function* streamTranslations(
     let completed = 0
 
     for (const chunk of chunks) {
-      const texts = chunk.map((item) => item.text)
+      const expanded = expandChunk(chunk)
+      const texts = expanded.map((entry) => entry.text)
 
       let translated: string[]
       try {
@@ -120,10 +155,10 @@ export async function* streamTranslations(
         return
       }
 
-      if (translated.length !== chunk.length) {
+      if (translated.length !== expanded.length) {
         yield {
           type: 'error',
-          message: `Translator mismatch: expected ${chunk.length}, received ${translated.length}`,
+          message: `Translator mismatch: expected ${expanded.length}, received ${translated.length}`,
         }
         payload.logger?.error?.(
           `[AI Translate] Translation mismatch for ${collection}#${id} (${locale}).`,
@@ -131,16 +166,50 @@ export async function* streamTranslations(
         return
       }
 
+      const combined = new Map<number, string>()
+      const buffers = new Map<number, { parts: string[]; total: number }>()
+
+      expanded.forEach((entry, entryIndex) => {
+        const translatedText = translated[entryIndex] ?? ''
+
+        if (entry.parts === 1) {
+          combined.set(entry.itemIndex, translatedText)
+          return
+        }
+
+        let buffer = buffers.get(entry.itemIndex)
+        if (!buffer) {
+          buffer = { parts: new Array(entry.parts).fill(''), total: entry.parts }
+          buffers.set(entry.itemIndex, buffer)
+        }
+
+        buffer.parts[entry.partIndex] = translatedText
+
+        if (buffer.parts.every((part) => part.length > 0)) {
+          combined.set(entry.itemIndex, buffer.parts.join(''))
+        }
+      })
+
       for (let index = 0; index < chunk.length; index += 1) {
+        if (!combined.has(index)) {
+          yield {
+            type: 'error',
+            message: 'Translator response was incomplete for a lexical field.',
+          }
+          payload.logger?.error?.(
+            `[AI Translate] Incomplete translation received for ${collection}#${id} (${locale}).`,
+          )
+          return
+        }
+
         const item = chunk[index]
-        const translatedText = translated[index]
+        const translatedText = combined.get(index) ?? ''
         const templateValue = baseDoc ? getValueAtPath(baseDoc, item.path) : undefined
         const nextValue = item.lexical ? toLexical(translatedText, templateValue) : translatedText
         localeData = setValueAtPath(baseDoc, localeData, item.path, nextValue)
+        completed += 1
+        yield { type: 'progress', completed, locale, total: localeTotalItems }
       }
-
-      completed += chunk.length
-      yield { type: 'progress', completed, locale, total: localeTotalItems }
     }
 
     if (overrideItems.length) {

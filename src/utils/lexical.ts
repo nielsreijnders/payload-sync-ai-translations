@@ -275,6 +275,79 @@ export function stripLexicalMarkers(text: string): string {
   return text.replace(PLACEHOLDER_PATTERN, '$2')
 }
 
+export function splitLexicalText(text: string, maxLength: number): string[] {
+  if (!text) {
+    return ['']
+  }
+
+  if (text.length <= maxLength) {
+    return [text]
+  }
+
+  const segments: string[] = []
+  let current = ''
+  let lastIndex = 0
+
+  const matches = [...text.matchAll(PLACEHOLDER_PATTERN)]
+
+  if (!matches.length) {
+    const fallback: string[] = []
+    for (let index = 0; index < text.length; index += maxLength) {
+      fallback.push(text.slice(index, index + maxLength))
+    }
+    return fallback.length ? fallback : [text]
+  }
+
+  const flushCurrent = () => {
+    if (current) {
+      segments.push(current)
+      current = ''
+    }
+  }
+
+  for (const match of matches) {
+    const matchIndex = match.index ?? 0
+    if (matchIndex > lastIndex) {
+      const between = text.slice(lastIndex, matchIndex)
+      if (between) {
+        if (current.length && current.length + between.length > maxLength) {
+          flushCurrent()
+        }
+        current += between
+        if (current.length >= maxLength) {
+          flushCurrent()
+        }
+      }
+    }
+
+    const block = match[0]
+    if (current.length && current.length + block.length > maxLength) {
+      flushCurrent()
+    }
+
+    current += block
+    lastIndex = matchIndex + block.length
+
+    if (current.length >= maxLength) {
+      flushCurrent()
+    }
+  }
+
+  if (lastIndex < text.length) {
+    const suffix = text.slice(lastIndex)
+    if (suffix) {
+      if (current.length && current.length + suffix.length > maxLength) {
+        flushCurrent()
+      }
+      current += suffix
+    }
+  }
+
+  flushCurrent()
+
+  return segments.length ? segments : [text]
+}
+
 export function toLexical(text: string, template?: unknown) {
   if (template && isLexicalValue(template)) {
     const serialized = serializeLexicalValue(template)

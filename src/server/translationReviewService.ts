@@ -8,7 +8,7 @@ import type {
   TranslateReviewSuggestion,
 } from './translationTypes.js'
 
-import { stripLexicalMarkers } from '../utils/lexical.js'
+import { splitLexicalText, stripLexicalMarkers } from '../utils/lexical.js'
 import { extractPlainText, getValueAtPath, MAX_CHARS_PER_CHUNK } from '../utils/localizedFields.js'
 import {
   type MissingInformationCheckInput,
@@ -18,6 +18,7 @@ import {
 
 type TranslateSuggestionInput = {
   index: number
+  lexical: boolean
   text: string
 }
 
@@ -172,7 +173,7 @@ export async function generateTranslationReview(
 
       if (!existingText) {
         translateIndexes.add(index)
-        translateCandidates.push({ index, text: item.text })
+        translateCandidates.push({ index, lexical: item.lexical, text: item.text })
         return
       }
 
@@ -206,7 +207,11 @@ export async function generateTranslationReview(
             reason: result.reason || 'Missing information detected.',
           })
           if (sourceItem) {
-            translateCandidates.push({ index: result.index, text: sourceItem.text })
+          translateCandidates.push({
+            index: result.index,
+            lexical: Boolean(sourceItem?.lexical),
+            text: sourceItem.text,
+          })
           }
         }
       } catch (error) {
@@ -222,31 +227,77 @@ export async function generateTranslationReview(
 
     if (translateCandidates.length) {
       try {
-        const uniqueCandidates = new Map<number, string>()
+        const uniqueCandidates = new Map<number, TranslateSuggestionInput>()
         for (const entry of translateCandidates) {
           if (!uniqueCandidates.has(entry.index)) {
-            uniqueCandidates.set(entry.index, entry.text)
+            uniqueCandidates.set(entry.index, entry)
           }
         }
 
         const orderedCandidates = sortedIndexes
-          .map((index) =>
-            uniqueCandidates.has(index) ? { index, text: uniqueCandidates.get(index) ?? '' } : null,
-          )
+          .map((index) => (uniqueCandidates.has(index) ? uniqueCandidates.get(index) ?? null : null))
           .filter((entry): entry is TranslateSuggestionInput => Boolean(entry))
 
         const chunks = chunkSuggestionInputs(orderedCandidates)
 
         const collected: TranslateReviewSuggestion[] = []
         for (const chunk of chunks) {
+          const expanded = chunk.flatMap((item, chunkIndex) => {
+            if (item.lexical && item.text.length > MAX_CHARS_PER_CHUNK) {
+              const segments = splitLexicalText(item.text, MAX_CHARS_PER_CHUNK)
+              if (segments.length) {
+                return segments.map((segment, segmentIndex) => ({
+                  chunkIndex,
+                  partIndex: segmentIndex,
+                  parts: segments.length,
+                  text: segment,
+                }))
+              }
+            }
+
+            return [{ chunkIndex, partIndex: 0, parts: 1, text: item.text }]
+          })
+
           const translated = await openAiTranslateTexts(
-            chunk.map((item) => item.text),
+            expanded.map((entry) => entry.text),
             request.from,
             localeCode,
           )
 
+          if (translated.length !== expanded.length) {
+            throw new Error('Translator mismatch while generating suggestions.')
+          }
+
+          const combined = new Map<number, string>()
+          const buffers = new Map<number, { parts: string[]; total: number }>()
+
+          expanded.forEach((entry, entryIndex) => {
+            const translatedText = translated[entryIndex] ?? ''
+
+            if (entry.parts === 1) {
+              combined.set(entry.chunkIndex, translatedText)
+              return
+            }
+
+            let buffer = buffers.get(entry.chunkIndex)
+            if (!buffer) {
+              buffer = { parts: new Array(entry.parts).fill(''), total: entry.parts }
+              buffers.set(entry.chunkIndex, buffer)
+            }
+
+            buffer.parts[entry.partIndex] = translatedText
+
+            if (buffer.parts.every((part) => part.length > 0)) {
+              combined.set(entry.chunkIndex, buffer.parts.join(''))
+            }
+          })
+
           chunk.forEach((item, chunkIndex) => {
-            const text = translated[chunkIndex] ?? ''
+            if (!combined.has(chunkIndex)) {
+              throw new Error('Translator response incomplete while generating suggestions.')
+            }
+
+            const text = combined.get(chunkIndex) ?? ''
             collected.push({ index: item.index, text })
           })
         }

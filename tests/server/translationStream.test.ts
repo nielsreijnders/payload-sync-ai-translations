@@ -6,6 +6,8 @@ import type { TranslateRequestPayload } from '../../src/server/translationTypes.
 
 import { openAiTranslateTexts } from '../../src/server/openAiTranslationClient.js'
 import { streamTranslations } from '../../src/server/translationStream.js'
+import { serializeLexicalValue, splitLexicalText } from '../../src/utils/lexical.js'
+import { MAX_CHARS_PER_CHUNK } from '../../src/utils/localizedFields.js'
 
 vi.mock('../../src/server/openAiTranslationClient.js', () => ({
   openAiTranslateTexts: vi.fn(),
@@ -405,6 +407,7 @@ describe('streamTranslations', () => {
     )
 
     expect(events).toEqual([
+      { type: 'progress', completed: 1, locale: 'nl', total: 2 },
       { type: 'progress', completed: 2, locale: 'nl', total: 2 },
       { type: 'applied', locale: 'nl' },
       { type: 'done' },
@@ -530,7 +533,122 @@ describe('streamTranslations', () => {
     )
 
     expect(events).toEqual([
+      { type: 'progress', completed: 1, locale: 'nl', total: 3 },
+      { type: 'progress', completed: 2, locale: 'nl', total: 3 },
       { type: 'progress', completed: 3, locale: 'nl', total: 3 },
+      { type: 'applied', locale: 'nl' },
+      { type: 'done' },
+    ])
+  })
+
+  it('splits large lexical items before translating', async () => {
+    const paragraphs = Array.from({ length: 32 }, (_, index) => {
+      return `Paragraph ${index} ${'x'.repeat(140)}`
+    })
+
+    const lexicalValue = {
+      root: {
+        type: 'root',
+        direction: 'ltr',
+        format: '',
+        indent: 0,
+        version: 1,
+        children: paragraphs.map((text) => ({
+          type: 'paragraph',
+          direction: 'ltr',
+          format: '',
+          indent: 0,
+          textFormat: 0,
+          textStyle: '',
+          version: 1,
+          children: [
+            {
+              type: 'text',
+              detail: 0,
+              format: 0,
+              mode: 'normal',
+              style: '',
+              text,
+              version: 1,
+            },
+          ],
+        })),
+      },
+    }
+
+    const serialized = serializeLexicalValue(lexicalValue)
+    expect(serialized).not.toBeNull()
+    const lexicalText = serialized?.text ?? ''
+    expect(lexicalText.length).toBeGreaterThan(MAX_CHARS_PER_CHUNK)
+
+    const segments = splitLexicalText(lexicalText, MAX_CHARS_PER_CHUNK)
+    expect(segments.length).toBeGreaterThan(1)
+
+    const translatedSegments = segments.map((segment) =>
+      segment.replace(/\[\[LEX-(\d+)\]\]([\s\S]*?)\[\[\/LEX-\1\]\]/g, (_match, token) => {
+        return `[[LEX-${token}]]Vertaling-${token}[[/LEX-${token}]]`
+      }),
+    )
+
+    const baseDoc = { id: '3', field: lexicalValue }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: '3' }
+      }),
+      logger: { error: vi.fn(), info: vi.fn() },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(translatedSegments)
+
+    const request: TranslateRequestPayload = {
+      id: '3',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: true,
+                path: 'field',
+                text: lexicalText,
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    const events: unknown[] = []
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      events.push(event)
+    }
+
+    expect(translateTextsMock).toHaveBeenCalledWith(segments, 'en', 'nl')
+    expect(payloadMock.update).toHaveBeenCalledTimes(1)
+
+    const updateArgs = payloadMock.update.mock.calls[0][0]
+    const savedLexical = (updateArgs as { data: { field: unknown } }).data.field
+    const savedSerialized = serializeLexicalValue(savedLexical)
+    expect(savedSerialized?.text).toBe(translatedSegments.join(''))
+
+    const savedChildren = (savedLexical as { root?: { children?: unknown[] } }).root?.children ?? []
+    savedChildren.forEach((child, index) => {
+      const textNode = Array.isArray((child as { children?: unknown[] }).children)
+        ? ((child as { children: Array<{ text?: string }> }).children[0] ?? {})
+        : {}
+      expect((textNode as { text?: string }).text).toBe(`Vertaling-${index}`)
+    })
+
+    expect(events).toEqual([
+      { type: 'progress', completed: 1, locale: 'nl', total: 1 },
       { type: 'applied', locale: 'nl' },
       { type: 'done' },
     ])
