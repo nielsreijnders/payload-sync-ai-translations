@@ -12,21 +12,21 @@ describe('collectLocalizedFieldPatterns', () => {
           {
             slug: 'Text',
             fields: [
-          {
-            name: 'content',
-            type: 'group',
-            localized: true,
-            fields: [
-              {
-                name: 'layout',
-                type: 'text',
-              },
               {
                 name: 'content',
-                type: 'richText',
+                type: 'group',
+                localized: true,
+                fields: [
+                  {
+                    name: 'layout',
+                    type: 'text',
+                  },
+                  {
+                    name: 'content',
+                    type: 'richText',
+                  },
+                ],
               },
-            ],
-          },
             ],
           },
         ],
@@ -67,4 +67,3 @@ describe('collectLocalizedFieldPatterns', () => {
     expect(patterns).toContain('wrapper.items[].label')
   })
 })
-
