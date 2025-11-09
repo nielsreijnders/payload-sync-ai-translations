@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.7.2...v1.8.0) (2025-11-09)
+
+
+### Features
+
+* add tabs configuration to posts collection ([075a1f2](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/075a1f29836ad6c0c5ca57985377fe49407683b3))
+
 ## [1.7.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.7.1...v1.7.2) (2025-11-09)
 
 
