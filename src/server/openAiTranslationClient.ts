@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 
-import { getOpenAISettings } from './openAiSettings.js'
 import { logDebug } from './debugSettings.js'
+import { getOpenAISettings } from './openAiSettings.js'
 
 const DEFAULT_MODEL = 'gpt-4o-mini'
 
@@ -78,8 +78,8 @@ export async function openAiTranslateTexts(
   logDebug(null, '[AI Translate] OpenAI chat completion executed.', {
     model,
     requestMessages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userPrompt },
+      { content: SYSTEM_PROMPT, role: 'system' },
+      { content: userPrompt, role: 'user' },
     ],
     responseMetadata: {
       id: response.id,
@@ -158,8 +158,8 @@ export async function openAiDetectMissingInformation(
   logDebug(null, '[AI Translate] OpenAI review completion executed.', {
     model,
     requestMessages: [
-      { role: 'system', content: REVIEW_SYSTEM_PROMPT },
-      { role: 'user', content: userPrompt },
+      { content: REVIEW_SYSTEM_PROMPT, role: 'system' },
+      { content: userPrompt, role: 'user' },
     ],
     responseMetadata: {
       id: response.id,
@@ -181,7 +181,11 @@ export async function openAiDetectMissingInformation(
   }
 
   const issues = Array.isArray((parsed as { issues?: unknown }).issues)
-    ? ((parsed as { issues: unknown[] }).issues as Array<{ index?: unknown; missing?: unknown; reason?: unknown }>)
+    ? ((parsed as { issues: unknown[] }).issues as Array<{
+        index?: unknown
+        missing?: unknown
+        reason?: unknown
+      }>)
     : []
 
   return inputs.map((item) => {
