@@ -1,3 +1,15 @@
+# [1.11.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.10.4...v1.11.0) (2025-11-09)
+
+
+### Bug Fixes
+
+* merge oopsie ([e87d7ca](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/e87d7ca880f6911c7b289ff729b89e24bc7f5740))
+
+
+### Features
+
+* merge multiple entries ([fef371d](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/fef371dbcec4ac935c9630bb777315985d74aa95))
+
 ## [1.10.4](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.10.3...v1.10.4) (2025-11-09)
 
 
