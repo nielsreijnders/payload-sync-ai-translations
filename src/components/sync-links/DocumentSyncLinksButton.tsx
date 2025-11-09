@@ -14,7 +14,7 @@ type SyncLinksButtonProps = {
 }
 
 function getLocaleCode(locale: TypedLocale): string {
-  return typeof locale === 'string' ? locale : locale.code
+  return typeof locale === 'string' ? locale : (locale as any).code
 }
 
 function getLocaleCodes(locales: LocalizationConfig['locales']): string[] {
@@ -48,7 +48,10 @@ export function DocumentSyncLinksButton(props: SyncLinksButtonProps) {
   const { id, collectionSlug } = useDocumentInfo()
   const { code: activeLocale } = useLocale()
 
-  const defaultLocaleCode = React.useMemo(() => getLocaleCode(props.defaultLocale), [props.defaultLocale])
+  const defaultLocaleCode = React.useMemo(
+    () => getLocaleCode(props.defaultLocale),
+    [props.defaultLocale],
+  )
   const allLocaleCodes = React.useMemo(() => getLocaleCodes(props.locales), [props.locales])
 
   const otherLocales = React.useMemo(
