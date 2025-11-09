@@ -34,7 +34,11 @@ export type AnyField = {
 
 export const MAX_CHARS_PER_CHUNK = 3200
 
-export function collectLocalizedFieldPatterns(fields: AnyField[] = [], prefix = ''): string[] {
+export function collectLocalizedFieldPatterns(
+  fields: AnyField[] = [],
+  prefix = '',
+  inheritedLocalized = false,
+): string[] {
   const patterns: string[] = []
 
   for (const field of fields) {
@@ -44,31 +48,40 @@ export function collectLocalizedFieldPatterns(fields: AnyField[] = [], prefix = 
 
     const name = field.name
     const currentPath = name ? (prefix ? `${prefix}.${name}` : name) : prefix
+    const isLocalized = Boolean(field.localized) || inheritedLocalized
 
-    if (field.localized && name) {
+    if (isLocalized && name) {
       patterns.push(currentPath)
     }
 
     switch (field.type) {
       case 'array': {
-        patterns.push(...collectLocalizedFieldPatterns(field.fields, `${currentPath}[]`))
+        patterns.push(
+          ...collectLocalizedFieldPatterns(field.fields, `${currentPath}[]`, isLocalized),
+        )
         break
       }
       case 'blocks': {
         for (const block of field.blocks ?? []) {
           patterns.push(
-            ...collectLocalizedFieldPatterns(block.fields, `${currentPath}.${block.slug}`),
+            ...collectLocalizedFieldPatterns(
+              block.fields,
+              `${currentPath}.${block.slug}`,
+              isLocalized,
+            ),
           )
         }
         break
       }
       case 'group': {
-        patterns.push(...collectLocalizedFieldPatterns(field.fields, currentPath))
+        patterns.push(...collectLocalizedFieldPatterns(field.fields, currentPath, isLocalized))
         break
       }
       case 'tabs': {
         for (const tab of field.tabs ?? []) {
-          patterns.push(...collectLocalizedFieldPatterns(tab.fields, currentPath))
+          patterns.push(
+            ...collectLocalizedFieldPatterns(tab.fields, currentPath, isLocalized),
+          )
         }
         break
       }
