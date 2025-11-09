@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { extractLexicalPlaceholderIndexes } from 'src/utils/lexical.js'
 
 import { logDebug } from './debugSettings.js'
 import { getOpenAISettings } from './openAiSettings.js'
@@ -17,6 +18,81 @@ const REVIEW_SYSTEM_PROMPT = [
   'Reply using strict JSON that matches {"issues":[{"index":0,"missing":false,"reason":""}]}.',
   'Do not include any additional text outside of the JSON.',
 ].join(' ')
+
+const LEXICAL_MARKER_ERROR =
+  'Invalid translation response from OpenAI: lexical markers were modified or removed.'
+
+const URL_PROTOCOL_PATTERN = /^[a-z]+:\/\//i
+const SPECIAL_SCHEME_PATTERN = /^(?:mailto|tel|sms):/i
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+$/
+const PATH_SAFE_PATTERN = /^\/[\w\-.~:/?#@!$&'()*+,;=%]*$/
+const SLUG_PATTERN = /^[a-z0-9]+(?:[-_][a-z0-9]+)+$/i
+const UPPER_CODE_PATTERN = /^[A-Z0-9_-]{3,}$/
+const NUMBER_PATTERN = /^\d+(?:[.,]\d+)?$/
+
+function containsLexicalMarkers(value: string): boolean {
+  return value.includes('[[LEX-')
+}
+
+function lexicalMarkersMatch(source: string, translated: string): boolean {
+  const sourceMarkers = extractLexicalPlaceholderIndexes(source)
+  if (!sourceMarkers.length) {
+    return true
+  }
+
+  const translatedMarkers = extractLexicalPlaceholderIndexes(translated)
+  if (sourceMarkers.length !== translatedMarkers.length) {
+    return false
+  }
+
+  return sourceMarkers.every((marker, index) => marker === translatedMarkers[index])
+}
+
+function shouldPreserveOriginalValue(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed || containsLexicalMarkers(trimmed)) {
+    return false
+  }
+
+  if (URL_PROTOCOL_PATTERN.test(trimmed) || SPECIAL_SCHEME_PATTERN.test(trimmed)) {
+    return true
+  }
+
+  if (trimmed.startsWith('/')) {
+    return PATH_SAFE_PATTERN.test(trimmed)
+  }
+
+  if (EMAIL_PATTERN.test(trimmed)) {
+    return true
+  }
+
+  const noSpaces = !/\s/.test(trimmed)
+  if (!noSpaces) {
+    return false
+  }
+
+  if (NUMBER_PATTERN.test(trimmed)) {
+    return true
+  }
+
+  if (SLUG_PATTERN.test(trimmed)) {
+    return true
+  }
+
+  if (UPPER_CODE_PATTERN.test(trimmed)) {
+    return true
+  }
+
+  if (/\d/.test(trimmed) && /[A-Z]/i.test(trimmed)) {
+    return true
+  }
+
+  if (trimmed.includes('.') && /^[\w.-]+$/.test(trimmed)) {
+    return true
+  }
+
+  return false
+}
 
 function coerceString(value: unknown): string {
   if (value == null) {
@@ -92,20 +168,51 @@ export async function openAiTranslateTexts(
 
   logDebug(null, '[AI Translate] OpenAI raw response content.', { content })
 
-  let parsed: unknown = {}
+  let parsed: unknown
+
   try {
     parsed = JSON.parse(content)
   } catch {
-    const fallbackMatch = content.match(/\{[\s\S]*\}$/)
-    parsed = fallbackMatch ? JSON.parse(fallbackMatch[0]) : {}
+    try {
+      const fallbackMatch = content.match(/\{[\s\S]*\}$/)
+      parsed = fallbackMatch ? JSON.parse(fallbackMatch[0]) : null
+    } catch {
+      parsed = null
+    }
   }
 
-  const list = Array.isArray((parsed as { t?: unknown[] })?.t) ? (parsed as { t: unknown[] }).t : []
+  if (!parsed || typeof parsed !== 'object' || parsed === null) {
+    throw new Error('Invalid translation response from OpenAI: unable to parse JSON payload.')
+  }
+
+  const list = Array.isArray((parsed as { t?: unknown[] })?.t)
+    ? (parsed as { t: unknown[] }).t
+    : null
+
+  if (!Array.isArray(list)) {
+    throw new Error('Invalid translation response from OpenAI: missing "t" array.')
+  }
+
   if (list.length !== inputs.length) {
-    return inputs
+    throw new Error(
+      `Invalid translation response from OpenAI: expected ${inputs.length} entries, received ${list.length}.`,
+    )
   }
 
-  return list.map(coerceString)
+  return list.map((entry, index) => {
+    const source = inputs[index] ?? ''
+    const coerced = coerceString(entry)
+
+    if (containsLexicalMarkers(source) && !lexicalMarkersMatch(source, coerced)) {
+      throw new Error(LEXICAL_MARKER_ERROR)
+    }
+
+    if (shouldPreserveOriginalValue(source)) {
+      return source
+    }
+
+    return coerced
+  })
 }
 
 export type MissingInformationCheckInput = {

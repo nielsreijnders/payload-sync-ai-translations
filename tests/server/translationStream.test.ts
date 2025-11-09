@@ -414,6 +414,172 @@ describe('streamTranslations', () => {
     ])
   })
 
+  it('falls back to per-item translations when chunk translation fails', async () => {
+    const baseDoc = {
+      id: '1',
+      settings: {
+        hero: {
+          headline: 'Greetings',
+          nested: {
+            description: 'Welcome visitor',
+          },
+        },
+      },
+    }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: '1', settings: {} }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock
+      .mockRejectedValueOnce(new Error('Chunk failure'))
+      .mockResolvedValueOnce(['Hallo daar'])
+      .mockResolvedValueOnce(['Welkom bezoeker'])
+
+    const request: TranslateRequestPayload = {
+      id: '1',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'settings.hero.headline',
+                text: 'Greetings',
+              },
+              {
+                lexical: false,
+                path: 'settings.hero.nested.description',
+                text: 'Welcome visitor',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    const events: unknown[] = []
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      events.push(event)
+    }
+
+    expect(translateTextsMock).toHaveBeenCalledTimes(3)
+    expect(translateTextsMock).toHaveBeenNthCalledWith(
+      1,
+      ['Greetings', 'Welcome visitor'],
+      'en',
+      'nl',
+    )
+    expect(translateTextsMock).toHaveBeenNthCalledWith(2, ['Greetings'], 'en', 'nl')
+    expect(translateTextsMock).toHaveBeenNthCalledWith(3, ['Welcome visitor'], 'en', 'nl')
+
+    expect(payloadMock.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          settings: {
+            hero: {
+              headline: 'Hallo daar',
+              nested: {
+                description: 'Welkom bezoeker',
+              },
+            },
+          },
+        }),
+        locale: 'nl',
+      }),
+    )
+
+    expect(events).toEqual([
+      { type: 'progress', completed: 2, locale: 'nl', total: 2 },
+      { type: 'applied', locale: 'nl' },
+      { type: 'done' },
+    ])
+  })
+
+  it('surfaces an error if per-item fallback also fails', async () => {
+    const baseDoc = {
+      id: '1',
+      settings: {
+        hero: {
+          headline: 'Greetings',
+          nested: { description: 'Welcome visitor' },
+        },
+      },
+    }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockResolvedValue(baseDoc),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock
+      .mockRejectedValueOnce(new Error('Chunk failure'))
+      .mockRejectedValueOnce(new Error('Single failure'))
+
+    const request: TranslateRequestPayload = {
+      id: '1',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'settings.hero.headline',
+                text: 'Greetings',
+              },
+              {
+                lexical: false,
+                path: 'settings.hero.nested.description',
+                text: 'Welcome visitor',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    const events: unknown[] = []
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      events.push(event)
+    }
+
+    expect(translateTextsMock).toHaveBeenCalledTimes(2)
+    expect(translateTextsMock).toHaveBeenNthCalledWith(
+      1,
+      ['Greetings', 'Welcome visitor'],
+      'en',
+      'nl',
+    )
+    expect(translateTextsMock).toHaveBeenNthCalledWith(2, ['Greetings'], 'en', 'nl')
+
+    expect(events).toEqual([{ type: 'error', message: 'Single failure' }])
+
+    expect(payloadMock.logger?.error).toHaveBeenCalledWith(
+      '[AI Translate] OpenAI translation failed for pages#1 (nl): Single failure',
+    )
+  })
+
   it('translates deeply nested blocks without dropping values', async () => {
     const baseDoc = {
       id: '1',
@@ -673,9 +839,7 @@ describe('streamTranslations', () => {
     expect(callIndex).toBe(segments.length)
 
     const saved = payloadMock.update.mock.calls[0][0]
-    const savedValue = serializeLexicalValue(
-      saved.data?.components?.[1]?.tab2?.fieldInTab2,
-    )
+    const savedValue = serializeLexicalValue(saved.data?.components?.[1]?.tab2?.fieldInTab2)
     expect(savedValue?.text).toEqual(translation)
   })
 })
