@@ -54,7 +54,11 @@ const buildConfigWithMemoryDB = async () => {
     email: testEmailAdapter,
     localization: {
       defaultLocale: 'en',
-      locales: ['en', 'nl', 'fr', 'de'],
+      locales: [
+        'en',
+        'nl',
+        // 'fr', 'de'
+      ],
     },
     onInit: async (payload) => {
       await seed(payload)
