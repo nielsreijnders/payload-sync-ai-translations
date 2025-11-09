@@ -9,6 +9,7 @@ import type {
 
 import { buildTranslatableItems } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
 import { chunkItems } from '../utils/localizedFields.js'
+import { logDebug } from './debugSettings.js'
 import { generateTranslationReview } from './translationReviewService.js'
 import { getStoredCollection, getTranslationState } from './translationStateStore.js'
 import { streamTranslations } from './translationStream.js'
@@ -139,6 +140,17 @@ async function* runBulkTranslations(
     return
   }
 
+  logDebug(payload, '[AI Translate] Bulk translation collections resolved.', {
+    defaultLocale,
+    requestedCollections: request.collections,
+    resolvedCollections: selected.map((entry) => ({
+      slug: entry.slug,
+      label: entry.label,
+      fieldPatterns: entry.fieldPatterns,
+    })),
+    targetLocales,
+  })
+
   const totals = new Map<string, number>()
   let grandTotal = 0
 
@@ -169,6 +181,11 @@ async function* runBulkTranslations(
   payload.logger?.info?.(
     `[AI Translate] Starting bulk translation for ${selected.length} collections (total documents: ${grandTotal}).`,
   )
+
+  logDebug(payload, '[AI Translate] Bulk translation totals calculated.', {
+    totals: Object.fromEntries(totals.entries()),
+    grandTotal,
+  })
 
   yield { type: 'bulk-start', totalCollections: selected.length, totalDocuments: grandTotal }
 
@@ -262,6 +279,12 @@ async function* runBulkTranslations(
 
         const items = buildTranslatableItems(doc, entry.fieldPatterns)
 
+        logDebug(payload, '[AI Translate] Built translatable items for bulk document.', {
+          collection: entry.slug,
+          documentId: docIdentifier,
+          itemCount: items.length,
+        })
+
         if (!items.length) {
           collectionSkipped += 1
           overallSkipped += 1
@@ -286,6 +309,15 @@ async function* runBulkTranslations(
             items,
             locales: targetLocales,
           })
+          logDebug(payload, '[AI Translate] Generated translation review for bulk document.', {
+            collection: entry.slug,
+            documentId: docIdentifier,
+            locales: review.locales.map((locale) => ({
+              code: locale.code,
+              translateIndexes: locale.translateIndexes,
+              suggestions: locale.suggestions?.length ?? 0,
+            })),
+          })
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'Translation review failed for document.'
@@ -299,6 +331,16 @@ async function* runBulkTranslations(
         }
 
         const localeRequests = buildLocaleRequests(items, review.locales)
+
+        logDebug(payload, '[AI Translate] Prepared locale requests for bulk document.', {
+          collection: entry.slug,
+          documentId: docIdentifier,
+          locales: localeRequests.map((locale) => ({
+            code: locale.code,
+            chunkCount: locale.chunks.length,
+            overrideCount: locale.overrides?.length ?? 0,
+          })),
+        })
 
         if (!localeRequests.length) {
           collectionSkipped += 1
@@ -430,6 +472,10 @@ export function createAiBulkTranslateHandler(): PayloadHandler {
 
       // @ts-expect-error body parsing will be provided by payload
       const parsed = parseBulkBody(await req.json())
+
+      logDebug(payload, '[AI Translate] Parsed bulk translation request.', {
+        collections: parsed.collections,
+      })
 
       const stream = new ReadableStream<Uint8Array>({
         async start(controller) {

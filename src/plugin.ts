@@ -2,6 +2,7 @@ import type { CollectionConfig, Config, GlobalConfig } from 'payload'
 
 import { createAiBulkTranslateHandler } from './server/bulkTranslationHandler.js'
 import { createBulkSyncLinksHandler, createSyncLinksHandler } from './server/linkSyncHandler.js'
+import { setDebugEnabled } from './server/debugSettings.js'
 import { setOpenAISettings } from './server/openAiSettings.js'
 import { createAiTranslateHandler } from './server/translationRequestHandler.js'
 import { createAiTranslateReviewHandler } from './server/translationReviewService.js'
@@ -44,6 +45,7 @@ export const payloadSyncAiTranslations =
     }
 
     setOpenAISettings(options.openai)
+    setDebugEnabled(Boolean(options.debug))
 
     const { defaultLocale, locales = [] } = config.localization
 

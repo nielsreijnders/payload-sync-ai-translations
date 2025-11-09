@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 
 import { getOpenAISettings } from './openAiSettings.js'
+import { logDebug } from './debugSettings.js'
 
 const DEFAULT_MODEL = 'gpt-4o-mini'
 
@@ -74,7 +75,22 @@ export async function openAiTranslateTexts(
     temperature: 0,
   })
 
+  logDebug(null, '[AI Translate] OpenAI chat completion executed.', {
+    model,
+    requestMessages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: userPrompt },
+    ],
+    responseMetadata: {
+      id: response.id,
+      created: response.created,
+      usage: response.usage,
+    },
+  })
+
   const content = response?.choices?.[0]?.message?.content ?? '{}'
+
+  logDebug(null, '[AI Translate] OpenAI raw response content.', { content })
 
   let parsed: unknown = {}
   try {
@@ -139,7 +155,22 @@ export async function openAiDetectMissingInformation(
     temperature: 0,
   })
 
+  logDebug(null, '[AI Translate] OpenAI review completion executed.', {
+    model,
+    requestMessages: [
+      { role: 'system', content: REVIEW_SYSTEM_PROMPT },
+      { role: 'user', content: userPrompt },
+    ],
+    responseMetadata: {
+      id: response.id,
+      created: response.created,
+      usage: response.usage,
+    },
+  })
+
   const content = response?.choices?.[0]?.message?.content ?? '{}'
+
+  logDebug(null, '[AI Translate] OpenAI review raw response content.', { content })
 
   let parsed: unknown = {}
   try {

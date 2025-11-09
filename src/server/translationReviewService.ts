@@ -15,6 +15,7 @@ import {
   openAiDetectMissingInformation,
   openAiTranslateTexts,
 } from './openAiTranslationClient.js'
+import { logDebug } from './debugSettings.js'
 
 type TranslateSuggestionInput = {
   index: number
@@ -115,6 +116,14 @@ export async function generateTranslationReview(
 ): Promise<TranslateReviewResponse> {
   const locales: TranslateReviewLocale[] = []
 
+  logDebug(payload, '[AI Translate] Generating translation review.', {
+    collection: request.collection,
+    documentId: request.id,
+    from: request.from,
+    localeCount: request.locales.length,
+    itemCount: request.items.length,
+  })
+
   let baseDoc: null | Record<string, unknown> = null
 
   try {
@@ -133,6 +142,13 @@ export async function generateTranslationReview(
     const message = error instanceof Error ? error.message : 'Failed to load base document.'
     throw new Error(message)
   }
+
+  logDebug(payload, '[AI Translate] Loaded base document for review.', {
+    collection: request.collection,
+    documentId: request.id,
+    from: request.from,
+    hasBaseDoc: Boolean(baseDoc),
+  })
 
   for (const localeCode of request.locales) {
     let localeDoc: null | Record<string, unknown> = null
@@ -154,6 +170,13 @@ export async function generateTranslationReview(
         error instanceof Error ? error.message : `Failed to load locale data for ${localeCode}.`
       throw new Error(message)
     }
+
+    logDebug(payload, '[AI Translate] Loaded locale document for review.', {
+      collection: request.collection,
+      documentId: request.id,
+      locale: localeCode,
+      hasLocaleDoc: Boolean(localeDoc),
+    })
 
     const translateIndexes = new Set<number>()
     const mismatches: TranslateReviewMismatch[] = []
@@ -187,7 +210,22 @@ export async function generateTranslationReview(
 
     if (aiInputs.length) {
       try {
+        logDebug(payload, '[AI Translate] Checking existing translations for missing information.', {
+          collection: request.collection,
+          documentId: request.id,
+          locale: localeCode,
+          inputCount: aiInputs.length,
+        })
         const results = await openAiDetectMissingInformation(aiInputs, request.from, localeCode)
+        logDebug(payload, '[AI Translate] Missing information check results.', {
+          collection: request.collection,
+          documentId: request.id,
+          locale: localeCode,
+          issues: results.filter((result) => result.missing).map((result) => ({
+            index: result.index,
+            reason: result.reason,
+          })),
+        })
         for (const result of results) {
           if (!result.missing) {
             continue
@@ -237,6 +275,14 @@ export async function generateTranslationReview(
 
         const chunks = chunkSuggestionInputs(orderedCandidates)
 
+        logDebug(payload, '[AI Translate] Preparing suggestion translations.', {
+          collection: request.collection,
+          documentId: request.id,
+          locale: localeCode,
+          chunkCount: chunks.length,
+          totalSuggestions: orderedCandidates.length,
+        })
+
         const collected: TranslateReviewSuggestion[] = []
         for (const chunk of chunks) {
           const translated = await openAiTranslateTexts(
@@ -252,6 +298,12 @@ export async function generateTranslationReview(
         }
 
         suggestions = collected
+        logDebug(payload, '[AI Translate] Generated AI suggestions for review.', {
+          collection: request.collection,
+          documentId: request.id,
+          locale: localeCode,
+          suggestionCount: suggestions.length,
+        })
       } catch (_error) {
         suggestions = []
       }
@@ -279,6 +331,14 @@ export function createAiTranslateReviewHandler(): PayloadHandler {
 
       // @ts-ignore oopsie for now
       const parsed = parseBody(await req.json())
+
+      logDebug(payload, '[AI Translate] Parsed translation review request.', {
+        collection: parsed.collection,
+        documentId: parsed.id,
+        from: parsed.from,
+        localeCount: parsed.locales.length,
+        itemCount: parsed.items.length,
+      })
       const review = await generateTranslationReview(payload, parsed)
 
       return Response.json(review)

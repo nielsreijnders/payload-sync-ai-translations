@@ -7,6 +7,13 @@ import type {
 } from './translationTypes.js'
 
 import { streamTranslations } from './translationStream.js'
+import { logDebug } from './debugSettings.js'
+
+function countLocaleItems(locale: TranslateLocaleRequestPayload): number {
+  const chunkItems = locale.chunks.reduce((total, chunk) => total + chunk.length, 0)
+  const overrideItems = Array.isArray(locale.overrides) ? locale.overrides.length : 0
+  return chunkItems + overrideItems
+}
 
 const encoder = new TextEncoder()
 
@@ -111,6 +118,18 @@ export function createAiTranslateHandler(): PayloadHandler {
 
       // @ts-ignore oopsie for now
       const parsed = parseBody(await req.json())
+
+      logDebug(payload, '[AI Translate] Parsed translation request.', {
+        collection: parsed.collection,
+        documentId: parsed.id,
+        from: parsed.from,
+        locales: parsed.locales.map((locale) => ({
+          code: locale.code,
+          chunks: locale.chunks.length,
+          items: countLocaleItems(locale),
+          overrides: Array.isArray(locale.overrides) ? locale.overrides.length : 0,
+        })),
+      })
 
       const stream = new ReadableStream({
         async start(controller) {
