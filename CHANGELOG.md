@@ -1,3 +1,10 @@
+## [1.7.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.7.1...v1.7.2) (2025-11-09)
+
+
+### Bug Fixes
+
+* issues with type tabs ([64c097d](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/64c097daf3b704ab04677a081cd2f1cb850ef21e))
+
 ## [1.7.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.7.0...v1.7.1) (2025-11-09)
 
 
