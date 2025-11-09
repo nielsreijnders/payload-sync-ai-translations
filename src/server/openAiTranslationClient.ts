@@ -1,6 +1,8 @@
+import type { Payload } from 'payload'
 import OpenAI from 'openai'
 
 import { getOpenAISettings } from './openAiSettings.js'
+import { logDebug, logDebugError } from './debugSettings.js'
 
 const DEFAULT_MODEL = 'gpt-4o-mini'
 
@@ -34,6 +36,15 @@ function coerceString(value: unknown): string {
   }
 }
 
+type OpenAiRequestContext = {
+  collection?: string
+  documentId?: string | number
+  locale?: string
+  operation?: 'review' | 'translate'
+  payload?: Payload | null
+  segmentIndex?: number
+}
+
 function getClientAndModel(): { client: OpenAI; model: string } {
   const settings = getOpenAISettings()
   if (!settings?.apiKey) {
@@ -50,6 +61,7 @@ export async function openAiTranslateTexts(
   inputs: string[],
   from: string,
   to: string,
+  context?: OpenAiRequestContext,
 ): Promise<string[]> {
   if (!inputs.length) {
     return []
@@ -65,16 +77,48 @@ export async function openAiTranslateTexts(
     numbered,
   ].join('\n')
 
-  const response = await client.chat.completions.create({
-    messages: [
-      { content: SYSTEM_PROMPT, role: 'system' },
-      { content: userPrompt, role: 'user' },
-    ],
+  const debugMeta = {
+    collection: context?.collection,
+    documentId: context?.documentId,
+    from,
+    inputCount: inputs.length,
+    locale: context?.locale ?? to,
     model,
-    temperature: 0,
+    operation: context?.operation ?? 'translate',
+    segmentIndex: context?.segmentIndex,
+  }
+
+  logDebug(context?.payload, 'Sending OpenAI translate request', {
+    ...debugMeta,
+    systemPrompt: SYSTEM_PROMPT,
+    userPrompt,
+    inputs,
   })
 
+  let response
+
+  try {
+    response = await client.chat.completions.create({
+      messages: [
+        { content: SYSTEM_PROMPT, role: 'system' },
+        { content: userPrompt, role: 'user' },
+      ],
+      model,
+      temperature: 0,
+    })
+  } catch (error) {
+    logDebugError(context?.payload, 'OpenAI translate request failed', error, debugMeta)
+    throw error
+  }
+
   const content = response?.choices?.[0]?.message?.content ?? '{}'
+
+  logDebug(context?.payload, 'Received OpenAI translate response', {
+    ...debugMeta,
+    content,
+    responseId: response.id,
+    usage: response.usage,
+  })
 
   let parsed: unknown = {}
   try {
@@ -108,6 +152,7 @@ export async function openAiDetectMissingInformation(
   inputs: MissingInformationCheckInput[],
   from: string,
   to: string,
+  context?: OpenAiRequestContext,
 ): Promise<MissingInformationCheckResult[]> {
   if (!inputs.length) {
     return []
@@ -130,16 +175,48 @@ export async function openAiDetectMissingInformation(
     `Input: ${payload}`,
   ].join('\n')
 
-  const response = await client.chat.completions.create({
-    messages: [
-      { content: REVIEW_SYSTEM_PROMPT, role: 'system' },
-      { content: userPrompt, role: 'user' },
-    ],
+  const debugMeta = {
+    collection: context?.collection,
+    documentId: context?.documentId,
+    from,
+    inputCount: inputs.length,
+    locale: context?.locale ?? to,
     model,
-    temperature: 0,
+    operation: context?.operation ?? 'review',
+    segmentIndex: context?.segmentIndex,
+  }
+
+  logDebug(context?.payload, 'Sending OpenAI review request', {
+    ...debugMeta,
+    systemPrompt: REVIEW_SYSTEM_PROMPT,
+    userPrompt,
+    inputs,
   })
 
+  let response
+
+  try {
+    response = await client.chat.completions.create({
+      messages: [
+        { content: REVIEW_SYSTEM_PROMPT, role: 'system' },
+        { content: userPrompt, role: 'user' },
+      ],
+      model,
+      temperature: 0,
+    })
+  } catch (error) {
+    logDebugError(context?.payload, 'OpenAI review request failed', error, debugMeta)
+    throw error
+  }
+
   const content = response?.choices?.[0]?.message?.content ?? '{}'
+
+  logDebug(context?.payload, 'Received OpenAI review response', {
+    ...debugMeta,
+    content,
+    responseId: response.id,
+    usage: response.usage,
+  })
 
   let parsed: unknown = {}
   try {

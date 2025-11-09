@@ -6,6 +6,7 @@ import type {
   TranslateStreamEvent,
 } from './translationTypes.js'
 
+import { logDebug, logDebugError } from './debugSettings.js'
 import { streamTranslations } from './translationStream.js'
 
 const encoder = new TextEncoder()
@@ -112,6 +113,17 @@ export function createAiTranslateHandler(): PayloadHandler {
       // @ts-ignore oopsie for now
       const parsed = parseBody(await req.json())
 
+      logDebug(payload, 'Received AI translation request', {
+        collection: parsed.collection,
+        documentId: parsed.id,
+        from: parsed.from,
+        locales: parsed.locales.map((locale) => ({
+          code: locale.code,
+          chunks: locale.chunks.length,
+          overrides: locale.overrides?.length ?? 0,
+        })),
+      })
+
       const stream = new ReadableStream({
         async start(controller) {
           try {
@@ -123,6 +135,7 @@ export function createAiTranslateHandler(): PayloadHandler {
             }
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to sync translations'
+            logDebugError(payload, 'Streaming translation failed', error, { collection: parsed.collection })
             controller.enqueue(serializeEvent({ type: 'error', message }))
           } finally {
             controller.close()
@@ -139,6 +152,7 @@ export function createAiTranslateHandler(): PayloadHandler {
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Invalid request body'
+      logDebugError(req.payload, 'Translation request rejected', error)
       return Response.json({ type: 'error', message }, { status: 400 })
     }
   }

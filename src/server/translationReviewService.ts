@@ -15,6 +15,7 @@ import {
   openAiDetectMissingInformation,
   openAiTranslateTexts,
 } from './openAiTranslationClient.js'
+import { logDebug, logDebugError } from './debugSettings.js'
 
 type TranslateSuggestionInput = {
   index: number
@@ -115,6 +116,14 @@ export async function generateTranslationReview(
 ): Promise<TranslateReviewResponse> {
   const locales: TranslateReviewLocale[] = []
 
+  logDebug(payload, 'Starting translation review generation', {
+    collection: request.collection,
+    documentId: request.id,
+    from: request.from,
+    locales: request.locales,
+    items: request.items.length,
+  })
+
   let baseDoc: null | Record<string, unknown> = null
 
   try {
@@ -131,6 +140,10 @@ export async function generateTranslationReview(
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load base document.'
+    logDebugError(payload, 'Failed to load base document for review', error, {
+      collection: request.collection,
+      documentId: request.id,
+    })
     throw new Error(message)
   }
 
@@ -152,6 +165,11 @@ export async function generateTranslationReview(
     } catch (error) {
       const message =
         error instanceof Error ? error.message : `Failed to load locale data for ${localeCode}.`
+      logDebugError(payload, 'Failed to load locale for review', error, {
+        collection: request.collection,
+        documentId: request.id,
+        locale: localeCode,
+      })
       throw new Error(message)
     }
 
@@ -187,7 +205,13 @@ export async function generateTranslationReview(
 
     if (aiInputs.length) {
       try {
-        const results = await openAiDetectMissingInformation(aiInputs, request.from, localeCode)
+        const results = await openAiDetectMissingInformation(aiInputs, request.from, localeCode, {
+          collection: request.collection,
+          documentId: request.id,
+          locale: localeCode,
+          operation: 'review',
+          payload,
+        })
         for (const result of results) {
           if (!result.missing) {
             continue
@@ -212,6 +236,11 @@ export async function generateTranslationReview(
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Validation of existing translations failed.'
+        logDebugError(payload, 'OpenAI missing information check failed', error, {
+          collection: request.collection,
+          documentId: request.id,
+          locale: localeCode,
+        })
         throw new Error(message)
       }
     }
@@ -243,6 +272,13 @@ export async function generateTranslationReview(
             chunk.map((item) => item.text),
             request.from,
             localeCode,
+            {
+              collection: request.collection,
+              documentId: request.id,
+              locale: localeCode,
+              operation: 'translate',
+              payload,
+            },
           )
 
           chunk.forEach((item, chunkIndex) => {
@@ -252,7 +288,12 @@ export async function generateTranslationReview(
         }
 
         suggestions = collected
-      } catch (_error) {
+      } catch (error) {
+        logDebugError(payload, 'OpenAI suggestion translation failed', error, {
+          collection: request.collection,
+          documentId: request.id,
+          locale: localeCode,
+        })
         suggestions = []
       }
     }
@@ -264,7 +305,21 @@ export async function generateTranslationReview(
       suggestions: suggestions.length ? suggestions : undefined,
       translateIndexes: sortedIndexes,
     })
+
+    logDebug(payload, 'Generated translation review locale summary', {
+      collection: request.collection,
+      documentId: request.id,
+      locale: localeCode,
+      mismatches: mismatches.length,
+      suggestions: suggestions.length,
+    })
   }
+
+  logDebug(payload, 'Completed translation review generation', {
+    collection: request.collection,
+    documentId: request.id,
+    locales: locales.length,
+  })
 
   return { locales }
 }
@@ -279,11 +334,19 @@ export function createAiTranslateReviewHandler(): PayloadHandler {
 
       // @ts-ignore oopsie for now
       const parsed = parseBody(await req.json())
+      logDebug(payload, 'Received translation review request', {
+        collection: parsed.collection,
+        documentId: parsed.id,
+        from: parsed.from,
+        locales: parsed.locales,
+        items: parsed.items.length,
+      })
       const review = await generateTranslationReview(payload, parsed)
 
       return Response.json(review)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Invalid request body'
+      logDebugError(req.payload, 'Translation review request failed', error)
       return Response.json({ message }, { status: 400 })
     }
   }

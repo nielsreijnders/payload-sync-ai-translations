@@ -2,6 +2,7 @@ import type { CollectionConfig, Config, GlobalConfig } from 'payload'
 
 import { createAiBulkTranslateHandler } from './server/bulkTranslationHandler.js'
 import { createBulkSyncLinksHandler, createSyncLinksHandler } from './server/linkSyncHandler.js'
+import { logDebug, setDebugEnabled } from './server/debugSettings.js'
 import { setOpenAISettings } from './server/openAiSettings.js'
 import { createAiTranslateHandler } from './server/translationRequestHandler.js'
 import { createAiTranslateReviewHandler } from './server/translationReviewService.js'
@@ -44,6 +45,7 @@ export const payloadSyncAiTranslations =
     }
 
     setOpenAISettings(options.openai)
+    setDebugEnabled(Boolean(options.debug))
 
     const { defaultLocale, locales = [] } = config.localization
 
@@ -106,6 +108,10 @@ export const payloadSyncAiTranslations =
     })
 
     configureTranslationState(trackedCollections, { defaultLocale, locales })
+
+    if (options.debug) {
+      logDebug(null, 'Debug mode enabled via plugin configuration')
+    }
 
     const storedCollections = listStoredCollections()
 

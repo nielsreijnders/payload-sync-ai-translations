@@ -74,7 +74,17 @@ describe('streamTranslations', () => {
       events.push(event)
     }
 
-    expect(translateTextsMock).toHaveBeenCalledWith(['Hello world'], 'en', 'nl')
+    expect(translateTextsMock).toHaveBeenCalledWith(
+      ['Hello world'],
+      'en',
+      'nl',
+      expect.objectContaining({
+        collection: 'pages',
+        documentId: '1',
+        locale: 'nl',
+        segmentIndex: 0,
+      }),
+    )
     expect(payloadMock.update).toHaveBeenCalledTimes(1)
     expect(payloadMock.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -390,7 +400,17 @@ describe('streamTranslations', () => {
       events.push(event)
     }
 
-    expect(translateTextsMock).toHaveBeenCalledWith(['Greetings', 'Welcome visitor'], 'en', 'nl')
+    expect(translateTextsMock).toHaveBeenCalledWith(
+      ['Greetings', 'Welcome visitor'],
+      'en',
+      'nl',
+      expect.objectContaining({
+        collection: 'pages',
+        documentId: '1',
+        locale: 'nl',
+        segmentIndex: 0,
+      }),
+    )
 
     expect(payloadMock.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -501,6 +521,12 @@ describe('streamTranslations', () => {
       ['Top level heading', 'Call to action', 'Nested statistic description'],
       'en',
       'nl',
+      expect.objectContaining({
+        collection: 'pages',
+        documentId: '1',
+        locale: 'nl',
+        segmentIndex: 0,
+      }),
     )
 
     expect(payloadMock.update).toHaveBeenCalledWith(
