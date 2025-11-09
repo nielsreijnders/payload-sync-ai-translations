@@ -1,3 +1,10 @@
+## [1.10.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.10.0...v1.10.1) (2025-11-09)
+
+
+### Bug Fixes
+
+* format tests ([ef961ca](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/ef961ca4a3a521e1511a6fa59ed32fb8a3076aec))
+
 # [1.10.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.9.0...v1.10.0) (2025-11-09)
 
 
