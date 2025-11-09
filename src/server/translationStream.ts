@@ -2,13 +2,14 @@ import { isPlainObject, type Payload } from 'payload'
 
 import type {
   TranslateChunk,
+  TranslateItem,
   TranslateLocaleRequestPayload,
   TranslateRequestPayload,
   TranslateStreamEvent,
 } from './translationTypes.js'
 
-import { toLexical } from '../utils/lexical.js'
-import { getValueAtPath } from '../utils/localizedFields.js'
+import { splitLexicalText, toLexical } from '../utils/lexical.js'
+import { MAX_CHARS_PER_CHUNK, getValueAtPath } from '../utils/localizedFields.js'
 import { stripDocumentMetadata } from './documentUtils.js'
 import { cloneLocaleData, mergeStructuralData, setValueAtPath } from './localeStructure.js'
 import { openAiTranslateTexts } from './openAiTranslationClient.js'
@@ -26,6 +27,27 @@ function countLocalesItems(locales: TranslateLocaleRequestPayload[]): number {
     (total, locale) => total + countItems(locale.chunks) + countOverrides(locale.overrides),
     0,
   )
+}
+
+async function translateLargeLexicalItem(
+  item: TranslateItem,
+  from: string,
+  locale: string,
+): Promise<string> {
+  const segments = splitLexicalText(item.text, MAX_CHARS_PER_CHUNK)
+  if (segments.length <= 1) {
+    const [translated] = await openAiTranslateTexts([item.text], from, locale)
+    return translated
+  }
+
+  const translatedSegments: string[] = []
+
+  for (const segment of segments) {
+    const [translated] = await openAiTranslateTexts([segment], from, locale)
+    translatedSegments.push(translated)
+  }
+
+  return translatedSegments.join('')
 }
 
 export async function* streamTranslations(
@@ -106,18 +128,37 @@ export async function* streamTranslations(
     let completed = 0
 
     for (const chunk of chunks) {
-      const texts = chunk.map((item) => item.text)
-
       let translated: string[]
-      try {
-        translated = await openAiTranslateTexts(texts, from, locale)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to translate chunk'
-        payload.logger?.error?.(
-          `[AI Translate] OpenAI translation failed for ${collection}#${id} (${locale}): ${message}`,
-        )
-        yield { type: 'error', message }
-        return
+      if (
+        chunk.length === 1 &&
+        chunk[0]?.lexical &&
+        typeof chunk[0].text === 'string' &&
+        chunk[0].text.length > MAX_CHARS_PER_CHUNK
+      ) {
+        try {
+          const translatedText = await translateLargeLexicalItem(chunk[0], from, locale)
+          translated = [translatedText]
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to translate chunk'
+          payload.logger?.error?.(
+            `[AI Translate] OpenAI translation failed for ${collection}#${id} (${locale}): ${message}`,
+          )
+          yield { type: 'error', message }
+          return
+        }
+      } else {
+        const texts = chunk.map((item) => item.text)
+
+        try {
+          translated = await openAiTranslateTexts(texts, from, locale)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to translate chunk'
+          payload.logger?.error?.(
+            `[AI Translate] OpenAI translation failed for ${collection}#${id} (${locale}): ${message}`,
+          )
+          yield { type: 'error', message }
+          return
+        }
       }
 
       if (translated.length !== chunk.length) {

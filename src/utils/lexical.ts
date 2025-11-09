@@ -275,6 +275,62 @@ export function stripLexicalMarkers(text: string): string {
   return text.replace(PLACEHOLDER_PATTERN, '$2')
 }
 
+export function splitLexicalText(text: string, maxLength: number): string[] {
+  if (!text) {
+    return []
+  }
+
+  if (!Number.isFinite(maxLength) || maxLength <= 0) {
+    return [text]
+  }
+
+  if (text.length <= maxLength) {
+    return [text]
+  }
+
+  const segments: string[] = []
+  let current = ''
+  let cursor = 0
+
+  for (const match of text.matchAll(PLACEHOLDER_PATTERN)) {
+    const start = match.index ?? cursor
+    const before = text.slice(cursor, start)
+    const placeholder = `${before}${match[0]}`
+
+    if (placeholder.length > maxLength) {
+      if (current) {
+        segments.push(current)
+        current = ''
+      }
+      segments.push(placeholder)
+    } else if (current.length && current.length + placeholder.length > maxLength) {
+      segments.push(current)
+      current = placeholder
+    } else {
+      current += placeholder
+    }
+
+    cursor = start + match[0].length
+  }
+
+  const trailing = text.slice(cursor)
+  if (trailing) {
+    if (current.length && current.length + trailing.length > maxLength) {
+      segments.push(current)
+      segments.push(trailing)
+      current = ''
+    } else {
+      current += trailing
+    }
+  }
+
+  if (current) {
+    segments.push(current)
+  }
+
+  return segments.length ? segments : [text]
+}
+
 export function toLexical(text: string, template?: unknown) {
   if (template && isLexicalValue(template)) {
     const serialized = serializeLexicalValue(template)
