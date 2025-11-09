@@ -1,9 +1,8 @@
 import OpenAI from 'openai'
+import { extractLexicalPlaceholderIndexes } from 'src/utils/lexical.js'
 
-import { extractLexicalPlaceholderIndexes } from '../utils/lexical.js'
-
-import { getOpenAISettings } from './openAiSettings.js'
 import { logDebug } from './debugSettings.js'
+import { getOpenAISettings } from './openAiSettings.js'
 
 const DEFAULT_MODEL = 'gpt-4o-mini'
 
@@ -26,7 +25,7 @@ const LEXICAL_MARKER_ERROR =
 const URL_PROTOCOL_PATTERN = /^[a-z]+:\/\//i
 const SPECIAL_SCHEME_PATTERN = /^(?:mailto|tel|sms):/i
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+$/
-const PATH_SAFE_PATTERN = /^\/[\w\-._~:/?#@!$&'()*+,;=%]*$/i
+const PATH_SAFE_PATTERN = /^\/[\w\-.~:/?#@!$&'()*+,;=%]*$/
 const SLUG_PATTERN = /^[a-z0-9]+(?:[-_][a-z0-9]+)+$/i
 const UPPER_CODE_PATTERN = /^[A-Z0-9_-]{3,}$/
 const NUMBER_PATTERN = /^\d+(?:[.,]\d+)?$/
@@ -84,7 +83,7 @@ function shouldPreserveOriginalValue(value: string): boolean {
     return true
   }
 
-  if (/[0-9]/.test(trimmed) && /[A-Za-z]/.test(trimmed)) {
+  if (/\d/.test(trimmed) && /[A-Z]/i.test(trimmed)) {
     return true
   }
 
@@ -155,8 +154,8 @@ export async function openAiTranslateTexts(
   logDebug(null, '[AI Translate] OpenAI chat completion executed.', {
     model,
     requestMessages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userPrompt },
+      { content: SYSTEM_PROMPT, role: 'system' },
+      { content: userPrompt, role: 'user' },
     ],
     responseMetadata: {
       id: response.id,
@@ -187,7 +186,7 @@ export async function openAiTranslateTexts(
   }
 
   const list = Array.isArray((parsed as { t?: unknown[] })?.t)
-    ? ((parsed as { t: unknown[] }).t as unknown[])
+    ? (parsed as { t: unknown[] }).t
     : null
 
   if (!Array.isArray(list)) {
@@ -266,8 +265,8 @@ export async function openAiDetectMissingInformation(
   logDebug(null, '[AI Translate] OpenAI review completion executed.', {
     model,
     requestMessages: [
-      { role: 'system', content: REVIEW_SYSTEM_PROMPT },
-      { role: 'user', content: userPrompt },
+      { content: REVIEW_SYSTEM_PROMPT, role: 'system' },
+      { content: userPrompt, role: 'user' },
     ],
     responseMetadata: {
       id: response.id,
@@ -289,7 +288,11 @@ export async function openAiDetectMissingInformation(
   }
 
   const issues = Array.isArray((parsed as { issues?: unknown }).issues)
-    ? ((parsed as { issues: unknown[] }).issues as Array<{ index?: unknown; missing?: unknown; reason?: unknown }>)
+    ? ((parsed as { issues: unknown[] }).issues as Array<{
+        index?: unknown
+        missing?: unknown
+        reason?: unknown
+      }>)
     : []
 
   return inputs.map((item) => {

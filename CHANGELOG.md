@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.9.0...v1.10.0) (2025-11-09)
+
+
+### Features
+
+* translate each chunk with openai ([4815e98](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/4815e98accd6187ace86fe6b2da82ed4ffe0311e))
+
 # [1.9.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.8.0...v1.9.0) (2025-11-09)
 
 
