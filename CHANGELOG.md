@@ -1,3 +1,10 @@
+## [1.10.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.10.1...v1.10.2) (2025-11-09)
+
+
+### Bug Fixes
+
+* typo import ([bbfbf0b](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/bbfbf0bf72073739ea527f2a74222a117c6b1a55))
+
 ## [1.10.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.10.0...v1.10.1) (2025-11-09)
 
 
