@@ -254,7 +254,6 @@ export async function openAiTranslateTexts(
       { content: userPrompt, role: 'user' },
     ],
     model,
-    temperature: 0,
     response_format: {
       type: 'json_schema',
       json_schema: {
@@ -262,18 +261,19 @@ export async function openAiTranslateTexts(
         schema: {
           type: 'object',
           additionalProperties: false,
-          required: ['t'],
           properties: {
             t: {
               type: 'array',
               items: { type: 'string' },
-              minItems: inputs.length,
               maxItems: inputs.length,
+              minItems: inputs.length,
             },
           },
+          required: ['t'],
         },
       },
     },
+    temperature: 0,
   })
 
   logDebug(null, '[AI Translate] OpenAI chat completion executed.', {
