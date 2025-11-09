@@ -41,6 +41,47 @@ describe('openAiTranslateTexts', () => {
     expect(result).toEqual(['Hallo wereld'])
   })
 
+  it('requests a strict JSON schema with the expected number of entries', async () => {
+    completionsCreateMock.mockResolvedValue({
+      id: 'resp-1b',
+      created: 0,
+      usage: {},
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({ t: ['Hallo', 'Wereld'] }),
+          },
+        },
+      ],
+    })
+
+    await openAiTranslateTexts(['Hello', 'World'], 'en', 'nl')
+
+    expect(completionsCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'ai_translation_response',
+            schema: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['t'],
+              properties: {
+                t: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  minItems: 2,
+                  maxItems: 2,
+                },
+              },
+            },
+          },
+        },
+      }),
+    )
+  })
+
   it('throws an error when OpenAI response has a mismatched length', async () => {
     completionsCreateMock.mockResolvedValue({
       id: 'resp-2',

@@ -255,6 +255,25 @@ export async function openAiTranslateTexts(
     ],
     model,
     temperature: 0,
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'ai_translation_response',
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['t'],
+          properties: {
+            t: {
+              type: 'array',
+              items: { type: 'string' },
+              minItems: inputs.length,
+              maxItems: inputs.length,
+            },
+          },
+        },
+      },
+    },
   })
 
   logDebug(null, '[AI Translate] OpenAI chat completion executed.', {
