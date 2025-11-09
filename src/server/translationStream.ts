@@ -11,6 +11,7 @@ import type {
 import { splitLexicalText, toLexical } from '../utils/lexical.js'
 import { MAX_CHARS_PER_CHUNK, getValueAtPath } from '../utils/localizedFields.js'
 import { stripDocumentMetadata } from './documentUtils.js'
+import { logDebug } from './debugSettings.js'
 import { cloneLocaleData, mergeStructuralData, setValueAtPath } from './localeStructure.js'
 import { openAiTranslateTexts } from './openAiTranslationClient.js'
 
@@ -72,6 +73,19 @@ export async function* streamTranslations(
     `[AI Translate] Starting translation for ${collection}#${id} from ${from} to [${localeList}].`,
   )
 
+  logDebug(payload, '[AI Translate] Preparing translation run.', {
+    collection,
+    documentId: id,
+    from,
+    locales: locales.map((locale) => ({
+      code: locale.code,
+      chunks: locale.chunks.length,
+      items: countItems(locale.chunks),
+      overrides: countOverrides(locale.overrides),
+    })),
+    totalItems,
+  })
+
   // Fetch base document once (default locale) to preserve structural data such as blockType
   let baseDoc: null | Record<string, unknown> = null
   try {
@@ -89,6 +103,12 @@ export async function* streamTranslations(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load base document.'
     yield { type: 'error', message }
+    logDebug(payload, '[AI Translate] Failed to load base document.', {
+      collection,
+      documentId: id,
+      error: message,
+      from,
+    })
     return
   }
 
@@ -105,12 +125,22 @@ export async function* streamTranslations(
     } catch (_error) {
       existingLocaleDoc = null
     }
+
     const overrideItems = Array.isArray(localeEntry.overrides) ? localeEntry.overrides : []
     const localeTotalItems = countItems(chunks) + overrideItems.length
 
     if (!localeTotalItems) {
       continue
     }
+
+    logDebug(payload, '[AI Translate] Starting locale translation.', {
+      collection,
+      documentId: id,
+      from,
+      locale,
+      chunkCount: chunks.length,
+      overrideCount: overrideItems.length,
+    })
 
     let localeData: unknown = existingLocaleDoc ? cloneLocaleData(existingLocaleDoc) : {}
 
@@ -136,6 +166,14 @@ export async function* streamTranslations(
         chunk[0].text.length > MAX_CHARS_PER_CHUNK
       ) {
         try {
+          logDebug(payload, '[AI Translate] Splitting large lexical item for translation.', {
+            collection,
+            documentId: id,
+            from,
+            locale,
+            path: chunk[0].path,
+            textLength: chunk[0].text.length,
+          })
           const translatedText = await translateLargeLexicalItem(chunk[0], from, locale)
           translated = [translatedText]
         } catch (error) {
@@ -143,6 +181,14 @@ export async function* streamTranslations(
           payload.logger?.error?.(
             `[AI Translate] OpenAI translation failed for ${collection}#${id} (${locale}): ${message}`,
           )
+          logDebug(payload, '[AI Translate] OpenAI translation failed for lexical chunk.', {
+            collection,
+            documentId: id,
+            error: message,
+            from,
+            locale,
+            path: chunk[0]?.path,
+          })
           yield { type: 'error', message }
           return
         }
@@ -150,12 +196,36 @@ export async function* streamTranslations(
         const texts = chunk.map((item) => item.text)
 
         try {
+          logDebug(payload, '[AI Translate] Sending chunk to OpenAI.', {
+            collection,
+            documentId: id,
+            from,
+            locale,
+            paths: chunk.map((item) => item.path),
+            texts,
+          })
           translated = await openAiTranslateTexts(texts, from, locale)
+          logDebug(payload, '[AI Translate] Received OpenAI translation.', {
+            collection,
+            documentId: id,
+            from,
+            locale,
+            paths: chunk.map((item) => item.path),
+            translated,
+          })
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to translate chunk'
           payload.logger?.error?.(
             `[AI Translate] OpenAI translation failed for ${collection}#${id} (${locale}): ${message}`,
           )
+          logDebug(payload, '[AI Translate] OpenAI translation failed for chunk.', {
+            collection,
+            documentId: id,
+            error: message,
+            from,
+            locale,
+            paths: chunk.map((item) => item.path),
+          })
           yield { type: 'error', message }
           return
         }
@@ -169,6 +239,15 @@ export async function* streamTranslations(
         payload.logger?.error?.(
           `[AI Translate] Translation mismatch for ${collection}#${id} (${locale}).`,
         )
+        logDebug(payload, '[AI Translate] Translation length mismatch.', {
+          collection,
+          documentId: id,
+          expected: chunk.length,
+          from,
+          locale,
+          paths: chunk.map((item) => item.path),
+          received: translated.length,
+        })
         return
       }
 
@@ -190,6 +269,13 @@ export async function* streamTranslations(
         const nextValue = override.lexical ? toLexical(override.text, templateValue) : override.text
         localeData = setValueAtPath(baseDoc, localeData, override.path, nextValue)
         completed += 1
+        logDebug(payload, '[AI Translate] Applied override value.', {
+          collection,
+          documentId: id,
+          from,
+          locale,
+          path: override.path,
+        })
         yield { type: 'progress', completed, locale, total: localeTotalItems }
       }
     }
@@ -208,11 +294,25 @@ export async function* streamTranslations(
         locale,
         overrideAccess: true,
       })
+      logDebug(payload, '[AI Translate] Saved locale document.', {
+        collection,
+        documentId: id,
+        from,
+        locale,
+        totalItems: localeTotalItems,
+      })
     } catch (error) {
       const message = error instanceof Error ? error.message : `Failed to update locale ${locale}`
       payload.logger?.error?.(
         `[AI Translate] Failed to save ${collection}#${id} (${locale}): ${message}`,
       )
+      logDebug(payload, '[AI Translate] Failed to save locale document.', {
+        collection,
+        documentId: id,
+        error: message,
+        from,
+        locale,
+      })
       yield { type: 'error', message }
       return
     }
