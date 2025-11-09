@@ -28,10 +28,75 @@ export const posts: CollectionConfig = {
       localized: true,
       required: true,
     },
+    // Tabs example
+    {
+      type: 'tabs',
+      tabs: [
+        {
+          name: 'seo',
+          fields: [
+            {
+              name: 'metaTitle',
+              type: 'text',
+              localized: true,
+            },
+            {
+              name: 'metaDescription',
+              type: 'textarea',
+              localized: true,
+            },
+          ],
+          label: 'SEO',
+        },
+        {
+          name: 'settings',
+          fields: [
+            {
+              name: 'isFeatured',
+              type: 'checkbox',
+            },
+          ],
+          label: 'Settings',
+        },
+      ],
+    },
     {
       name: 'components',
       type: 'blocks',
       blocks: [
+        // Voeg een test block toe met tabs
+        {
+          slug: 'tabbedBlock',
+          fields: [
+            {
+              type: 'tabs',
+              tabs: [
+                {
+                  name: 'tab1',
+                  fields: [
+                    {
+                      name: 'fieldInTab1',
+                      type: 'text',
+                      localized: true,
+                    },
+                  ],
+                  label: 'Tab 1',
+                },
+                {
+                  name: 'tab2',
+                  fields: [
+                    {
+                      name: 'fieldInTab2',
+                      type: 'richText',
+                      localized: true,
+                    },
+                  ],
+                  label: 'Tab 2',
+                },
+              ],
+            },
+          ],
+        },
         {
           slug: 'textBlock',
           fields: [
