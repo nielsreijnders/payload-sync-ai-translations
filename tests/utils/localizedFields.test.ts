@@ -66,4 +66,39 @@ describe('collectLocalizedFieldPatterns', () => {
     expect(patterns).toContain('wrapper.items')
     expect(patterns).toContain('wrapper.items[].label')
   })
+
+  it('includes tab names in the collected pattern when present', () => {
+    const fields: AnyField[] = [
+      {
+        name: 'components',
+        type: 'blocks',
+        blocks: [
+          {
+            slug: 'Richtext',
+            fields: [
+              {
+                type: 'tabs',
+                tabs: [
+                  {
+                    name: 'content',
+                    fields: [
+                      {
+                        name: 'richtext',
+                        type: 'richText',
+                        localized: true,
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const patterns = collectLocalizedFieldPatterns(fields)
+
+    expect(patterns).toContain('components.Richtext.content.richtext')
+  })
 })

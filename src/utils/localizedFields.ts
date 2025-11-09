@@ -28,7 +28,7 @@ export type AnyField = {
   fields?: AnyField[]
   localized?: boolean
   name?: string
-  tabs?: { fields: AnyField[] }[]
+  tabs?: { fields: AnyField[]; localized?: boolean; name?: string }[]
   type?: string
 }
 
@@ -79,9 +79,14 @@ export function collectLocalizedFieldPatterns(
       }
       case 'tabs': {
         for (const tab of field.tabs ?? []) {
-          patterns.push(
-            ...collectLocalizedFieldPatterns(tab.fields, currentPath, isLocalized),
-          )
+          const tabPath = tab?.name
+            ? currentPath
+              ? `${currentPath}.${tab.name}`
+              : tab.name
+            : currentPath
+          const tabLocalized = Boolean(tab?.localized) || isLocalized
+
+          patterns.push(...collectLocalizedFieldPatterns(tab?.fields, tabPath, tabLocalized))
         }
         break
       }
