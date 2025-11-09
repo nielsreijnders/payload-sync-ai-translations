@@ -79,6 +79,24 @@ describe('openAiTranslateTexts', () => {
     )
   })
 
+  it('repairs a response missing a closing array bracket', async () => {
+    completionsCreateMock.mockResolvedValue({
+      id: 'resp-3b',
+      created: 0,
+      usage: {},
+      choices: [
+        {
+          message: {
+            content: '{"t": ["Hallo wereld"}',
+          },
+        },
+      ],
+    })
+
+    const result = await openAiTranslateTexts(['Hello world'], 'en', 'nl')
+    expect(result).toEqual(['Hallo wereld'])
+  })
+
   it('preserves slug-like values when OpenAI attempts to translate them', async () => {
     completionsCreateMock.mockResolvedValue({
       id: 'resp-4',

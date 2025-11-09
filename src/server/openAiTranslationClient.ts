@@ -111,6 +111,112 @@ function coerceString(value: unknown): string {
   }
 }
 
+function safeParseJsonResponse(content: string): unknown {
+  const trimmed = content.trim()
+
+  const tryParse = (value: string | null | undefined): unknown => {
+    if (!value) {
+      return null
+    }
+
+    try {
+      return JSON.parse(value)
+    } catch {
+      return null
+    }
+  }
+
+  const attemptRepair = (value: string): string | null => {
+    const trailingWhitespaceMatch = value.match(/\s*$/)
+    const trailingWhitespace = trailingWhitespaceMatch ? trailingWhitespaceMatch[0] : ''
+    let base = value.slice(0, value.length - trailingWhitespace.length)
+
+    const countUnclosed = (source: string, open: string, close: string): number => {
+      let depth = 0
+      let inString = false
+      let escaping = false
+
+      for (const char of source) {
+        if (escaping) {
+          escaping = false
+          continue
+        }
+
+        if (char === '\\') {
+          escaping = true
+          continue
+        }
+
+        if (char === '"') {
+          inString = !inString
+          continue
+        }
+
+        if (inString) {
+          continue
+        }
+
+        if (char === open) {
+          depth += 1
+        } else if (char === close) {
+          if (depth > 0) {
+            depth -= 1
+          }
+        }
+      }
+
+      return depth
+    }
+
+    const unclosedSquare = countUnclosed(base, '[', ']')
+    const unclosedBrace = countUnclosed(base, '{', '}')
+
+    let modified = false
+
+    if (unclosedSquare > 0) {
+      const trimmedBase = base.trimEnd()
+      if (trimmedBase.endsWith('}')) {
+        base = `${trimmedBase.slice(0, -1)}${']'.repeat(unclosedSquare)}}`
+      } else {
+        base = `${trimmedBase}${']'.repeat(unclosedSquare)}`
+      }
+      modified = true
+    }
+
+    if (unclosedBrace > 0) {
+      base = `${base}${'}'.repeat(unclosedBrace)}`
+      modified = true
+    }
+
+    if (!modified) {
+      return null
+    }
+
+    return `${base}${trailingWhitespace}`
+  }
+
+  const directParse = tryParse(trimmed)
+  if (directParse) {
+    return directParse
+  }
+
+  const fallbackMatch = trimmed.match(/\{[\s\S]*\}$/)
+  const fallbackParse = tryParse(fallbackMatch?.[0])
+  if (fallbackParse) {
+    return fallbackParse
+  }
+
+  const repaired = attemptRepair(fallbackMatch?.[0] ?? trimmed)
+  if (repaired) {
+    const repairedParse = tryParse(repaired)
+    if (repairedParse) {
+      return repairedParse
+    }
+  }
+
+  return null
+}
+
 function getClientAndModel(): { client: OpenAI; model: string } {
   const settings = getOpenAISettings()
   if (!settings?.apiKey) {
@@ -168,18 +274,7 @@ export async function openAiTranslateTexts(
 
   logDebug(null, '[AI Translate] OpenAI raw response content.', { content })
 
-  let parsed: unknown
-
-  try {
-    parsed = JSON.parse(content)
-  } catch {
-    try {
-      const fallbackMatch = content.match(/\{[\s\S]*\}$/)
-      parsed = fallbackMatch ? JSON.parse(fallbackMatch[0]) : null
-    } catch {
-      parsed = null
-    }
-  }
+  let parsed: unknown = safeParseJsonResponse(content)
 
   if (!parsed || typeof parsed !== 'object' || parsed === null) {
     throw new Error('Invalid translation response from OpenAI: unable to parse JSON payload.')
