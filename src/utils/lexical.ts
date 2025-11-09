@@ -3,6 +3,23 @@ const END_TOKEN_PREFIX = '[[/LEX-'
 const TOKEN_SUFFIX = ']]'
 const PLACEHOLDER_PATTERN = /\[\[LEX-(\d+)\]\]([\s\S]*?)\[\[\/LEX-\1\]\]/g
 
+export function extractLexicalPlaceholderIndexes(text: string): number[] {
+  if (!text) {
+    return []
+  }
+
+  const indexes = new Set<number>()
+  for (const match of text.matchAll(PLACEHOLDER_PATTERN)) {
+    const raw = match[1]
+    const parsed = Number(raw)
+    if (Number.isInteger(parsed)) {
+      indexes.add(parsed)
+    }
+  }
+
+  return Array.from(indexes).sort((a, b) => a - b)
+}
+
 type LexicalNode = {
   children?: LexicalNode[]
   text?: string

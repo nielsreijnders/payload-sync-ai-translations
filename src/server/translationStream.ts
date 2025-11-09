@@ -51,6 +51,80 @@ async function translateLargeLexicalItem(
   return translatedSegments.join('')
 }
 
+async function translateChunk(
+  payload: Payload,
+  chunk: TranslateChunk,
+  from: string,
+  locale: string,
+  options: { collection: string; documentId: string | number },
+): Promise<string[]> {
+  const texts = chunk.map((item) => item.text)
+
+  try {
+    logDebug(payload, '[AI Translate] Sending chunk to OpenAI.', {
+      collection: options.collection,
+      documentId: options.documentId,
+      from,
+      locale,
+      paths: chunk.map((item) => item.path),
+      texts,
+    })
+    const translated = await openAiTranslateTexts(texts, from, locale)
+    logDebug(payload, '[AI Translate] Received OpenAI translation.', {
+      collection: options.collection,
+      documentId: options.documentId,
+      from,
+      locale,
+      paths: chunk.map((item) => item.path),
+      translated,
+    })
+    return translated
+  } catch (error) {
+    if (chunk.length <= 1) {
+      throw error
+    }
+
+    logDebug(payload, '[AI Translate] Chunk translation failed, attempting per-item fallback.', {
+      collection: options.collection,
+      documentId: options.documentId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      from,
+      locale,
+      paths: chunk.map((item) => item.path),
+    })
+
+    const translated: string[] = []
+
+    for (const item of chunk) {
+      try {
+        const [result] = await openAiTranslateTexts([item.text], from, locale)
+        translated.push(result)
+      } catch (singleError) {
+        logDebug(payload, '[AI Translate] Per-item fallback translation failed.', {
+          collection: options.collection,
+          documentId: options.documentId,
+          error: singleError instanceof Error ? singleError.message : 'Unknown error',
+          from,
+          locale,
+          path: item.path,
+        })
+        throw singleError
+      }
+    }
+
+    logDebug(payload, '[AI Translate] Per-item fallback translation succeeded.', {
+      collection: options.collection,
+      documentId: options.documentId,
+      from,
+      locale,
+      paths: chunk.map((item) => item.path),
+      translated,
+    })
+
+    return translated
+  }
+}
+
 export async function* streamTranslations(
   payload: Payload,
   input: TranslateRequestPayload,
@@ -193,25 +267,10 @@ export async function* streamTranslations(
           return
         }
       } else {
-        const texts = chunk.map((item) => item.text)
-
         try {
-          logDebug(payload, '[AI Translate] Sending chunk to OpenAI.', {
+          translated = await translateChunk(payload, chunk, from, locale, {
             collection,
             documentId: id,
-            from,
-            locale,
-            paths: chunk.map((item) => item.path),
-            texts,
-          })
-          translated = await openAiTranslateTexts(texts, from, locale)
-          logDebug(payload, '[AI Translate] Received OpenAI translation.', {
-            collection,
-            documentId: id,
-            from,
-            locale,
-            paths: chunk.map((item) => item.path),
-            translated,
           })
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to translate chunk'
