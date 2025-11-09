@@ -41,7 +41,48 @@ describe('openAiTranslateTexts', () => {
     expect(result).toEqual(['Hallo wereld'])
   })
 
-  it('throws an error when OpenAI response has a mismatched length', async () => {
+  it('requests a strict JSON schema with the expected number of entries', async () => {
+    completionsCreateMock.mockResolvedValue({
+      id: 'resp-1b',
+      created: 0,
+      usage: {},
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({ t: ['Hallo', 'Wereld'] }),
+          },
+        },
+      ],
+    })
+
+    await openAiTranslateTexts(['Hello', 'World'], 'en', 'nl')
+
+    expect(completionsCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'ai_translation_response',
+            schema: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['t'],
+              properties: {
+                t: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  minItems: 2,
+                  maxItems: 2,
+                },
+              },
+            },
+          },
+        },
+      }),
+    )
+  })
+
+  it('merges extra entries when OpenAI splits a single translation across multiple array values', async () => {
     completionsCreateMock.mockResolvedValue({
       id: 'resp-2',
       created: 0,
@@ -49,14 +90,37 @@ describe('openAiTranslateTexts', () => {
       choices: [
         {
           message: {
-            content: JSON.stringify({ t: ['Eén', 'Twee'] }),
+            content: JSON.stringify({ t: ['Geïnspireerd door', 'het lichaam.'] }),
           },
         },
       ],
     })
 
-    await expect(openAiTranslateTexts(['One'], 'en', 'nl')).rejects.toThrow(
-      'Invalid translation response from OpenAI: expected 1 entries, received 2.',
+    const result = await openAiTranslateTexts(
+      ['Inspired by form\naround the body.'],
+      'en',
+      'nl',
+    )
+
+    expect(result).toEqual(['Geïnspireerd door\nhet lichaam.'])
+  })
+
+  it('throws an error when OpenAI response omits required entries', async () => {
+    completionsCreateMock.mockResolvedValue({
+      id: 'resp-2b',
+      created: 0,
+      usage: {},
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({ t: ['Eén'] }),
+          },
+        },
+      ],
+    })
+
+    await expect(openAiTranslateTexts(['One', 'Two'], 'en', 'nl')).rejects.toThrow(
+      'Invalid translation response from OpenAI: expected 2 entries, received 1.',
     )
   })
 
