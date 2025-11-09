@@ -111,6 +111,43 @@ function coerceString(value: unknown): string {
   }
 }
 
+function normalizeTranslationEntries(
+  entries: unknown[],
+  expectedLength: number,
+  sources: string[],
+): string[] | null {
+  const coerced = entries.map((entry) => coerceString(entry))
+
+  if (coerced.length === expectedLength) {
+    return coerced
+  }
+
+  if (coerced.length < expectedLength || expectedLength <= 0) {
+    return null
+  }
+
+  if (coerced.length > expectedLength) {
+    const result: string[] = []
+    let offset = 0
+
+    for (let index = 0; index < expectedLength; index += 1) {
+      const remainingValues = coerced.length - offset
+      const remainingSlots = expectedLength - index
+      const minimumToTake = Math.max(1, remainingValues - (remainingSlots - 1))
+      const takeCount = Math.min(remainingValues, minimumToTake)
+      const joiner = /\r|\n/.test(sources[index] ?? '') ? '\n' : ' '
+      const combined = coerced.slice(offset, offset + takeCount).join(joiner)
+
+      result.push(combined)
+      offset += takeCount
+    }
+
+    return result
+  }
+
+  return null
+}
+
 function safeParseJsonResponse(content: string): unknown {
   const trimmed = content.trim()
 
@@ -274,6 +311,25 @@ export async function openAiTranslateTexts(
       },
     },
     temperature: 0,
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'ai_translation_response',
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['t'],
+          properties: {
+            t: {
+              type: 'array',
+              items: { type: 'string' },
+              minItems: inputs.length,
+              maxItems: inputs.length,
+            },
+          },
+        },
+      },
+    },
   })
 
   logDebug(null, '[AI Translate] OpenAI chat completion executed.', {
@@ -307,15 +363,17 @@ export async function openAiTranslateTexts(
     throw new Error('Invalid translation response from OpenAI: missing "t" array.')
   }
 
-  if (list.length !== inputs.length) {
+  const normalized = normalizeTranslationEntries(list, inputs.length, inputs)
+
+  if (!normalized || normalized.length !== inputs.length) {
     throw new Error(
       `Invalid translation response from OpenAI: expected ${inputs.length} entries, received ${list.length}.`,
     )
   }
 
-  return list.map((entry, index) => {
+  return normalized.map((entry, index) => {
     const source = inputs[index] ?? ''
-    const coerced = coerceString(entry)
+    const coerced = entry
 
     if (containsLexicalMarkers(source) && !lexicalMarkersMatch(source, coerced)) {
       throw new Error(LEXICAL_MARKER_ERROR)

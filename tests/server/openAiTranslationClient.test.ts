@@ -90,14 +90,33 @@ describe('openAiTranslateTexts', () => {
       choices: [
         {
           message: {
-            content: JSON.stringify({ t: ['Eén', 'Twee'] }),
+            content: JSON.stringify({ t: ['Geïnspireerd door', 'het lichaam.'] }),
           },
         },
       ],
     })
 
-    await expect(openAiTranslateTexts(['One'], 'en', 'nl')).rejects.toThrow(
-      'Invalid translation response from OpenAI: expected 1 entries, received 2.',
+    const result = await openAiTranslateTexts(['Inspired by form\naround the body.'], 'en', 'nl')
+
+    expect(result).toEqual(['Geïnspireerd door\nhet lichaam.'])
+  })
+
+  it('throws an error when OpenAI response omits required entries', async () => {
+    completionsCreateMock.mockResolvedValue({
+      id: 'resp-2b',
+      created: 0,
+      usage: {},
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({ t: ['Eén'] }),
+          },
+        },
+      ],
+    })
+
+    await expect(openAiTranslateTexts(['One', 'Two'], 'en', 'nl')).rejects.toThrow(
+      'Invalid translation response from OpenAI: expected 2 entries, received 1.',
     )
   })
 
