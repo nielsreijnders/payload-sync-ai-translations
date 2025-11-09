@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
-import { extractLexicalPlaceholderIndexes } from 'src/utils/lexical.js'
 
+import { extractLexicalPlaceholderIndexes } from '../utils/lexical.js'
 import { logDebug } from './debugSettings.js'
 import { getOpenAISettings } from './openAiSettings.js'
 
