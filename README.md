@@ -129,23 +129,6 @@ Then open [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## 🌱 Seeding Data
-
-For development, use a seed function in `dev/src/seed.ts`:
-
-```ts
-export const seed = async (payload: Payload): Promise<void> => {
-  payload.logger.info('Seeding data...')
-
-  await payload.create({
-    collection: 'new-collection',
-    data: {
-      title: 'Seeded title',
-    },
-  })
-}
-```
-
 ## 💡 Summary
 
 By encapsulating your translation logic in a reusable Payload plugin, you can:
