@@ -414,6 +414,177 @@ describe('streamTranslations', () => {
     ])
   })
 
+  it('batches multiple small chunks into a single translation request', async () => {
+    const baseDoc = {
+      id: '1',
+      description: 'Short description',
+      footer: 'Call us',
+      title: 'Hello world',
+    }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: '1' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Hallo wereld', 'Korte beschrijving', 'Bel ons'])
+
+    const request: TranslateRequestPayload = {
+      id: '1',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'title',
+                text: 'Hello world',
+              },
+            ],
+            [
+              {
+                lexical: false,
+                path: 'description',
+                text: 'Short description',
+              },
+            ],
+            [
+              {
+                lexical: false,
+                path: 'footer',
+                text: 'Call us',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    const events: unknown[] = []
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      events.push(event)
+    }
+
+    expect(translateTextsMock).toHaveBeenCalledTimes(1)
+    expect(translateTextsMock).toHaveBeenCalledWith(
+      ['Hello world', 'Short description', 'Call us'],
+      'en',
+      'nl',
+    )
+
+    expect(payloadMock.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          description: 'Korte beschrijving',
+          footer: 'Bel ons',
+          title: 'Hallo wereld',
+        }),
+      }),
+    )
+
+    expect(events).toEqual([
+      { type: 'progress', completed: 1, locale: 'nl', total: 3 },
+      { type: 'progress', completed: 2, locale: 'nl', total: 3 },
+      { type: 'progress', completed: 3, locale: 'nl', total: 3 },
+      { type: 'applied', locale: 'nl' },
+      { type: 'done' },
+    ])
+  })
+
+  it('falls back to individual chunk translations when a batch fails', async () => {
+    const baseDoc = {
+      id: '1',
+      footer: 'Call us',
+      title: 'Hello world',
+    }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: '1' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock
+      .mockRejectedValueOnce(new Error('Batch failure'))
+      .mockResolvedValueOnce(['Hallo wereld'])
+      .mockResolvedValueOnce(['Bel ons'])
+
+    const request: TranslateRequestPayload = {
+      id: '1',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'title',
+                text: 'Hello world',
+              },
+            ],
+            [
+              {
+                lexical: false,
+                path: 'footer',
+                text: 'Call us',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    const events: unknown[] = []
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      events.push(event)
+    }
+
+    expect(translateTextsMock).toHaveBeenCalledTimes(3)
+    expect(translateTextsMock).toHaveBeenNthCalledWith(1, ['Hello world', 'Call us'], 'en', 'nl')
+    expect(translateTextsMock).toHaveBeenNthCalledWith(2, ['Hello world'], 'en', 'nl')
+    expect(translateTextsMock).toHaveBeenNthCalledWith(3, ['Call us'], 'en', 'nl')
+
+    expect(payloadMock.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          footer: 'Bel ons',
+          title: 'Hallo wereld',
+        }),
+      }),
+    )
+
+    expect(events).toEqual([
+      { type: 'progress', completed: 1, locale: 'nl', total: 2 },
+      { type: 'progress', completed: 2, locale: 'nl', total: 2 },
+      { type: 'applied', locale: 'nl' },
+      { type: 'done' },
+    ])
+  })
+
   it('falls back to per-item translations when chunk translation fails', async () => {
     const baseDoc = {
       id: '1',
@@ -443,6 +614,7 @@ describe('streamTranslations', () => {
     } satisfies Partial<Payload>
 
     translateTextsMock
+      .mockRejectedValueOnce(new Error('Batch failure'))
       .mockRejectedValueOnce(new Error('Chunk failure'))
       .mockResolvedValueOnce(['Hallo daar'])
       .mockResolvedValueOnce(['Welkom bezoeker'])
@@ -477,15 +649,21 @@ describe('streamTranslations', () => {
       events.push(event)
     }
 
-    expect(translateTextsMock).toHaveBeenCalledTimes(3)
+    expect(translateTextsMock).toHaveBeenCalledTimes(4)
     expect(translateTextsMock).toHaveBeenNthCalledWith(
       1,
       ['Greetings', 'Welcome visitor'],
       'en',
       'nl',
     )
-    expect(translateTextsMock).toHaveBeenNthCalledWith(2, ['Greetings'], 'en', 'nl')
-    expect(translateTextsMock).toHaveBeenNthCalledWith(3, ['Welcome visitor'], 'en', 'nl')
+    expect(translateTextsMock).toHaveBeenNthCalledWith(
+      2,
+      ['Greetings', 'Welcome visitor'],
+      'en',
+      'nl',
+    )
+    expect(translateTextsMock).toHaveBeenNthCalledWith(3, ['Greetings'], 'en', 'nl')
+    expect(translateTextsMock).toHaveBeenNthCalledWith(4, ['Welcome visitor'], 'en', 'nl')
 
     expect(payloadMock.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -531,6 +709,7 @@ describe('streamTranslations', () => {
     } satisfies Partial<Payload>
 
     translateTextsMock
+      .mockRejectedValueOnce(new Error('Batch failure'))
       .mockRejectedValueOnce(new Error('Chunk failure'))
       .mockRejectedValueOnce(new Error('Single failure'))
 
@@ -564,14 +743,20 @@ describe('streamTranslations', () => {
       events.push(event)
     }
 
-    expect(translateTextsMock).toHaveBeenCalledTimes(2)
+    expect(translateTextsMock).toHaveBeenCalledTimes(3)
     expect(translateTextsMock).toHaveBeenNthCalledWith(
       1,
       ['Greetings', 'Welcome visitor'],
       'en',
       'nl',
     )
-    expect(translateTextsMock).toHaveBeenNthCalledWith(2, ['Greetings'], 'en', 'nl')
+    expect(translateTextsMock).toHaveBeenNthCalledWith(
+      2,
+      ['Greetings', 'Welcome visitor'],
+      'en',
+      'nl',
+    )
+    expect(translateTextsMock).toHaveBeenNthCalledWith(3, ['Greetings'], 'en', 'nl')
 
     expect(events).toEqual([{ type: 'error', message: 'Single failure' }])
 

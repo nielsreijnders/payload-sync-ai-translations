@@ -30,6 +30,69 @@ function countLocalesItems(locales: TranslateLocaleRequestPayload[]): number {
   )
 }
 
+const MAX_CHARS_PER_BATCH = MAX_CHARS_PER_CHUNK * 2
+
+type TranslationTask =
+  | {
+      chunk: TranslateChunk
+      type: 'lexical'
+    }
+  | {
+      chunks: TranslateChunk[]
+      type: 'batch'
+    }
+
+function chunkCharacterLength(chunk: TranslateChunk): number {
+  return chunk.reduce((total, item) => total + item.text.length, 0)
+}
+
+function isLargeLexicalChunk(chunk: TranslateChunk): boolean {
+  return (
+    chunk.length === 1 &&
+    chunk[0]?.lexical &&
+    typeof chunk[0].text === 'string' &&
+    chunk[0].text.length > MAX_CHARS_PER_CHUNK
+  )
+}
+
+function createTranslationTasks(chunks: TranslateChunk[]): TranslationTask[] {
+  const tasks: TranslationTask[] = []
+  let currentBatch: TranslateChunk[] = []
+  let currentBatchChars = 0
+
+  const flushBatch = () => {
+    if (currentBatch.length) {
+      tasks.push({ chunks: currentBatch, type: 'batch' })
+      currentBatch = []
+      currentBatchChars = 0
+    }
+  }
+
+  for (const chunk of chunks) {
+    if (!Array.isArray(chunk) || !chunk.length) {
+      continue
+    }
+
+    if (isLargeLexicalChunk(chunk)) {
+      flushBatch()
+      tasks.push({ chunk, type: 'lexical' })
+      continue
+    }
+
+    const chunkLength = chunkCharacterLength(chunk)
+    if (currentBatch.length && currentBatchChars + chunkLength > MAX_CHARS_PER_BATCH) {
+      flushBatch()
+    }
+
+    currentBatch.push(chunk)
+    currentBatchChars += chunkLength
+  }
+
+  flushBatch()
+
+  return tasks
+}
+
 async function translateLargeLexicalItem(
   item: TranslateItem,
   from: string,
@@ -123,6 +186,105 @@ async function translateChunk(
 
     return translated
   }
+}
+
+async function translateChunkGroup(
+  payload: Payload,
+  chunks: TranslateChunk[],
+  from: string,
+  locale: string,
+  options: { collection: string; documentId: string | number },
+): Promise<string[][]> {
+  if (!chunks.length) {
+    return []
+  }
+
+  const texts = chunks.flatMap((chunk) => chunk.map((item) => item.text))
+
+  try {
+    logDebug(payload, '[AI Translate] Sending chunk batch to OpenAI.', {
+      collection: options.collection,
+      documentId: options.documentId,
+      from,
+      locale,
+      chunkCount: chunks.length,
+      paths: chunks.map((chunk) => chunk.map((item) => item.path)),
+      texts,
+    })
+
+    const translated = await openAiTranslateTexts(texts, from, locale)
+
+    logDebug(payload, '[AI Translate] Received OpenAI translation batch.', {
+      collection: options.collection,
+      documentId: options.documentId,
+      from,
+      locale,
+      chunkCount: chunks.length,
+      paths: chunks.map((chunk) => chunk.map((item) => item.path)),
+      translated,
+    })
+
+    const results: string[][] = []
+    let offset = 0
+
+    for (const chunk of chunks) {
+      results.push(translated.slice(offset, offset + chunk.length))
+      offset += chunk.length
+    }
+
+    return results
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+
+    logDebug(payload, '[AI Translate] Chunk batch translation failed, attempting per-chunk fallback.', {
+      collection: options.collection,
+      documentId: options.documentId,
+      error: message,
+      from,
+      locale,
+      chunkCount: chunks.length,
+      paths: chunks.map((chunk) => chunk.map((item) => item.path)),
+    })
+
+    const results: string[][] = []
+
+    for (const chunk of chunks) {
+      const translated = await translateChunk(payload, chunk, from, locale, options)
+      results.push(translated)
+    }
+
+    return results
+  }
+}
+
+function getTranslationLengthMismatch(
+  chunk: TranslateChunk,
+  translated: string[],
+): null | string {
+  if (translated.length !== chunk.length) {
+    return `Translator mismatch: expected ${chunk.length}, received ${translated.length}`
+  }
+
+  return null
+}
+
+function applyTranslatedValues(
+  chunk: TranslateChunk,
+  translated: string[],
+  baseDoc: null | Record<string, unknown>,
+  localeData: unknown,
+): unknown {
+  let nextLocaleData = localeData
+
+  for (let index = 0; index < chunk.length; index += 1) {
+    const item = chunk[index]
+    const translatedText = translated[index]
+    const templateValue = baseDoc ? getValueAtPath(baseDoc, item.path) : undefined
+    const nextValue = item.lexical ? toLexical(translatedText, templateValue) : translatedText
+    nextLocaleData = setValueAtPath(baseDoc, nextLocaleData, item.path, nextValue)
+  }
+
+  return nextLocaleData
 }
 
 export async function* streamTranslations(
@@ -230,15 +392,13 @@ export async function* streamTranslations(
     }
 
     let completed = 0
+    const tasks = createTranslationTasks(chunks)
 
-    for (const chunk of chunks) {
-      let translated: string[]
-      if (
-        chunk.length === 1 &&
-        chunk[0]?.lexical &&
-        typeof chunk[0].text === 'string' &&
-        chunk[0].text.length > MAX_CHARS_PER_CHUNK
-      ) {
+    for (const task of tasks) {
+      if (task.type === 'lexical') {
+        const chunk = task.chunk
+        let translated: string[]
+
         try {
           logDebug(payload, '[AI Translate] Splitting large lexical item for translation.', {
             collection,
@@ -266,60 +426,79 @@ export async function* streamTranslations(
           yield { type: 'error', message }
           return
         }
-      } else {
-        try {
-          translated = await translateChunk(payload, chunk, from, locale, {
-            collection,
-            documentId: id,
-          })
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Failed to translate chunk'
+
+        const mismatch = getTranslationLengthMismatch(chunk, translated)
+        if (mismatch) {
+          yield { type: 'error', message: mismatch }
           payload.logger?.error?.(
-            `[AI Translate] OpenAI translation failed for ${collection}#${id} (${locale}): ${message}`,
+            `[AI Translate] Translation mismatch for ${collection}#${id} (${locale}).`,
           )
-          logDebug(payload, '[AI Translate] OpenAI translation failed for chunk.', {
+          logDebug(payload, '[AI Translate] Translation length mismatch.', {
             collection,
             documentId: id,
-            error: message,
+            expected: chunk.length,
             from,
             locale,
             paths: chunk.map((item) => item.path),
+            received: translated.length,
           })
-          yield { type: 'error', message }
           return
         }
+
+        localeData = applyTranslatedValues(chunk, translated, baseDoc, localeData)
+        completed += chunk.length
+        yield { type: 'progress', completed, locale, total: localeTotalItems }
+        continue
       }
 
-      if (translated.length !== chunk.length) {
-        yield {
-          type: 'error',
-          message: `Translator mismatch: expected ${chunk.length}, received ${translated.length}`,
-        }
-        payload.logger?.error?.(
-          `[AI Translate] Translation mismatch for ${collection}#${id} (${locale}).`,
-        )
-        logDebug(payload, '[AI Translate] Translation length mismatch.', {
+      try {
+        const translatedChunks = await translateChunkGroup(payload, task.chunks, from, locale, {
           collection,
           documentId: id,
-          expected: chunk.length,
+        })
+
+        for (let index = 0; index < task.chunks.length; index += 1) {
+          const chunk = task.chunks[index]
+          const translated = translatedChunks[index] ?? []
+          const mismatch = getTranslationLengthMismatch(chunk, translated)
+
+          if (mismatch) {
+            yield { type: 'error', message: mismatch }
+            payload.logger?.error?.(
+              `[AI Translate] Translation mismatch for ${collection}#${id} (${locale}).`,
+            )
+            logDebug(payload, '[AI Translate] Translation length mismatch.', {
+              collection,
+              documentId: id,
+              expected: chunk.length,
+              from,
+              locale,
+              paths: chunk.map((item) => item.path),
+              received: translated.length,
+            })
+            return
+          }
+
+          localeData = applyTranslatedValues(chunk, translated, baseDoc, localeData)
+          completed += chunk.length
+          yield { type: 'progress', completed, locale, total: localeTotalItems }
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to translate chunk'
+        payload.logger?.error?.(
+          `[AI Translate] OpenAI translation failed for ${collection}#${id} (${locale}): ${message}`,
+        )
+        logDebug(payload, '[AI Translate] OpenAI translation failed for chunk batch.', {
+          collection,
+          documentId: id,
+          error: message,
           from,
           locale,
-          paths: chunk.map((item) => item.path),
-          received: translated.length,
+          paths: task.chunks.map((chunk) => chunk.map((item) => item.path)),
         })
+        yield { type: 'error', message }
         return
       }
-
-      for (let index = 0; index < chunk.length; index += 1) {
-        const item = chunk[index]
-        const translatedText = translated[index]
-        const templateValue = baseDoc ? getValueAtPath(baseDoc, item.path) : undefined
-        const nextValue = item.lexical ? toLexical(translatedText, templateValue) : translatedText
-        localeData = setValueAtPath(baseDoc, localeData, item.path, nextValue)
-      }
-
-      completed += chunk.length
-      yield { type: 'progress', completed, locale, total: localeTotalItems }
     }
 
     if (overrideItems.length) {
