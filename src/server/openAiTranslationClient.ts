@@ -412,6 +412,32 @@ export async function openAiDetectMissingInformation(
       { content: userPrompt, role: 'user' },
     ],
     model,
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'ai_translation_review_response',
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            issues: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  index: { type: 'integer' },
+                  missing: { type: 'boolean' },
+                  reason: { type: 'string' },
+                },
+                required: ['index', 'missing', 'reason'],
+              },
+            },
+          },
+          required: ['issues'],
+        },
+      },
+    },
     temperature: 0,
   })
 
