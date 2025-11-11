@@ -1,3 +1,11 @@
+# [1.12.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.11.0...v1.12.0) (2025-11-11)
+
+
+### Features
+
+* add JSON schema for translation review response format ([1f34673](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/1f34673bd83e7d6edc51303cd7f96cec20297d2b))
+* batch translation chunks to reduce API calls ([5e951b4](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/5e951b4d7974b34b48f47ddc8c4424dc1f0ba251))
+
 # [1.11.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.10.4...v1.11.0) (2025-11-09)
 
 
