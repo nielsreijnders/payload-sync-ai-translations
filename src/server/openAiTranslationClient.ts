@@ -270,6 +270,7 @@ export async function openAiTranslateTexts(
   inputs: string[],
   from: string,
   to: string,
+  options: { customPrompt?: string } = {},
 ): Promise<string[]> {
   if (!inputs.length) {
     return []
@@ -277,13 +278,20 @@ export async function openAiTranslateTexts(
 
   const { client, model } = getClientAndModel()
   const numbered = inputs.map((value, index) => `${index + 1}. ${value}`).join('\n')
-  const userPrompt = [
+  const userPromptSections = [
     `Translate each line from ${from} to ${to}.`,
     'Keep formatting and punctuation.',
     'If text includes markers like [[LEX-0]]...[[/LEX-0]], preserve them exactly as-is.',
     `Return strict JSON in the shape {"t": [...]} with exactly ${inputs.length} entries.`,
-    numbered,
-  ].join('\n')
+  ]
+
+  if (options.customPrompt) {
+    userPromptSections.push(options.customPrompt)
+  }
+
+  userPromptSections.push(numbered)
+
+  const userPrompt = userPromptSections.join('\n')
 
   const response = await client.chat.completions.create({
     messages: [
@@ -328,7 +336,10 @@ export async function openAiTranslateTexts(
 
   const content = response?.choices?.[0]?.message?.content ?? '{}'
 
-  logDebug(null, '[AI Translate] OpenAI raw response content.', { content })
+  logDebug(null, '[AI Translate] OpenAI raw response content.', {
+    content,
+    customPromptApplied: Boolean(options.customPrompt),
+  })
 
   const parsed: unknown = safeParseJsonResponse(content)
 

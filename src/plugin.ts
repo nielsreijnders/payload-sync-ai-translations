@@ -11,6 +11,7 @@ import { configureTranslationState, listStoredCollections } from './server/trans
 export type AiLocalizationCollectionOptions = {
   clientProps?: Record<string, unknown> // add this
   excludeFields?: string[]
+  customPrompt?: (data: unknown, locale: string) => string | undefined
 }
 
 export type AiLocalizationConfig = {
@@ -53,7 +54,11 @@ export const payloadSyncAiTranslations =
       .map((locale) => (typeof locale === 'string' ? locale : locale.code))
       .filter((value): value is string => Boolean(value))
 
-    const trackedCollections: Array<{ config: CollectionConfig; excludeFields?: string[] }> = []
+    const trackedCollections: Array<{
+      config: CollectionConfig
+      customPrompt?: AiLocalizationCollectionOptions['customPrompt']
+      excludeFields?: string[]
+    }> = []
 
     const collections = (config.collections ?? []).map((collection) => {
       const perColl = options.collections[collection.slug]
@@ -61,7 +66,11 @@ export const payloadSyncAiTranslations =
         return collection
       }
 
-      trackedCollections.push({ config: collection, excludeFields: perColl.excludeFields })
+      trackedCollections.push({
+        config: collection,
+        customPrompt: perColl.customPrompt,
+        excludeFields: perColl.excludeFields,
+      })
 
       // Merge any user-supplied clientProps with helpful defaults
       const clientProps = {

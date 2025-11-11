@@ -14,6 +14,8 @@ import { stripDocumentMetadata } from './documentUtils.js'
 import { logDebug } from './debugSettings.js'
 import { cloneLocaleData, mergeStructuralData, setValueAtPath } from './localeStructure.js'
 import { openAiTranslateTexts } from './openAiTranslationClient.js'
+import { resolveCustomPrompt } from './customPrompt.js'
+import { getStoredCollection } from './translationStateStore.js'
 
 function countItems(chunks: TranslateChunk[]): number {
   return chunks.reduce((total, chunk) => total + chunk.length, 0)
@@ -97,17 +99,22 @@ async function translateLargeLexicalItem(
   item: TranslateItem,
   from: string,
   locale: string,
+  options: { customPrompt?: string },
 ): Promise<string> {
   const segments = splitLexicalText(item.text, MAX_CHARS_PER_CHUNK)
   if (segments.length <= 1) {
-    const [translated] = await openAiTranslateTexts([item.text], from, locale)
+    const [translated] = await openAiTranslateTexts([item.text], from, locale, {
+      customPrompt: options.customPrompt,
+    })
     return translated
   }
 
   const translatedSegments: string[] = []
 
   for (const segment of segments) {
-    const [translated] = await openAiTranslateTexts([segment], from, locale)
+    const [translated] = await openAiTranslateTexts([segment], from, locale, {
+      customPrompt: options.customPrompt,
+    })
     translatedSegments.push(translated)
   }
 
@@ -119,7 +126,7 @@ async function translateChunk(
   chunk: TranslateChunk,
   from: string,
   locale: string,
-  options: { collection: string; documentId: string | number },
+  options: { collection: string; customPrompt?: string; documentId: string | number },
 ): Promise<string[]> {
   const texts = chunk.map((item) => item.text)
 
@@ -132,7 +139,9 @@ async function translateChunk(
       paths: chunk.map((item) => item.path),
       texts,
     })
-    const translated = await openAiTranslateTexts(texts, from, locale)
+    const translated = await openAiTranslateTexts(texts, from, locale, {
+      customPrompt: options.customPrompt,
+    })
     logDebug(payload, '[AI Translate] Received OpenAI translation.', {
       collection: options.collection,
       documentId: options.documentId,
@@ -160,7 +169,9 @@ async function translateChunk(
 
     for (const item of chunk) {
       try {
-        const [result] = await openAiTranslateTexts([item.text], from, locale)
+        const [result] = await openAiTranslateTexts([item.text], from, locale, {
+          customPrompt: options.customPrompt,
+        })
         translated.push(result)
       } catch (singleError) {
         logDebug(payload, '[AI Translate] Per-item fallback translation failed.', {
@@ -193,7 +204,7 @@ async function translateChunkGroup(
   chunks: TranslateChunk[],
   from: string,
   locale: string,
-  options: { collection: string; documentId: string | number },
+  options: { collection: string; customPrompt?: string; documentId: string | number },
 ): Promise<string[][]> {
   if (!chunks.length) {
     return []
@@ -212,7 +223,9 @@ async function translateChunkGroup(
       texts,
     })
 
-    const translated = await openAiTranslateTexts(texts, from, locale)
+    const translated = await openAiTranslateTexts(texts, from, locale, {
+      customPrompt: options.customPrompt,
+    })
 
     logDebug(payload, '[AI Translate] Received OpenAI translation batch.', {
       collection: options.collection,
@@ -348,6 +361,10 @@ export async function* streamTranslations(
     return
   }
 
+  const storedCollection = getStoredCollection(collection)
+  const customPromptFn = storedCollection?.customPrompt
+  const promptCache = new Map<string, string | undefined>()
+
   for (const localeEntry of locales) {
     const { chunks, code: locale } = localeEntry
     let existingLocaleDoc: null | Record<string, unknown> = null
@@ -368,6 +385,18 @@ export async function* streamTranslations(
     if (!localeTotalItems) {
       continue
     }
+
+    if (!promptCache.has(locale)) {
+      const promptData = baseDoc ?? existingLocaleDoc ?? {}
+      const prompt = resolveCustomPrompt(payload, customPromptFn, promptData, {
+        collection,
+        documentId: id,
+        locale,
+      })
+      promptCache.set(locale, prompt)
+    }
+
+    const localePrompt = promptCache.get(locale)
 
     logDebug(payload, '[AI Translate] Starting locale translation.', {
       collection,
@@ -408,7 +437,9 @@ export async function* streamTranslations(
             path: chunk[0].path,
             textLength: chunk[0].text.length,
           })
-          const translatedText = await translateLargeLexicalItem(chunk[0], from, locale)
+          const translatedText = await translateLargeLexicalItem(chunk[0], from, locale, {
+            customPrompt: localePrompt,
+          })
           translated = [translatedText]
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to translate chunk'
@@ -454,6 +485,7 @@ export async function* streamTranslations(
       try {
         const translatedChunks = await translateChunkGroup(payload, task.chunks, from, locale, {
           collection,
+          customPrompt: localePrompt,
           documentId: id,
         })
 

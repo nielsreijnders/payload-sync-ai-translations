@@ -16,6 +16,9 @@ import {
   openAiTranslateTexts,
 } from './openAiTranslationClient.js'
 import { logDebug } from './debugSettings.js'
+import { resolveCustomPrompt } from './customPrompt.js'
+import { getStoredCollection } from './translationStateStore.js'
+import { stripDocumentMetadata } from './documentUtils.js'
 
 type TranslateSuggestionInput = {
   index: number
@@ -137,6 +140,7 @@ export async function generateTranslationReview(
 
     if (doc && typeof doc === 'object') {
       baseDoc = doc as Record<string, unknown>
+      stripDocumentMetadata(baseDoc)
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load base document.'
@@ -149,6 +153,10 @@ export async function generateTranslationReview(
     from: request.from,
     hasBaseDoc: Boolean(baseDoc),
   })
+
+  const storedCollection = getStoredCollection(request.collection)
+  const customPromptFn = storedCollection?.customPrompt
+  const promptCache = new Map<string, string | undefined>()
 
   for (const localeCode of request.locales) {
     let localeDoc: null | Record<string, unknown> = null
@@ -164,6 +172,7 @@ export async function generateTranslationReview(
 
       if (result && typeof result === 'object') {
         localeDoc = result as Record<string, unknown>
+        stripDocumentMetadata(localeDoc)
       }
     } catch (error) {
       const message =
@@ -283,12 +292,25 @@ export async function generateTranslationReview(
           totalSuggestions: orderedCandidates.length,
         })
 
+        if (!promptCache.has(localeCode)) {
+          const promptData = baseDoc ?? localeDoc ?? {}
+          const prompt = resolveCustomPrompt(payload, customPromptFn, promptData, {
+            collection: request.collection,
+            documentId: request.id,
+            locale: localeCode,
+          })
+          promptCache.set(localeCode, prompt)
+        }
+
+        const localePrompt = promptCache.get(localeCode)
+
         const collected: TranslateReviewSuggestion[] = []
         for (const chunk of chunks) {
           const translated = await openAiTranslateTexts(
             chunk.map((item) => item.text),
             request.from,
             localeCode,
+            { customPrompt: localePrompt },
           )
 
           chunk.forEach((item, chunkIndex) => {
