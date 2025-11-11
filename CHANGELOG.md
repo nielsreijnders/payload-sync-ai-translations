@@ -1,3 +1,10 @@
+## [1.12.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.12.0...v1.12.1) (2025-11-11)
+
+
+### Bug Fixes
+
+* remove unnecessary docs ([30d1f6e](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/30d1f6ec2cdeefc9e65ca8b33bb87f6907762081))
+
 # [1.12.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.11.0...v1.12.0) (2025-11-11)
 
 
