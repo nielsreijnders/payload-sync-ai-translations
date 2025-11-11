@@ -26,7 +26,15 @@ type AutoTranslateReviewModalProps = {
   updateLocaleSkip: (locale: string, index: number, skip: boolean) => void
 }
 
-function DiffBlock({ defaultText, existingText }: { defaultText: string; existingText?: string }) {
+function DiffBlock({
+  defaultText,
+  existingText,
+  reason,
+}: {
+  defaultText: string
+  existingText?: string
+  reason?: string
+}) {
   const formattedDefault = stripLexicalMarkers(defaultText)
   const formattedExisting = existingText ? stripLexicalMarkers(existingText) : existingText
 
@@ -34,6 +42,7 @@ function DiffBlock({ defaultText, existingText }: { defaultText: string; existin
     <div className={styles.diff}>
       <pre className={`${styles.diffLine} ${styles.diffDel}`}>- {formattedDefault || '—'}</pre>
       <pre className={`${styles.diffLine} ${styles.diffAdd}`}>+ {formattedExisting || '—'}</pre>
+      {reason ? <p className={styles.diffReason}>{reason}</p> : null}
     </div>
   )
 }
@@ -121,6 +130,7 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
                       <DiffBlock
                         defaultText={item.defaultText}
                         existingText={overrideValue || item.existingText}
+                        reason={item.reason}
                       />
 
                       {showEditor && !isSkipped ? (
