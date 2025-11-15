@@ -277,19 +277,19 @@ export async function openAiTranslateTexts(
   }
 
   const { client, model } = getClientAndModel()
-  const numbered = inputs.map((value, index) => `${index + 1}. ${value}`).join('\n')
   const userPromptSections = [
     `Translate each line from ${from} to ${to}.`,
     'Keep formatting and punctuation.',
     'If text includes markers like [[LEX-0]]...[[/LEX-0]], preserve them exactly as-is.',
     `Return strict JSON in the shape {"t": [...]} with exactly ${inputs.length} entries.`,
+    'Do not add numbering or bullet markers that are not present in the source text.',
   ]
 
   if (options.customPrompt) {
     userPromptSections.push(options.customPrompt)
   }
 
-  userPromptSections.push(numbered)
+  userPromptSections.push(inputs.join('\n'))
 
   const userPrompt = userPromptSections.join('\n')
 
