@@ -1,3 +1,10 @@
+## [1.13.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.13.0...v1.13.1) (2025-11-15)
+
+
+### Bug Fixes
+
+* add an customPropt example ([2f27bf9](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/2f27bf92ef95cf247ce128b77e6e4cdc371fba3c))
+
 # [1.13.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.12.1...v1.13.0) (2025-11-15)
 
 
