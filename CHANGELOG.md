@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.12.1...v1.13.0) (2025-11-15)
+
+
+### Features
+
+* allow custom translation prompts per collection ([21d18d8](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/21d18d8adba0e685e0c3c6d4bfb43efcc47feff7))
+
 ## [1.12.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.12.0...v1.12.1) (2025-11-11)
 
 
