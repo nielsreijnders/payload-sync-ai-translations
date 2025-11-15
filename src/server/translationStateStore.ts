@@ -6,6 +6,7 @@ export type StoredCollection = {
   fieldPatterns: string[]
   label: string
   slug: string
+  customPrompt?: (data: unknown, locale: string) => string | undefined
 }
 
 export type TranslationState = {
@@ -55,7 +56,11 @@ function resolveLocaleCodes(locales: LocalizationConfig['locales']): string[] {
 }
 
 export function configureTranslationState(
-  collections: Array<{ config: CollectionConfig; excludeFields?: string[] }>,
+  collections: Array<{
+    config: CollectionConfig
+    customPrompt?: StoredCollection['customPrompt']
+    excludeFields?: string[]
+  }>,
   localization: {
     defaultLocale?: LocalizationConfig['defaultLocale']
     locales?: LocalizationConfig['locales']
@@ -64,7 +69,7 @@ export function configureTranslationState(
   const entries: Record<string, StoredCollection> = {}
 
   for (const entry of collections) {
-    const { config, excludeFields } = entry
+    const { config, excludeFields, customPrompt } = entry
     if (!config?.slug) {
       continue
     }
@@ -78,6 +83,7 @@ export function configureTranslationState(
       fieldPatterns,
       // @ts-expect-error - i need to look into this
       label,
+      customPrompt,
     }
   }
 

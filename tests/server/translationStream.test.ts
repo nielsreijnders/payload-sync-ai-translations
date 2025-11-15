@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { CollectionConfig, Payload } from 'payload'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,6 +6,7 @@ import type { TranslateRequestPayload } from '../../src/server/translationTypes.
 
 import { openAiTranslateTexts } from '../../src/server/openAiTranslationClient.js'
 import { streamTranslations } from '../../src/server/translationStream.js'
+import { configureTranslationState } from '../../src/server/translationStateStore.js'
 import { serializeLexicalValue, splitLexicalText } from '../../src/utils/lexical.js'
 import { MAX_CHARS_PER_CHUNK } from '../../src/utils/localizedFields.js'
 import { tabbedBlockDocument } from '../fixtures/tabbedBlockLexical.js'
@@ -19,6 +20,7 @@ const translateTextsMock = vi.mocked(openAiTranslateTexts)
 describe('streamTranslations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    configureTranslationState([], { defaultLocale: 'en', locales: ['en', 'nl'] })
   })
 
   it('preserves blockType metadata when translating block fields', async () => {
@@ -74,7 +76,12 @@ describe('streamTranslations', () => {
       events.push(event)
     }
 
-    expect(translateTextsMock).toHaveBeenCalledWith(['Hello world'], 'en', 'nl')
+    expect(translateTextsMock).toHaveBeenCalledWith(
+      ['Hello world'],
+      'en',
+      'nl',
+      expect.objectContaining({ customPrompt: undefined }),
+    )
     expect(payloadMock.update).toHaveBeenCalledTimes(1)
     expect(payloadMock.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -98,6 +105,82 @@ describe('streamTranslations', () => {
       { type: 'applied', locale: 'nl' },
       { type: 'done' },
     ])
+  })
+
+  it('applies custom prompt instructions when configured', async () => {
+    const baseDoc = {
+      id: '1',
+      layout: [
+        {
+          blockType: 'hero',
+          title: 'Hello world',
+        },
+      ],
+    }
+
+    configureTranslationState(
+      [
+        {
+          config: {
+            fields: [],
+            slug: 'pages',
+          } as CollectionConfig,
+          customPrompt: (data) => `Keep original title: ${(data as { layout: { title: string }[] }).layout?.[0]?.title}`,
+        },
+      ],
+      { defaultLocale: 'en', locales: ['en', 'nl'] },
+    )
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: '1' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Hallo wereld'])
+
+    const request: TranslateRequestPayload = {
+      id: '1',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'layout.0.title',
+                text: 'Hello world',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    const events: unknown[] = []
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      events.push(event)
+    }
+
+    expect(translateTextsMock).toHaveBeenCalledWith(
+      ['Hello world'],
+      'en',
+      'nl',
+      expect.objectContaining({ customPrompt: 'Keep original title: Hello world' }),
+    )
+
+    expect(events).toContainEqual({ type: 'applied', locale: 'nl' })
   })
 
   it('strips document identifiers before saving translations', async () => {
@@ -390,7 +473,12 @@ describe('streamTranslations', () => {
       events.push(event)
     }
 
-    expect(translateTextsMock).toHaveBeenCalledWith(['Greetings', 'Welcome visitor'], 'en', 'nl')
+    expect(translateTextsMock).toHaveBeenCalledWith(
+      ['Greetings', 'Welcome visitor'],
+      'en',
+      'nl',
+      expect.objectContaining({ customPrompt: undefined }),
+    )
 
     expect(payloadMock.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -483,6 +571,7 @@ describe('streamTranslations', () => {
       ['Hello world', 'Short description', 'Call us'],
       'en',
       'nl',
+      expect.objectContaining({ customPrompt: undefined }),
     )
 
     expect(payloadMock.update).toHaveBeenCalledWith(
@@ -564,9 +653,27 @@ describe('streamTranslations', () => {
     }
 
     expect(translateTextsMock).toHaveBeenCalledTimes(3)
-    expect(translateTextsMock).toHaveBeenNthCalledWith(1, ['Hello world', 'Call us'], 'en', 'nl')
-    expect(translateTextsMock).toHaveBeenNthCalledWith(2, ['Hello world'], 'en', 'nl')
-    expect(translateTextsMock).toHaveBeenNthCalledWith(3, ['Call us'], 'en', 'nl')
+    expect(translateTextsMock).toHaveBeenNthCalledWith(
+      1,
+      ['Hello world', 'Call us'],
+      'en',
+      'nl',
+      expect.objectContaining({ customPrompt: undefined }),
+    )
+    expect(translateTextsMock).toHaveBeenNthCalledWith(
+      2,
+      ['Hello world'],
+      'en',
+      'nl',
+      expect.objectContaining({ customPrompt: undefined }),
+    )
+    expect(translateTextsMock).toHaveBeenNthCalledWith(
+      3,
+      ['Call us'],
+      'en',
+      'nl',
+      expect.objectContaining({ customPrompt: undefined }),
+    )
 
     expect(payloadMock.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -655,15 +762,29 @@ describe('streamTranslations', () => {
       ['Greetings', 'Welcome visitor'],
       'en',
       'nl',
+      expect.objectContaining({ customPrompt: undefined }),
     )
     expect(translateTextsMock).toHaveBeenNthCalledWith(
       2,
       ['Greetings', 'Welcome visitor'],
       'en',
       'nl',
+      expect.objectContaining({ customPrompt: undefined }),
     )
-    expect(translateTextsMock).toHaveBeenNthCalledWith(3, ['Greetings'], 'en', 'nl')
-    expect(translateTextsMock).toHaveBeenNthCalledWith(4, ['Welcome visitor'], 'en', 'nl')
+    expect(translateTextsMock).toHaveBeenNthCalledWith(
+      3,
+      ['Greetings'],
+      'en',
+      'nl',
+      expect.objectContaining({ customPrompt: undefined }),
+    )
+    expect(translateTextsMock).toHaveBeenNthCalledWith(
+      4,
+      ['Welcome visitor'],
+      'en',
+      'nl',
+      expect.objectContaining({ customPrompt: undefined }),
+    )
 
     expect(payloadMock.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -749,14 +870,22 @@ describe('streamTranslations', () => {
       ['Greetings', 'Welcome visitor'],
       'en',
       'nl',
+      expect.objectContaining({ customPrompt: undefined }),
     )
     expect(translateTextsMock).toHaveBeenNthCalledWith(
       2,
       ['Greetings', 'Welcome visitor'],
       'en',
       'nl',
+      expect.objectContaining({ customPrompt: undefined }),
     )
-    expect(translateTextsMock).toHaveBeenNthCalledWith(3, ['Greetings'], 'en', 'nl')
+    expect(translateTextsMock).toHaveBeenNthCalledWith(
+      3,
+      ['Greetings'],
+      'en',
+      'nl',
+      expect.objectContaining({ customPrompt: undefined }),
+    )
 
     expect(events).toEqual([{ type: 'error', message: 'Single failure' }])
 
@@ -852,6 +981,7 @@ describe('streamTranslations', () => {
       ['Top level heading', 'Call to action', 'Nested statistic description'],
       'en',
       'nl',
+      expect.objectContaining({ customPrompt: undefined }),
     )
 
     expect(payloadMock.update).toHaveBeenCalledWith(
