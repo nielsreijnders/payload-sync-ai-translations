@@ -2,7 +2,11 @@ import type { Payload } from 'payload'
 
 import type { LinkSyncLocaleReport, LinkSyncResult } from './linkSyncTypes.js'
 
-import { loadLocalizedDocument, stripDocumentMetadata } from './documentUtils.js'
+import {
+  cloneWithoutDocumentMetadata,
+  loadLocalizedDocument,
+  stripDocumentMetadata,
+} from './documentUtils.js'
 import { fetchAlternateLinks, selectAlternateForLocale } from './linkAlternate.js'
 import { applyLinkOccurrence, collectLinkOccurrences } from './linkCollector.js'
 import { mergeStructuralData } from './localeStructure.js'
@@ -184,20 +188,21 @@ export async function synchronizeLinksForDocument(
     }
 
     stripDocumentMetadata(localeData)
+    const saveData = cloneWithoutDocumentMetadata(localeData) as Record<string, unknown>
 
     try {
       if (isCollectionTarget) {
         await payload.update({
           id: options.id,
           collection: options.collection,
-          data: localeData as Record<string, unknown>,
+          data: saveData,
           locale,
           overrideAccess: true,
         })
       } else {
         await payload.updateGlobal({
           slug: options.global,
-          data: localeData as Record<string, unknown>,
+          data: saveData,
           locale,
           overrideAccess: true,
         })

@@ -17,6 +17,15 @@ export function stripDocumentMetadata(value: unknown): void {
   delete value.updatedAt
 }
 
+export function cloneWithoutDocumentMetadata<T>(value: T): T {
+  if (!isPlainObject(value)) {
+    return value
+  }
+
+  const { id: _id, _id: __id, createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = value
+  return rest as T
+}
+
 type LoadDocumentOptions =
   | {
       collection: string
