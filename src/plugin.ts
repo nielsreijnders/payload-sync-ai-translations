@@ -152,19 +152,18 @@ export const payloadSyncAiTranslations =
           ]
         : []
 
+      const existingControls = global.admin?.components?.elements?.beforeDocumentControls ?? []
+
       return {
         ...global,
         admin: {
           ...global.admin,
           components: {
             ...global.admin?.components,
-            // @ts-expect-error -- Need to investigate
-            edit: {
-              // @ts-expect-error -- Need to investigate
-              ...global.admin?.components?.edit,
+            elements: {
+              ...global.admin?.components?.elements,
               beforeDocumentControls: [
-                // @ts-expect-error -- Need to investigate
-                ...(global.admin?.components?.edit?.beforeDocumentControls ?? []),
+                ...existingControls,
                 ...debugControls,
                 {
                   clientProps,
