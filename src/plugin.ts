@@ -160,6 +160,7 @@ export const payloadSyncAiTranslations =
           ...global.admin,
           components: {
             ...global.admin?.components,
+            // Try elements???
             elements: {
               ...global.admin?.components?.elements,
               beforeDocumentControls: [
