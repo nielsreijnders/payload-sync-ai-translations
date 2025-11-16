@@ -1,6 +1,18 @@
 # [1.16.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.15.1...v1.16.0) (2025-11-16)
 
 
+### Bug Fixes
+
+* versioning issue after reverting ([4c098a6](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/4c098a6ebde226f5de55913d8080823abeb06b01))
+
+
+### Features
+
+* add globals support ([d70eb05](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/d70eb0553792434d0cc9faa3bf231a00ea7b1418))
+
+# [1.16.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.15.1...v1.16.0) (2025-11-16)
+
+
 ### Features
 
 * add globals support ([d70eb05](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/d70eb0553792434d0cc9faa3bf231a00ea7b1418))
