@@ -631,6 +631,11 @@ export async function* streamTranslations(
       stripDocumentMetadata(localeData)
       const saveData = cloneWithoutDocumentMetadata(localeData) as Record<string, unknown>
 
+      if (!isCollectionTarget) {
+        delete saveData.id
+        delete saveData._id
+      }
+
       if (isCollectionTarget) {
         await payload.update({
           id: documentId as number | string,
