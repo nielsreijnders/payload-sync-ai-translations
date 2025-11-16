@@ -96,9 +96,9 @@ describe('openAiTranslateTexts', () => {
       ],
     })
 
-    const result = await openAiTranslateTexts(['Inspired by form\naround the body.'], 'en', 'nl')
-
-    expect(result).toEqual(['Geïnspireerd door\nhet lichaam.'])
+    await expect(
+      openAiTranslateTexts(['Inspired by form\naround the body.'], 'en', 'nl'),
+    ).rejects.toThrow('Invalid translation response from OpenAI: expected 1 entries, received 2.')
   })
 
   it('throws an error when OpenAI response omits required entries', async () => {
