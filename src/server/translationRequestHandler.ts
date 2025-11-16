@@ -41,6 +41,7 @@ function parseBody(body: unknown): TranslateRequestPayload {
   const candidate = body as Record<string, unknown>
   const from = candidate.from
   const collection = candidate.collection
+  const global = candidate.global
   const identifier = candidate.id
   const locales = candidate.locales
 
@@ -48,16 +49,25 @@ function parseBody(body: unknown): TranslateRequestPayload {
     throw new Error('Missing "from" locale')
   }
 
-  if (typeof collection !== 'string' || collection.length === 0) {
-    throw new Error('Missing "collection" slug')
+  const hasCollection = typeof collection === 'string' && collection.length > 0
+  const hasGlobal = typeof global === 'string' && global.length > 0
+
+  if (!hasCollection && !hasGlobal) {
+    throw new Error('Missing "collection" or "global" slug')
   }
 
-  if (typeof identifier !== 'string' && typeof identifier !== 'number') {
-    throw new Error('Missing document "id"')
+  if (hasCollection && hasGlobal) {
+    throw new Error('Provide either a collection slug or a global slug, not both')
   }
 
-  if (typeof identifier === 'string' && identifier.length === 0) {
-    throw new Error('Missing document "id"')
+  if (hasCollection) {
+    if (typeof identifier !== 'string' && typeof identifier !== 'number') {
+      throw new Error('Missing document "id"')
+    }
+
+    if (typeof identifier === 'string' && identifier.length === 0) {
+      throw new Error('Missing document "id"')
+    }
   }
 
   if (!Array.isArray(locales) || !locales.length) {
@@ -101,7 +111,11 @@ function parseBody(body: unknown): TranslateRequestPayload {
     throw new Error('No translation data provided')
   }
 
-  return { id: identifier, collection, from, locales: parsedLocales }
+  const base = hasCollection
+    ? { collection: collection.trim(), id: identifier }
+    : { global: (global as string).trim() }
+
+  return { ...base, from, locales: parsedLocales }
 }
 
 function serializeEvent(event: TranslateStreamEvent): Uint8Array {
@@ -119,9 +133,12 @@ export function createAiTranslateHandler(): PayloadHandler {
       // @ts-ignore oopsie for now
       const parsed = parseBody(await req.json())
 
+      const target = 'collection' in parsed
+        ? { collection: parsed.collection, documentId: parsed.id }
+        : { global: parsed.global }
+
       logDebug(payload, '[AI Translate] Parsed translation request.', {
-        collection: parsed.collection,
-        documentId: parsed.id,
+        ...target,
         from: parsed.from,
         locales: parsed.locales.map((locale) => ({
           code: locale.code,

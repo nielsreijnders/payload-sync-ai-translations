@@ -45,7 +45,7 @@ function buildSummary(result: LinkSyncResult): string {
 }
 
 export function DocumentSyncLinksButton(props: SyncLinksButtonProps) {
-  const { id, collectionSlug } = useDocumentInfo()
+  const { id, collectionSlug, globalSlug } = useDocumentInfo()
   const { code: activeLocale } = useLocale()
 
   const defaultLocaleCode = React.useMemo(
@@ -60,24 +60,32 @@ export function DocumentSyncLinksButton(props: SyncLinksButtonProps) {
   )
 
   const shouldRender = Boolean(
-    id &&
-      collectionSlug &&
+    (collectionSlug || globalSlug) &&
       defaultLocaleCode &&
       activeLocale === defaultLocaleCode &&
-      otherLocales.length,
+      otherLocales.length &&
+      (collectionSlug ? Boolean(id) : true),
   )
 
   const [busy, setBusy] = React.useState(false)
 
   const handleClick = React.useCallback(async () => {
-    if (!collectionSlug || !id) {
+    if (!collectionSlug && !globalSlug) {
+      return toast.error('Documentgegevens ontbreken.')
+    }
+
+    if (collectionSlug && !id) {
       return toast.error('Documentgegevens ontbreken.')
     }
 
     try {
       setBusy(true)
       const response = await fetch('/api/ai-links/sync', {
-        body: JSON.stringify({ id, collection: collectionSlug }),
+        body: JSON.stringify({
+          collection: collectionSlug,
+          global: globalSlug,
+          id,
+        }),
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
       })
@@ -118,7 +126,7 @@ export function DocumentSyncLinksButton(props: SyncLinksButtonProps) {
     } finally {
       setBusy(false)
     }
-  }, [collectionSlug, id])
+  }, [collectionSlug, globalSlug, id])
 
   if (!shouldRender) {
     return null

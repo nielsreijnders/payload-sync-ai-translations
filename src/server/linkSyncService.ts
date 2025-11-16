@@ -7,11 +7,18 @@ import { fetchAlternateLinks, selectAlternateForLocale } from './linkAlternate.j
 import { applyLinkOccurrence, collectLinkOccurrences } from './linkCollector.js'
 import { mergeStructuralData } from './localeStructure.js'
 
-type LinkSyncOptions = {
+type CollectionLinkOptions = {
   collection: string
+  id: number | string
+}
+
+type GlobalLinkOptions = {
+  global: string
+}
+
+type LinkSyncOptions = (CollectionLinkOptions | GlobalLinkOptions) & {
   defaultLocale: string
   fieldPatterns: string[]
-  id: number | string
   payload: Payload
   serverURL?: string
   targetLocales: string[]
@@ -27,7 +34,12 @@ export async function synchronizeLinksForDocument(
   options: LinkSyncOptions,
   cache: FetchCache = new Map(),
 ): Promise<LinkSyncResult> {
-  const { id, collection, defaultLocale, fieldPatterns, payload, serverURL, targetLocales } = options
+  const { defaultLocale, fieldPatterns, payload, serverURL, targetLocales } = options
+  const isCollectionTarget = 'collection' in options
+  const targetLabel = isCollectionTarget
+    ? `${options.collection}#${options.id}`
+    : `global:${options.global}`
+  const collectionSlug = isCollectionTarget ? options.collection : undefined
 
   const processedLocales = targetLocales.filter((locale) => locale !== defaultLocale)
   const reports: LinkSyncLocaleReport[] = []
@@ -35,15 +47,24 @@ export async function synchronizeLinksForDocument(
   const errors: string[] = []
   const missingAlternates = new Map<string, Set<string>>()
 
-  const defaultDoc = await loadLocalizedDocument(payload, {
-    id,
-    collection,
-    fallbackLocale: false,
-    locale: defaultLocale,
-  })
+  const defaultDoc = await loadLocalizedDocument(
+    payload,
+    isCollectionTarget
+      ? {
+          id: options.id,
+          collection: options.collection,
+          fallbackLocale: false,
+          locale: defaultLocale,
+        }
+      : {
+          global: options.global,
+          fallbackLocale: false,
+          locale: defaultLocale,
+        },
+  )
 
   if (!defaultDoc) {
-    throw new Error(`Document ${collection}#${id} is not available in ${defaultLocale}`)
+    throw new Error(`Document ${targetLabel} is not available in ${defaultLocale}`)
   }
 
   const defaultLinks = collectLinkOccurrences(defaultDoc, fieldPatterns)
@@ -51,8 +72,9 @@ export async function synchronizeLinksForDocument(
 
   if (!uniqueDefaultUrls.size) {
     return {
-      collection,
-      documentId: id,
+      collection: collectionSlug,
+      documentId: isCollectionTarget ? options.id : undefined,
+      global: isCollectionTarget ? undefined : options.global,
       errors,
       missingAlternateLocales: [],
       processedLocales,
@@ -119,12 +141,21 @@ export async function synchronizeLinksForDocument(
       continue
     }
 
-    const existingLocaleDoc = await loadLocalizedDocument(payload, {
-      id,
-      collection,
-      fallbackLocale: true,
-      locale,
-    })
+    const existingLocaleDoc = await loadLocalizedDocument(
+      payload,
+      isCollectionTarget
+        ? {
+            id: options.id,
+            collection: options.collection,
+            fallbackLocale: true,
+            locale,
+          }
+        : {
+            global: options.global,
+            fallbackLocale: true,
+            locale,
+          },
+    )
 
     let localeData: unknown = mergeStructuralData(defaultDoc, existingLocaleDoc)
     stripDocumentMetadata(localeData)
@@ -155,20 +186,29 @@ export async function synchronizeLinksForDocument(
     stripDocumentMetadata(localeData)
 
     try {
-      await payload.update({
-        id,
-        collection,
-        data: localeData as Record<string, unknown>,
-        locale,
-        overrideAccess: true,
-      })
+      if (isCollectionTarget) {
+        await payload.update({
+          id: options.id,
+          collection: options.collection,
+          data: localeData as Record<string, unknown>,
+          locale,
+          overrideAccess: true,
+        })
+      } else {
+        await payload.updateGlobal({
+          slug: options.global,
+          data: localeData as Record<string, unknown>,
+          locale,
+          overrideAccess: true,
+        })
+      }
       localeReport.updated = true
       totalReplacements += localeReport.replacements
       updatedLocales.push(locale)
     } catch (error) {
       const message = error instanceof Error ? error.message : `Failed to update locale ${locale}`
       localeReport.errors.push(message)
-      errors.push(`${collection}#${id} (${locale}): ${message}`)
+      errors.push(`${targetLabel} (${locale}): ${message}`)
       unchangedLocales.push(locale)
     }
 
@@ -180,8 +220,9 @@ export async function synchronizeLinksForDocument(
     .map(([locale]) => locale)
 
   return {
-    collection,
-    documentId: id,
+    collection: collectionSlug,
+    documentId: isCollectionTarget ? options.id : undefined,
+    global: isCollectionTarget ? undefined : options.global,
     errors,
     missingAlternateLocales: missingLocales,
     processedLocales,

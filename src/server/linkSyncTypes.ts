@@ -8,8 +8,9 @@ export type LinkSyncLocaleReport = {
 }
 
 export type LinkSyncResult = {
-  collection: string
-  documentId: string | number
+  collection?: string
+  documentId?: string | number
+  global?: string
   errors: string[]
   missingAlternateLocales: string[]
   processedLocales: string[]

@@ -23,7 +23,7 @@ import { useLocalizedFieldPatterns } from './useLocalizedFieldPatterns.js'
 
 export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
   // ---- Document & form context
-  const { id, collectionSlug, docConfig } = useDocumentInfo()
+  const { id, collectionSlug, docConfig, globalSlug } = useDocumentInfo()
   const form = useForm()
   const documentForm = useDocumentForm()
   const { code: activeLocale } = useLocale()
@@ -50,7 +50,11 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
 
   const formApi = (documentForm ?? form) as FormApi | undefined
   const shouldRender = Boolean(
-    defaultLocale && collectionSlug && activeLocale === defaultLocale && otherLocales.length,
+    defaultLocale &&
+      (collectionSlug || globalSlug) &&
+      activeLocale === defaultLocale &&
+      otherLocales.length &&
+      (collectionSlug ? Boolean(id) : true),
   )
 
   // ---- Event handlers
@@ -59,10 +63,13 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
     if (!formApi?.getData) {
       return toast.error('Form state is not available.')
     }
-    if (!id) {
+    if (!collectionSlug && !globalSlug) {
+      return toast.error('Localization settings are missing.')
+    }
+    if (collectionSlug && !id) {
       return toast.error('Save the document first before translating.')
     }
-    if (!defaultLocale || !collectionSlug) {
+    if (!defaultLocale) {
       return toast.error('Localization settings are missing.')
     }
     if (!otherLocales.length) {
@@ -89,6 +96,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       const review = await requestTranslationReview({
         id,
         collection: collectionSlug,
+        global: globalSlug,
         defaultLocale,
         items,
         // Oopsie for later
@@ -113,6 +121,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       const { finished, hadError } = await runTranslations(items, selections, {
         id,
         collectionSlug,
+        globalSlug,
         defaultLocale,
       })
 
@@ -125,7 +134,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
     } finally {
       setBusy(false)
     }
-  }, [formApi, id, defaultLocale, collectionSlug, otherLocales, fieldPatterns])
+  }, [formApi, id, defaultLocale, collectionSlug, globalSlug, otherLocales, fieldPatterns])
 
   const confirmReview = React.useCallback(async () => {
     if (!pendingReview) {
@@ -144,6 +153,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       const { finished, hadError } = await runTranslations(pendingReview.items, selections, {
         id,
         collectionSlug,
+        globalSlug,
         defaultLocale,
       })
 
@@ -159,7 +169,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       setBusy(false)
       setModalBusy(false)
     }
-  }, [pendingReview, collectionSlug, id, defaultLocale])
+  }, [pendingReview, collectionSlug, globalSlug, id, defaultLocale])
 
   const cancelReview = React.useCallback(() => setPendingReview(null), [])
 
