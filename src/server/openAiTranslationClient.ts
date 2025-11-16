@@ -11,6 +11,7 @@ const SYSTEM_PROMPT = [
   'Reply using strict JSON that matches {"t": ["..."]}.',
   'Preserve order, punctuation, inline formatting, and casing.',
   'Do not translate product names, slugs, codes, or URLs.',
+  'Only translate the user-provided "items" array and nothing else.',
 ].join(' ')
 
 const REVIEW_SYSTEM_PROMPT = [
@@ -111,41 +112,12 @@ function coerceString(value: unknown): string {
   }
 }
 
-function normalizeTranslationEntries(
-  entries: unknown[],
-  expectedLength: number,
-  sources: string[],
-): null | string[] {
-  const coerced = entries.map((entry) => coerceString(entry))
-
-  if (coerced.length === expectedLength) {
-    return coerced
-  }
-
-  if (coerced.length < expectedLength || expectedLength <= 0) {
+function normalizeTranslationEntries(entries: unknown[], expectedLength: number): null | string[] {
+  if (expectedLength <= 0 || entries.length !== expectedLength) {
     return null
   }
 
-  if (coerced.length > expectedLength) {
-    const result: string[] = []
-    let offset = 0
-
-    for (let index = 0; index < expectedLength; index += 1) {
-      const remainingValues = coerced.length - offset
-      const remainingSlots = expectedLength - index
-      const minimumToTake = Math.max(1, remainingValues - (remainingSlots - 1))
-      const takeCount = Math.min(remainingValues, minimumToTake)
-      const joiner = /\r|\n/.test(sources[index] ?? '') ? '\n' : ' '
-      const combined = coerced.slice(offset, offset + takeCount).join(joiner)
-
-      result.push(combined)
-      offset += takeCount
-    }
-
-    return result
-  }
-
-  return null
+  return entries.map((entry) => coerceString(entry))
 }
 
 function safeParseJsonResponse(content: string): unknown {
@@ -277,19 +249,23 @@ export async function openAiTranslateTexts(
   }
 
   const { client, model } = getClientAndModel()
+  const itemsPayload = JSON.stringify(inputs)
+
   const userPromptSections = [
-    `Translate each line from ${from} to ${to}.`,
+    `Translate the values inside the "items" array from locale "${from}" to locale "${to}".`,
     'Keep formatting and punctuation.',
     'If text includes markers like [[LEX-0]]...[[/LEX-0]], preserve them exactly as-is.',
-    `Return strict JSON in the shape {"t": [...]} with exactly ${inputs.length} entries.`,
+    `Return strict JSON in the shape {"t": [...]} with exactly ${inputs.length} entries in the same order as "items".`,
+    'Do not include translations for anything outside of the "items" array.',
     'Do not add numbering or bullet markers that are not present in the source text.',
   ]
 
   if (options.customPrompt) {
-    userPromptSections.push(options.customPrompt)
+    userPromptSections.push(`Custom instructions: ${options.customPrompt}`)
   }
 
-  userPromptSections.push(inputs.join('\n'))
+  // Prevent the ai model from translating the prompt itself by isolating the items payload
+  userPromptSections.push(`items: ${itemsPayload}`)
 
   const userPrompt = userPromptSections.join('\n')
 
@@ -355,7 +331,7 @@ export async function openAiTranslateTexts(
     throw new Error('Invalid translation response from OpenAI: missing "t" array.')
   }
 
-  const normalized = normalizeTranslationEntries(list, inputs.length, inputs)
+  const normalized = normalizeTranslationEntries(list, inputs.length)
 
   if (!normalized || normalized.length !== inputs.length) {
     throw new Error(
