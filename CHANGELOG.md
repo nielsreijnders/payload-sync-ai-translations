@@ -1,3 +1,10 @@
+## [1.15.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.15.0...v1.15.1) (2025-11-16)
+
+
+### Bug Fixes
+
+* issues with select/radio/relationship fields ([fd76e19](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/fd76e19b5a8ab98f2a8be746bd2fa6f7620cfad0))
+
 # [1.15.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.14.0...v1.15.0) (2025-11-16)
 
 
