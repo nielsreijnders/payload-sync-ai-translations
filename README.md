@@ -101,30 +101,6 @@ When enabled, the plugin adds a **Translate** button to your Payload admin panel
 
 ---
 
-## 🧱 Development
-
-To contribute or build your own plugin, use the official Payload Plugin Template as a base.
-
-### Start from the Template
-
-```bash
-npx create-payload-app@latest --template plugin
-```
-
-### Folder Structure
-
-```
-/ (root)
-├── package.json        # Plugin metadata and dependencies
-├── README.md           # Documentation
-├── /src                # Plugin source code
-└── /dev                # Local Payload environment for testing
-```
-
-Then open [http://localhost:3000](http://localhost:3000).
-
----
-
 ## 💡 Summary
 
 By encapsulating your translation logic in a reusable Payload plugin, you can:
