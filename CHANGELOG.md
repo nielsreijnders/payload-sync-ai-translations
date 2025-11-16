@@ -1,3 +1,10 @@
+## [1.16.4](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.3...v1.16.4) (2025-11-16)
+
+
+### Bug Fixes
+
+* improve code formatting and structure in documentUtils.ts ([7a69129](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/7a691296aa2592f2940dc1064a053bddbdc12491))
+
 ## [1.16.3](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.2...v1.16.3) (2025-11-16)
 
 
