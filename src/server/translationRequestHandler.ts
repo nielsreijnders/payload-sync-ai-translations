@@ -6,8 +6,8 @@ import type {
   TranslateStreamEvent,
 } from './translationTypes.js'
 
-import { streamTranslations } from './translationStream.js'
 import { logDebug } from './debugSettings.js'
+import { streamTranslations } from './translationStream.js'
 
 function countLocaleItems(locale: TranslateLocaleRequestPayload): number {
   const chunkItems = locale.chunks.reduce((total, chunk) => total + chunk.length, 0)
@@ -115,9 +115,9 @@ function parseBody(body: unknown): TranslateRequestPayload {
 
   return {
     id: identifier,
-    collection: hasCollection ? (collection as string) : undefined,
-    global: hasGlobal ? (global as string) : undefined,
+    collection: hasCollection ? collection : undefined,
     from,
+    global: hasGlobal ? global : undefined,
     locales: parsedLocales,
   }
 }
@@ -144,8 +144,8 @@ export function createAiTranslateHandler(): PayloadHandler {
         documentId,
         from: parsed.from,
         locales: parsed.locales.map((locale) => ({
-          code: locale.code,
           chunks: locale.chunks.length,
+          code: locale.code,
           items: countLocaleItems(locale),
           overrides: Array.isArray(locale.overrides) ? locale.overrides.length : 0,
         })),

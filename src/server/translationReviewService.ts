@@ -10,15 +10,15 @@ import type {
 
 import { stripLexicalMarkers } from '../utils/lexical.js'
 import { extractPlainText, getValueAtPath, MAX_CHARS_PER_CHUNK } from '../utils/localizedFields.js'
+import { resolveCustomPrompt } from './customPrompt.js'
+import { logDebug } from './debugSettings.js'
+import { stripDocumentMetadata } from './documentUtils.js'
 import {
   type MissingInformationCheckInput,
   openAiDetectMissingInformation,
   openAiTranslateTexts,
 } from './openAiTranslationClient.js'
-import { logDebug } from './debugSettings.js'
-import { resolveCustomPrompt } from './customPrompt.js'
 import { getStoredCollection } from './translationStateStore.js'
-import { stripDocumentMetadata } from './documentUtils.js'
 
 type TranslateSuggestionInput = {
   index: number
@@ -118,16 +118,16 @@ function parseBody(body: unknown): TranslateReviewRequestPayload {
 
   return hasCollection
     ? {
-        id: identifier as string | number,
+        id: identifier as number | string,
         collection,
         from,
         items,
         locales: uniqueLocales,
       }
     : {
-        id: identifier as string | number | undefined,
-        global: global as string,
+        id: identifier as number | string | undefined,
         from,
+        global: global as string,
         items,
         locales: uniqueLocales,
       }
@@ -143,8 +143,8 @@ export async function generateTranslationReview(
     collection: request.collection ?? request.global,
     documentId: request.id,
     from: request.from,
-    localeCount: request.locales.length,
     itemCount: request.items.length,
+    localeCount: request.locales.length,
   })
 
   let baseDoc: null | Record<string, unknown> = null
@@ -217,8 +217,8 @@ export async function generateTranslationReview(
     logDebug(payload, '[AI Translate] Loaded locale document for review.', {
       collection: request.collection ?? request.global,
       documentId: request.id,
-      locale: localeCode,
       hasLocaleDoc: Boolean(localeDoc),
+      locale: localeCode,
     })
 
     const translateIndexes = new Set<number>()
@@ -253,21 +253,27 @@ export async function generateTranslationReview(
 
     if (aiInputs.length) {
       try {
-        logDebug(payload, '[AI Translate] Checking existing translations for missing information.', {
-          collection: request.collection,
-          documentId: request.id,
-          locale: localeCode,
-          inputCount: aiInputs.length,
-        })
+        logDebug(
+          payload,
+          '[AI Translate] Checking existing translations for missing information.',
+          {
+            collection: request.collection,
+            documentId: request.id,
+            inputCount: aiInputs.length,
+            locale: localeCode,
+          },
+        )
         const results = await openAiDetectMissingInformation(aiInputs, request.from, localeCode)
         logDebug(payload, '[AI Translate] Missing information check results.', {
           collection: request.collection,
           documentId: request.id,
+          issues: results
+            .filter((result) => result.missing)
+            .map((result) => ({
+              index: result.index,
+              reason: result.reason,
+            })),
           locale: localeCode,
-          issues: results.filter((result) => result.missing).map((result) => ({
-            index: result.index,
-            reason: result.reason,
-          })),
         })
         for (const result of results) {
           if (!result.missing) {
@@ -319,10 +325,10 @@ export async function generateTranslationReview(
         const chunks = chunkSuggestionInputs(orderedCandidates)
 
         logDebug(payload, '[AI Translate] Preparing suggestion translations.', {
+          chunkCount: chunks.length,
           collection: request.collection,
           documentId: request.id,
           locale: localeCode,
-          chunkCount: chunks.length,
           totalSuggestions: orderedCandidates.length,
         })
 
@@ -392,8 +398,8 @@ export function createAiTranslateReviewHandler(): PayloadHandler {
         collection: parsed.collection,
         documentId: parsed.id,
         from: parsed.from,
-        localeCount: parsed.locales.length,
         itemCount: parsed.items.length,
+        localeCount: parsed.locales.length,
       })
       const review = await generateTranslationReview(payload, parsed)
 
