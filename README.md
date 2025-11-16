@@ -12,11 +12,11 @@ Built using the official [Payload Plugin Template](https://payloadcms.com/docs/p
 ## ✨ Features
 
 - 🔁 **One-click translation:** Instantly translate a document into all available languages.
-- ⚙️ **Exclude specific fields:** Easily exclude fields from being translated.
 - 🧠 **AI context detection:** Detects missing or incomplete context rather than stylistic differences.
 - 💬 **Interactive review modal:** Review, skip, or edit translations before applying.
 - 🚀 **Auto-sync updates:** Apply all confirmed translations across all languages.
 - 📝 **Manual override:** Preserve manually edited content automatically.
+- ⚙️ **Exclude specific fields:** Easily exclude fields from being translated.
 
 ---
 
