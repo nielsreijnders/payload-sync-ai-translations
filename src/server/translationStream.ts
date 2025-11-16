@@ -12,7 +12,11 @@ import { splitLexicalText, toLexical } from '../utils/lexical.js'
 import { getValueAtPath, MAX_CHARS_PER_CHUNK } from '../utils/localizedFields.js'
 import { resolveCustomPrompt } from './customPrompt.js'
 import { logDebug } from './debugSettings.js'
-import { loadLocalizedDocument, stripDocumentMetadata } from './documentUtils.js'
+import {
+  cloneWithoutDocumentMetadata,
+  loadLocalizedDocument,
+  stripDocumentMetadata,
+} from './documentUtils.js'
 import { cloneLocaleData, mergeStructuralData, setValueAtPath } from './localeStructure.js'
 import { openAiTranslateTexts } from './openAiTranslationClient.js'
 import { getStoredTarget } from './translationStateStore.js'
@@ -625,18 +629,20 @@ export async function* streamTranslations(
 
     try {
       stripDocumentMetadata(localeData)
+      const saveData = cloneWithoutDocumentMetadata(localeData) as Record<string, unknown>
+
       if (isCollectionTarget) {
         await payload.update({
           id: documentId as number | string,
           collection: collectionSlug as string,
-          data: localeData as Record<string, unknown>,
+          data: saveData,
           locale,
           overrideAccess: true,
         })
       } else {
         await payload.updateGlobal({
           slug: globalSlug as string,
-          data: localeData as Record<string, unknown>,
+          data: saveData,
           locale,
           overrideAccess: true,
         })

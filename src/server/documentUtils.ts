@@ -17,6 +17,15 @@ export function stripDocumentMetadata(value: unknown): void {
   delete value.updatedAt
 }
 
+export function cloneWithoutDocumentMetadata<T>(value: T): T {
+  if (!isPlainObject(value)) {
+    return value
+  }
+
+  const { _id: __id, id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = value
+  return rest as T
+}
+
 type LoadDocumentOptions =
   | {
       collection: string
@@ -25,8 +34,8 @@ type LoadDocumentOptions =
       locale: string
     }
   | {
-      global: string
       fallbackLocale?: boolean
+      global: string
       locale: string
     }
 
@@ -37,22 +46,23 @@ export async function loadLocalizedDocument(
   const { fallbackLocale = false, locale } = options
 
   try {
-    const doc = 'collection' in options
-      ? await payload.findByID({
-          id: options.id,
-          collection: options.collection,
-          depth: 0,
-          // @ts-expect-error temp
-          fallbackLocale,
-          locale,
-        })
-      : await payload.findGlobal({
-          slug: options.global,
-          depth: 0,
-          // @ts-expect-error temp
-          fallbackLocale,
-          locale,
-        })
+    const doc =
+      'collection' in options
+        ? await payload.findByID({
+            id: options.id,
+            collection: options.collection,
+            depth: 0,
+            // @ts-expect-error temp
+            fallbackLocale,
+            locale,
+          })
+        : await payload.findGlobal({
+            slug: options.global,
+            depth: 0,
+            // @ts-expect-error temp
+            fallbackLocale,
+            locale,
+          })
 
     if (doc && typeof doc === 'object' && !Array.isArray(doc)) {
       const clone = cloneLocaleData(doc)
@@ -61,9 +71,7 @@ export async function loadLocalizedDocument(
     }
   } catch (error) {
     const targetLabel =
-      'collection' in options
-        ? `${options.collection}#${options.id}`
-        : `global:${options.global}`
+      'collection' in options ? `${options.collection}#${options.id}` : `global:${options.global}`
     payload.logger?.debug?.(
       `[AI Links] Failed to load ${targetLabel} (${locale}): ${
         error instanceof Error ? error.message : 'unknown error'
