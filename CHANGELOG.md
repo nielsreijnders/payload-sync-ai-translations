@@ -1,3 +1,10 @@
+## [1.16.5](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.4...v1.16.5) (2025-11-16)
+
+
+### Bug Fixes
+
+* skip metadata when saving globals ([d3c5a4f](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/d3c5a4f182c7d974db78c4270354ee494b5736f5))
+
 ## [1.16.4](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.3...v1.16.4) (2025-11-16)
 
 

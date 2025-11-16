@@ -639,6 +639,11 @@ export async function* streamTranslations(
         delete saveData._id
       }
 
+      if (!isCollectionTarget) {
+        delete saveData.id
+        delete saveData._id
+      }
+
       if (isCollectionTarget) {
         await payload.update({
           id: documentId as number | string,
