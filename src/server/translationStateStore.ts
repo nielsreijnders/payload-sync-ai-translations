@@ -1,8 +1,8 @@
-import type { CollectionConfig, LocalizationConfig } from 'payload'
+import type { CollectionConfig, GlobalConfig, LocalizationConfig } from 'payload'
 
 import { type AnyField, collectLocalizedFieldPatterns } from '../utils/localizedFields.js'
 
-export type StoredCollection = {
+export type StoredEntry = {
   fieldPatterns: string[]
   label: string
   slug: string
@@ -10,13 +10,15 @@ export type StoredCollection = {
 }
 
 export type TranslationState = {
-  collections: Record<string, StoredCollection>
+  collections: Record<string, StoredEntry>
+  globals: Record<string, StoredEntry>
   defaultLocale: string
   locales: string[]
 }
 
 let translationState: TranslationState = {
   collections: {},
+  globals: {},
   defaultLocale: '',
   locales: [],
 }
@@ -43,8 +45,8 @@ function filterPatterns(patterns: string[], exclude: string[] = []): string[] {
   return patterns.filter((pattern) => !excluded.has(normalizeRoot(pattern)))
 }
 
-function extractFieldPatterns(collection: CollectionConfig, exclude?: string[]): string[] {
-  const fields = (collection.fields ?? []) as AnyField[]
+function extractFieldPatterns(config: { fields?: AnyField[] }, exclude?: string[]): string[] {
+  const fields = (config.fields ?? []) as AnyField[]
   const allPatterns = collectLocalizedFieldPatterns(fields)
   return filterPatterns(allPatterns, exclude)
 }
@@ -58,15 +60,21 @@ function resolveLocaleCodes(locales: LocalizationConfig['locales']): string[] {
 export function configureTranslationState(
   collections: Array<{
     config: CollectionConfig
-    customPrompt?: StoredCollection['customPrompt']
+    customPrompt?: StoredEntry['customPrompt']
     excludeFields?: string[]
   }>,
+  globals: Array<{
+    config: GlobalConfig
+    customPrompt?: StoredEntry['customPrompt']
+    excludeFields?: string[]
+  }> = [],
   localization: {
     defaultLocale?: LocalizationConfig['defaultLocale']
     locales?: LocalizationConfig['locales']
-  },
+  } = {},
 ): void {
-  const entries: Record<string, StoredCollection> = {}
+  const storedCollections: Record<string, StoredEntry> = {}
+  const storedGlobals: Record<string, StoredEntry> = {}
 
   for (const entry of collections) {
     const { config, excludeFields, customPrompt } = entry
@@ -78,7 +86,28 @@ export function configureTranslationState(
     const label = config.labels?.plural || config.labels?.singular || slug || ''
     const fieldPatterns = extractFieldPatterns(config, excludeFields)
 
-    entries[slug] = {
+    storedCollections[slug] = {
+      slug,
+      fieldPatterns,
+      // @ts-expect-error - i need to look into this
+      label,
+      customPrompt,
+    }
+  }
+
+  const normalizedGlobals = Array.isArray(globals) ? globals : []
+
+  for (const entry of normalizedGlobals) {
+    const { config, excludeFields, customPrompt } = entry
+    if (!config?.slug) {
+      continue
+    }
+
+    const slug = config.slug
+    const label = config.label || slug || ''
+    const fieldPatterns = extractFieldPatterns(config, excludeFields)
+
+    storedGlobals[slug] = {
       slug,
       fieldPatterns,
       // @ts-expect-error - i need to look into this
@@ -88,9 +117,10 @@ export function configureTranslationState(
   }
 
   translationState = {
-    collections: entries,
-    defaultLocale: localization.defaultLocale || '',
-    locales: resolveLocaleCodes(localization.locales || []),
+    collections: storedCollections,
+    globals: storedGlobals,
+    defaultLocale: localization?.defaultLocale || '',
+    locales: resolveLocaleCodes(localization?.locales || []),
   }
 }
 
@@ -98,10 +128,30 @@ export function getTranslationState(): TranslationState {
   return translationState
 }
 
-export function getStoredCollection(slug: string): null | StoredCollection {
+export function getStoredCollection(slug: string): null | StoredEntry {
   return translationState.collections[slug] ?? null
 }
 
-export function listStoredCollections(): StoredCollection[] {
+export function getStoredGlobal(slug: string): null | StoredEntry {
+  return translationState.globals[slug] ?? null
+}
+
+export function getStoredTarget(target: { collection?: string; global?: string }): null | StoredEntry {
+  if (target.collection) {
+    return getStoredCollection(target.collection)
+  }
+
+  if (target.global) {
+    return getStoredGlobal(target.global)
+  }
+
+  return null
+}
+
+export function listStoredCollections(): StoredEntry[] {
   return Object.values(translationState.collections)
+}
+
+export function listStoredGlobals(): StoredEntry[] {
+  return Object.values(translationState.globals)
 }

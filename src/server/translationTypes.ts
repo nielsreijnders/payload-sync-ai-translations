@@ -14,17 +14,25 @@ export type TranslateLocaleRequestPayload = {
   overrides?: TranslateOverride[]
 }
 
-export type TranslateRequestPayload = {
+export type TranslationTargetCollection = {
   collection: string
-  from: string
   id: number | string
+}
+
+export type TranslationTargetGlobal = {
+  global: string
+}
+
+export type TranslationTarget = TranslationTargetCollection | TranslationTargetGlobal
+
+export type TranslateRequestPayload = TranslationTarget & {
+  from: string
   locales: TranslateLocaleRequestPayload[]
 }
 
-export type TranslateReviewRequestPayload = {
-  collection: string
+export type TranslateReviewRequestPayload = TranslationTarget & {
   from: string
-  id: number | string
+  id?: number | string
   items: TranslateItem[]
   locales: string[]
 }

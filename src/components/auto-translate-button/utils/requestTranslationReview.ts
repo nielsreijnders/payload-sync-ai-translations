@@ -7,9 +7,10 @@ import type {
 import type { TranslatableItem } from './buildTranslatableItems.js'
 
 export type ReviewRequest = {
-  collection: string
+  collection?: string
   defaultLocale: string
-  id: number | string
+  global?: string
+  id?: number | string
   items: TranslatableItem[]
   locales: string[]
 }
@@ -66,6 +67,7 @@ export async function requestTranslationReview(request: ReviewRequest): Promise<
     body: JSON.stringify({
       id: request.id,
       collection: request.collection,
+      global: request.global,
       from: request.defaultLocale,
       items: request.items,
       locales: request.locales,

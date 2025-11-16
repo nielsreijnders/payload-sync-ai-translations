@@ -3,19 +3,31 @@ import type { PayloadHandler } from 'payload'
 import type { BulkLinkSyncRequestPayload, BulkLinkSyncResponse } from './linkSyncTypes.js'
 
 import { synchronizeLinksForDocument } from './linkSyncService.js'
-import { getStoredCollection, getTranslationState } from './translationStateStore.js'
+import { getStoredTarget, getTranslationState } from './translationStateStore.js'
 
-function parseDocumentBody(body: unknown): { collection: string; id: number | string } {
+function parseDocumentBody(body: unknown): { collection?: string; global?: string; id?: number | string } {
   if (typeof body !== 'object' || body === null) {
     throw new Error('Invalid JSON body')
   }
 
   const candidate = body as Record<string, unknown>
   const collection = candidate.collection
+  const global = candidate.global
   const id = candidate.id
 
-  if (typeof collection !== 'string' || !collection.trim()) {
-    throw new Error('Missing "collection" slug')
+  const hasCollection = typeof collection === 'string' && collection.trim().length > 0
+  const hasGlobal = typeof global === 'string' && global.trim().length > 0
+
+  if (!hasCollection && !hasGlobal) {
+    throw new Error('Missing "collection" or "global" slug')
+  }
+
+  if (hasCollection && hasGlobal) {
+    throw new Error('Provide either a collection slug or a global slug, not both')
+  }
+
+  if (hasGlobal) {
+    return { global: global.trim() }
   }
 
   if (typeof id !== 'string' && typeof id !== 'number') {
@@ -69,12 +81,12 @@ export function createSyncLinksHandler(): PayloadHandler {
         throw new Error('Payload instance is not available on the request')
       }
 
-      const { id, collection } = parseDocumentBody(await (req as any).json())
+      const target = parseDocumentBody(await (req as any).json())
       const state = getTranslationState()
-      const stored = getStoredCollection(collection)
+      const stored = getStoredTarget(target)
 
       if (!stored) {
-        throw new Error(`Collection "${collection}" is not configured for link synchronization`)
+        throw new Error('The requested document is not configured for link synchronization')
       }
 
       if (!state.defaultLocale) {
@@ -83,8 +95,7 @@ export function createSyncLinksHandler(): PayloadHandler {
 
       const result = await synchronizeLinksForDocument(
         {
-          id,
-          collection,
+          ...target,
           defaultLocale: state.defaultLocale,
           fieldPatterns: stored.fieldPatterns,
           payload,

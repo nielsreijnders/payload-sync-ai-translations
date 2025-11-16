@@ -14,22 +14,25 @@ export function buildTranslationRequest(
   locales: LocaleTranslationSelection[],
   opts: {
     collectionSlug?: string
+    globalSlug?: string
     defaultLocale: string
     id?: number | string
   },
 ) {
-  const { id, collectionSlug, defaultLocale } = opts
+  const { id, collectionSlug, defaultLocale, globalSlug } = opts
 
-  if (!collectionSlug) {
+  if (!collectionSlug && !globalSlug) {
     throw new Error('Localization settings are missing.')
   }
 
-  if (typeof id !== 'string' && typeof id !== 'number') {
-    throw new Error('Document ID is missing.')
-  }
+  if (collectionSlug) {
+    if (typeof id !== 'string' && typeof id !== 'number') {
+      throw new Error('Document ID is missing.')
+    }
 
-  if (typeof id === 'string' && id.trim().length === 0) {
-    throw new Error('Document ID is missing.')
+    if (typeof id === 'string' && id.trim().length === 0) {
+      throw new Error('Document ID is missing.')
+    }
   }
 
   const identifier = typeof id === 'string' ? id.trim() : id
@@ -49,8 +52,7 @@ export function buildTranslationRequest(
     .filter((locale) => locale.chunks.length || (locale.overrides?.length ?? 0) > 0)
 
   return {
-    id: identifier,
-    collection: collectionSlug,
+    ...(collectionSlug ? { id: identifier, collection: collectionSlug } : { global: globalSlug }),
     defaultLocale,
     locales: localesWithChunks,
   }
