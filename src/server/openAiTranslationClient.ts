@@ -264,6 +264,7 @@ export async function openAiTranslateTexts(
     userPromptSections.push(`Custom instructions: ${options.customPrompt}`)
   }
 
+  // Prevent the ai model from translating the prompt itself by isolating the items payload
   userPromptSections.push(`items: ${itemsPayload}`)
 
   const userPrompt = userPromptSections.join('\n')
