@@ -1,3 +1,10 @@
+## [1.16.3](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.2...v1.16.3) (2025-11-16)
+
+
+### Bug Fixes
+
+* issues diabled global buttons ([d05baaf](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/d05baafe06e8490a7987dd92ce1ba09c28417a8b))
+
 ## [1.16.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.1...v1.16.2) (2025-11-16)
 
 
