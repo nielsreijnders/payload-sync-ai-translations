@@ -16,7 +16,7 @@ import { buildTranslatableItems } from './auto-translate-button/utils/buildTrans
 import styles from './AutoTranslateButton.module.css'
 
 export function DebugDocumentCopyButton(props: AutoTranslateButtonProps) {
-  const { id, collectionSlug, docConfig } = useDocumentInfo()
+  const { id, collectionSlug, docConfig, globalSlug } = useDocumentInfo()
   const form = useForm()
   const documentForm = useDocumentForm()
   const [busy, setBusy] = React.useState(false)
@@ -33,7 +33,7 @@ export function DebugDocumentCopyButton(props: AutoTranslateButtonProps) {
       return
     }
 
-    if (!collectionSlug) {
+    if (!collectionSlug && !globalSlug) {
       toast.error('Localization settings are missing.')
       return
     }
@@ -60,6 +60,7 @@ export function DebugDocumentCopyButton(props: AutoTranslateButtonProps) {
           defaultLocale,
           documentId: id ?? null,
           fieldPatterns,
+          globalSlug,
           locales: props.locales,
         },
         translatableItems: items,
@@ -75,7 +76,7 @@ export function DebugDocumentCopyButton(props: AutoTranslateButtonProps) {
     } finally {
       setBusy(false)
     }
-  }, [collectionSlug, fieldPatterns, formApi, id, props.defaultLocale, props.locales])
+  }, [collectionSlug, fieldPatterns, formApi, globalSlug, id, props.defaultLocale, props.locales])
 
   return (
     <Button disabled={busy} onClick={handleCopy} type="button">
