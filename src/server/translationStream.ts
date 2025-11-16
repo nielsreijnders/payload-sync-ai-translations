@@ -210,64 +210,81 @@ async function translateChunkGroup(
     return []
   }
 
-  const texts = chunks.flatMap((chunk) => chunk.map((item) => item.text))
+  const translateGroup = async (group: TranslateChunk[]): Promise<string[][]> => {
+    const texts = group.flatMap((chunk) => chunk.map((item) => item.text))
 
-  try {
-    logDebug(payload, '[AI Translate] Sending chunk batch to OpenAI.', {
-      collection: options.collection,
-      documentId: options.documentId,
-      from,
-      locale,
-      chunkCount: chunks.length,
-      paths: chunks.map((chunk) => chunk.map((item) => item.path)),
-      texts,
-    })
+    try {
+      logDebug(payload, '[AI Translate] Sending chunk batch to OpenAI.', {
+        collection: options.collection,
+        documentId: options.documentId,
+        from,
+        locale,
+        chunkCount: group.length,
+        paths: group.map((chunk) => chunk.map((item) => item.path)),
+        texts,
+      })
 
-    const translated = await openAiTranslateTexts(texts, from, locale, {
-      customPrompt: options.customPrompt,
-    })
+      const translated = await openAiTranslateTexts(texts, from, locale, {
+        customPrompt: options.customPrompt,
+      })
 
-    logDebug(payload, '[AI Translate] Received OpenAI translation batch.', {
-      collection: options.collection,
-      documentId: options.documentId,
-      from,
-      locale,
-      chunkCount: chunks.length,
-      paths: chunks.map((chunk) => chunk.map((item) => item.path)),
-      translated,
-    })
+      logDebug(payload, '[AI Translate] Received OpenAI translation batch.', {
+        collection: options.collection,
+        documentId: options.documentId,
+        from,
+        locale,
+        chunkCount: group.length,
+        paths: group.map((chunk) => chunk.map((item) => item.path)),
+        translated,
+      })
 
-    const results: string[][] = []
-    let offset = 0
+      const results: string[][] = []
+      let offset = 0
 
-    for (const chunk of chunks) {
-      results.push(translated.slice(offset, offset + chunk.length))
-      offset += chunk.length
+      for (const chunk of group) {
+        results.push(translated.slice(offset, offset + chunk.length))
+        offset += chunk.length
+      }
+
+      return results
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+
+      if (group.length === 1) {
+        logDebug(payload, '[AI Translate] Chunk batch translation failed, attempting per-chunk fallback.', {
+          collection: options.collection,
+          documentId: options.documentId,
+          error: message,
+          from,
+          locale,
+          chunkCount: group.length,
+          paths: group.map((chunk) => chunk.map((item) => item.path)),
+        })
+
+        const translated = await translateChunk(payload, group[0] ?? [], from, locale, options)
+        return [translated]
+      }
+
+      const midpoint = Math.max(1, Math.floor(group.length / 2))
+
+      logDebug(payload, '[AI Translate] Chunk batch translation failed, splitting group for retry.', {
+        collection: options.collection,
+        documentId: options.documentId,
+        error: message,
+        from,
+        locale,
+        chunkCount: group.length,
+        paths: group.map((chunk) => chunk.map((item) => item.path)),
+      })
+
+      const firstHalf = await translateGroup(group.slice(0, midpoint))
+      const secondHalf = await translateGroup(group.slice(midpoint))
+
+      return [...firstHalf, ...secondHalf]
     }
-
-    return results
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-
-    logDebug(payload, '[AI Translate] Chunk batch translation failed, attempting per-chunk fallback.', {
-      collection: options.collection,
-      documentId: options.documentId,
-      error: message,
-      from,
-      locale,
-      chunkCount: chunks.length,
-      paths: chunks.map((chunk) => chunk.map((item) => item.path)),
-    })
-
-    const results: string[][] = []
-
-    for (const chunk of chunks) {
-      const translated = await translateChunk(payload, chunk, from, locale, options)
-      results.push(translated)
-    }
-
-    return results
   }
+
+  return translateGroup(chunks)
 }
 
 function getTranslationLengthMismatch(
