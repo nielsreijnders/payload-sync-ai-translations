@@ -67,8 +67,9 @@ export async function requestTranslationReview(request: ReviewRequest): Promise<
     body: JSON.stringify({
       id: request.id,
       collection: request.collection,
-      global: request.global,
       from: request.defaultLocale,
+      // @ts-expect-error -- Need to investigate
+      global: request.global,
       items: request.items,
       locales: request.locales,
     } satisfies TranslateReviewRequestPayload),

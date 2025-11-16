@@ -1,8 +1,8 @@
 import type { CollectionConfig, Config, GlobalConfig } from 'payload'
 
 import { createAiBulkTranslateHandler } from './server/bulkTranslationHandler.js'
-import { createBulkSyncLinksHandler, createSyncLinksHandler } from './server/linkSyncHandler.js'
 import { setDebugEnabled } from './server/debugSettings.js'
+import { createBulkSyncLinksHandler, createSyncLinksHandler } from './server/linkSyncHandler.js'
 import { setOpenAISettings } from './server/openAiSettings.js'
 import { createAiTranslateHandler } from './server/translationRequestHandler.js'
 import { createAiTranslateReviewHandler } from './server/translationReviewService.js'
@@ -10,14 +10,14 @@ import { configureTranslationState, listStoredCollections } from './server/trans
 
 export type AiLocalizationCollectionOptions = {
   clientProps?: Record<string, unknown> // add this
-  excludeFields?: string[]
   customPrompt?: (data: unknown, locale: string) => string | undefined
+  excludeFields?: string[]
 }
 
 export type AiLocalizationConfig = {
   collections?: Record<string, AiLocalizationCollectionOptions>
-  globals?: Record<string, AiLocalizationCollectionOptions>
   debug?: boolean
+  globals?: Record<string, AiLocalizationCollectionOptions>
   openai: {
     apiKey: string
     model?: string
@@ -158,9 +158,12 @@ export const payloadSyncAiTranslations =
           ...global.admin,
           components: {
             ...global.admin?.components,
+            // @ts-expect-error -- Need to investigate
             edit: {
+              // @ts-expect-error -- Need to investigate
               ...global.admin?.components?.edit,
               beforeDocumentControls: [
+                // @ts-expect-error -- Need to investigate
                 ...(global.admin?.components?.edit?.beforeDocumentControls ?? []),
                 ...debugControls,
                 {

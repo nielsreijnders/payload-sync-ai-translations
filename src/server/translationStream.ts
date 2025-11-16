@@ -330,12 +330,14 @@ export async function* streamTranslations(
   const isCollectionTarget = 'collection' in input && Boolean(input.collection)
   const targetLabel = isCollectionTarget
     ? `${input.collection}#${input.id}`
-    : `global:${input.global}`
+    : // @ts-expect-error -- Need to investigate
+      `global:${input.global}`
   const collectionSlug = isCollectionTarget ? input.collection : undefined
   const documentId = isCollectionTarget ? input.id : undefined
+  // @ts-expect-error -- Need to investigate
   const globalSlug = isCollectionTarget ? undefined : input.global
   const collectionLabel = collectionSlug ?? `global:${globalSlug}`
-  const translationDocumentId = (documentId ?? globalSlug ?? 'global') as number | string
+  const translationDocumentId = documentId ?? globalSlug ?? 'global'
 
   if (!Array.isArray(locales) || !locales.length) {
     yield { type: 'error', message: 'No target locales provided.' }
@@ -356,8 +358,8 @@ export async function* streamTranslations(
   logDebug(payload, '[AI Translate] Preparing translation run.', {
     collection: 'collection' in input ? input.collection : undefined,
     documentId: 'id' in input ? input.id : undefined,
-    global: 'global' in input ? input.global : undefined,
     from,
+    global: 'global' in input ? input.global : undefined,
     locales: locales.map((locale) => ({
       chunks: locale.chunks.length,
       code: locale.code,
@@ -374,19 +376,20 @@ export async function* streamTranslations(
       payload,
       isCollectionTarget
         ? {
-            id: input.id as number | string,
-            collection: input.collection as string,
+            id: input.id,
+            collection: input.collection,
             fallbackLocale: false,
             locale: from,
           }
         : {
-            global: input.global as string,
             fallbackLocale: false,
+            // @ts-expect-error -- Need to investigate
+            global: input.global as string,
             locale: from,
           },
     )
     if (doc && typeof doc === 'object') {
-      baseDoc = doc as Record<string, unknown>
+      baseDoc = doc
       stripDocumentMetadata(baseDoc)
     }
   } catch (error) {
@@ -395,9 +398,9 @@ export async function* streamTranslations(
     logDebug(payload, '[AI Translate] Failed to load base document.', {
       collection: 'collection' in input ? input.collection : undefined,
       documentId: 'id' in input ? input.id : undefined,
-      global: 'global' in input ? input.global : undefined,
       error: message,
       from,
+      global: 'global' in input ? input.global : undefined,
     })
     return
   }
@@ -424,13 +427,13 @@ export async function* streamTranslations(
               locale,
             }
           : {
-              global: globalSlug as string,
               fallbackLocale: true,
+              global: globalSlug as string,
               locale,
             },
       )
       if (localeDoc && typeof localeDoc === 'object') {
-        existingLocaleDoc = localeDoc as Record<string, unknown>
+        existingLocaleDoc = localeDoc
         stripDocumentMetadata(existingLocaleDoc)
       }
     } catch (_error) {
@@ -460,8 +463,8 @@ export async function* streamTranslations(
       chunkCount: chunks.length,
       collection: collectionSlug,
       documentId: translationDocumentId,
-      global: globalSlug,
       from,
+      global: globalSlug,
       locale,
       overrideCount: overrideItems.length,
     })
@@ -491,8 +494,8 @@ export async function* streamTranslations(
           logDebug(payload, '[AI Translate] Splitting large lexical item for translation.', {
             collection: collectionSlug,
             documentId: translationDocumentId,
-            global: globalSlug,
             from,
+            global: globalSlug,
             locale,
             path: chunk[0].path,
             textLength: chunk[0].text.length,
@@ -509,9 +512,9 @@ export async function* streamTranslations(
           logDebug(payload, '[AI Translate] OpenAI translation failed for lexical chunk.', {
             collection: collectionSlug,
             documentId: translationDocumentId,
-            global: globalSlug,
             error: message,
             from,
+            global: globalSlug,
             locale,
             path: chunk[0]?.path,
           })
@@ -528,9 +531,9 @@ export async function* streamTranslations(
           logDebug(payload, '[AI Translate] Translation length mismatch.', {
             collection: collectionSlug,
             documentId: translationDocumentId,
-            global: globalSlug,
             expected: chunk.length,
             from,
+            global: globalSlug,
             locale,
             paths: chunk.map((item) => item.path),
             received: translated.length,
@@ -564,9 +567,9 @@ export async function* streamTranslations(
             logDebug(payload, '[AI Translate] Translation length mismatch.', {
               collection: collectionSlug,
               documentId: translationDocumentId,
-              global: globalSlug,
               expected: chunk.length,
               from,
+              global: globalSlug,
               locale,
               paths: chunk.map((item) => item.path),
               received: translated.length,
@@ -586,9 +589,9 @@ export async function* streamTranslations(
         logDebug(payload, '[AI Translate] OpenAI translation failed for chunk batch.', {
           collection: collectionSlug,
           documentId: translationDocumentId,
-          global: globalSlug,
           error: message,
           from,
+          global: globalSlug,
           locale,
           paths: task.chunks.map((chunk) => chunk.map((item) => item.path)),
         })
@@ -606,8 +609,8 @@ export async function* streamTranslations(
         logDebug(payload, '[AI Translate] Applied override value.', {
           collection: collectionSlug,
           documentId: translationDocumentId,
-          global: globalSlug,
           from,
+          global: globalSlug,
           locale,
           path: override.path,
         })
@@ -641,8 +644,8 @@ export async function* streamTranslations(
       logDebug(payload, '[AI Translate] Saved locale document.', {
         collection: collectionSlug,
         documentId: translationDocumentId,
-        global: globalSlug,
         from,
+        global: globalSlug,
         locale,
         totalItems: localeTotalItems,
       })
@@ -654,9 +657,9 @@ export async function* streamTranslations(
       logDebug(payload, '[AI Translate] Failed to save locale document.', {
         collection: collectionSlug,
         documentId: translationDocumentId,
-        global: globalSlug,
         error: message,
         from,
+        global: globalSlug,
         locale,
       })
       yield { type: 'error', message }

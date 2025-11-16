@@ -1,15 +1,16 @@
 import type { Payload } from 'payload'
 
-import { logDebug } from './debugSettings.js'
-import type { StoredCollection } from './translationStateStore.js'
+import type { StoredEntry } from './translationStateStore.js'
 
-export type CustomPromptFunction = StoredCollection['customPrompt']
+import { logDebug } from './debugSettings.js'
+
+export type CustomPromptFunction = StoredEntry['customPrompt']
 
 export function resolveCustomPrompt(
   payload: Payload,
   customPrompt: CustomPromptFunction,
   data: unknown,
-  context: { collection: string; documentId: string | number; locale: string },
+  context: { collection: string; documentId: number | string; locale: string },
 ): string | undefined {
   if (typeof customPrompt !== 'function') {
     return undefined

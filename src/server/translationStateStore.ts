@@ -3,23 +3,23 @@ import type { CollectionConfig, GlobalConfig, LocalizationConfig } from 'payload
 import { type AnyField, collectLocalizedFieldPatterns } from '../utils/localizedFields.js'
 
 export type StoredEntry = {
+  customPrompt?: (data: unknown, locale: string) => string | undefined
   fieldPatterns: string[]
   label: string
   slug: string
-  customPrompt?: (data: unknown, locale: string) => string | undefined
 }
 
 export type TranslationState = {
   collections: Record<string, StoredEntry>
-  globals: Record<string, StoredEntry>
   defaultLocale: string
+  globals: Record<string, StoredEntry>
   locales: string[]
 }
 
 let translationState: TranslationState = {
   collections: {},
-  globals: {},
   defaultLocale: '',
+  globals: {},
   locales: [],
 }
 
@@ -46,7 +46,7 @@ function filterPatterns(patterns: string[], exclude: string[] = []): string[] {
 }
 
 function extractFieldPatterns(config: { fields?: AnyField[] }, exclude?: string[]): string[] {
-  const fields = (config.fields ?? []) as AnyField[]
+  const fields = config.fields ?? []
   const allPatterns = collectLocalizedFieldPatterns(fields)
   return filterPatterns(allPatterns, exclude)
 }
@@ -77,7 +77,7 @@ export function configureTranslationState(
   const storedGlobals: Record<string, StoredEntry> = {}
 
   for (const entry of collections) {
-    const { config, excludeFields, customPrompt } = entry
+    const { config, customPrompt, excludeFields } = entry
     if (!config?.slug) {
       continue
     }
@@ -88,17 +88,17 @@ export function configureTranslationState(
 
     storedCollections[slug] = {
       slug,
-      fieldPatterns,
-      // @ts-expect-error - i need to look into this
-      label,
       customPrompt,
+      fieldPatterns,
+      // @ts-expect-error -- Need to investigate
+      label,
     }
   }
 
   const normalizedGlobals = Array.isArray(globals) ? globals : []
 
   for (const entry of normalizedGlobals) {
-    const { config, excludeFields, customPrompt } = entry
+    const { config, customPrompt, excludeFields } = entry
     if (!config?.slug) {
       continue
     }
@@ -109,17 +109,17 @@ export function configureTranslationState(
 
     storedGlobals[slug] = {
       slug,
-      fieldPatterns,
-      // @ts-expect-error - i need to look into this
-      label,
       customPrompt,
+      fieldPatterns,
+      // @ts-expect-error -- Need to investigate
+      label,
     }
   }
 
   translationState = {
     collections: storedCollections,
-    globals: storedGlobals,
     defaultLocale: localization?.defaultLocale || '',
+    globals: storedGlobals,
     locales: resolveLocaleCodes(localization?.locales || []),
   }
 }
@@ -136,7 +136,10 @@ export function getStoredGlobal(slug: string): null | StoredEntry {
   return translationState.globals[slug] ?? null
 }
 
-export function getStoredTarget(target: { collection?: string; global?: string }): null | StoredEntry {
+export function getStoredTarget(target: {
+  collection?: string
+  global?: string
+}): null | StoredEntry {
   if (target.collection) {
     return getStoredCollection(target.collection)
   }

@@ -25,17 +25,17 @@ export type TranslationTargetGlobal = {
 
 export type TranslationTarget = TranslationTargetCollection | TranslationTargetGlobal
 
-export type TranslateRequestPayload = TranslationTarget & {
+export type TranslateRequestPayload = {
   from: string
   locales: TranslateLocaleRequestPayload[]
-}
+} & TranslationTarget
 
-export type TranslateReviewRequestPayload = TranslationTarget & {
+export type TranslateReviewRequestPayload = {
   from: string
   id?: number | string
   items: TranslateItem[]
   locales: string[]
-}
+} & TranslationTarget
 
 export type TranslateReviewMismatch = {
   defaultText: string

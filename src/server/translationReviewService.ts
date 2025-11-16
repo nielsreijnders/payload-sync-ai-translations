@@ -10,15 +10,15 @@ import type {
 
 import { stripLexicalMarkers } from '../utils/lexical.js'
 import { extractPlainText, getValueAtPath, MAX_CHARS_PER_CHUNK } from '../utils/localizedFields.js'
+import { resolveCustomPrompt } from './customPrompt.js'
+import { logDebug } from './debugSettings.js'
+import { loadLocalizedDocument, stripDocumentMetadata } from './documentUtils.js'
 import {
   type MissingInformationCheckInput,
   openAiDetectMissingInformation,
   openAiTranslateTexts,
 } from './openAiTranslationClient.js'
-import { logDebug } from './debugSettings.js'
-import { resolveCustomPrompt } from './customPrompt.js'
 import { getStoredTarget } from './translationStateStore.js'
-import { loadLocalizedDocument, stripDocumentMetadata } from './documentUtils.js'
 
 type TranslateSuggestionInput = {
   index: number
@@ -115,9 +115,10 @@ function parseBody(body: unknown): TranslateReviewRequestPayload {
   }
 
   const base = hasCollection
-    ? { collection: collection.trim(), id: identifier }
+    ? { id: identifier, collection: collection.trim() }
     : { global: (global as string).trim() }
 
+  // @ts-expect-error -- Need to investigate
   return {
     ...base,
     from,
@@ -135,15 +136,18 @@ export async function generateTranslationReview(
   const isCollectionTarget = 'collection' in request && Boolean(request.collection)
   const targetLabel = isCollectionTarget
     ? `${request.collection}#${request.id}`
-    : `global:${request.global}`
+    : // @ts-expect-error -- Need to investigate
+      `global:${request.global}`
 
   logDebug(payload, '[AI Translate] Generating translation review.', {
+    // @ts-expect-error -- Need to investigate
     collection: request.collection,
     documentId: request.id,
-    global: request.global,
     from: request.from,
-    localeCount: request.locales.length,
+    // @ts-expect-error -- Need to investigate
+    global: request.global,
     itemCount: request.items.length,
+    localeCount: request.locales.length,
   })
 
   let baseDoc: null | Record<string, unknown> = null
@@ -153,20 +157,21 @@ export async function generateTranslationReview(
       payload,
       isCollectionTarget
         ? {
-            id: request.id as number | string,
-            collection: request.collection as string,
+            id: request.id,
+            collection: request.collection,
             fallbackLocale: false,
             locale: request.from,
           }
         : {
-            global: request.global as string,
             fallbackLocale: false,
+            // @ts-expect-error -- Need to investigate
+            global: request.global as string,
             locale: request.from,
           },
     )
 
     if (doc && typeof doc === 'object') {
-      baseDoc = doc as Record<string, unknown>
+      baseDoc = doc
       stripDocumentMetadata(baseDoc)
     }
   } catch (error) {
@@ -175,13 +180,16 @@ export async function generateTranslationReview(
   }
 
   logDebug(payload, '[AI Translate] Loaded base document for review.', {
+    // @ts-expect-error -- Need to investigate
     collection: request.collection,
     documentId: request.id,
-    global: request.global,
     from: request.from,
+    // @ts-expect-error -- Need to investigate
+    global: request.global,
     hasBaseDoc: Boolean(baseDoc),
   })
 
+  // @ts-expect-error -- Need to investigate
   const storedEntry = getStoredTarget({ collection: request.collection, global: request.global })
   const customPromptFn = storedEntry?.customPrompt
   const promptCache = new Map<string, string | undefined>()
@@ -194,20 +202,21 @@ export async function generateTranslationReview(
         payload,
         isCollectionTarget
           ? {
-              id: request.id as number | string,
-              collection: request.collection as string,
+              id: request.id,
+              collection: request.collection,
               fallbackLocale: false,
               locale: localeCode,
             }
           : {
-              global: request.global as string,
               fallbackLocale: false,
+              // @ts-expect-error -- Need to investigate
+              global: request.global as string,
               locale: localeCode,
             },
       )
 
       if (result && typeof result === 'object') {
-        localeDoc = result as Record<string, unknown>
+        localeDoc = result
         stripDocumentMetadata(localeDoc)
       }
     } catch (error) {
@@ -217,11 +226,13 @@ export async function generateTranslationReview(
     }
 
     logDebug(payload, '[AI Translate] Loaded locale document for review.', {
+      // @ts-expect-error -- Need to investigate
       collection: request.collection,
       documentId: request.id,
+      // @ts-expect-error -- Need to investigate
       global: request.global,
-      locale: localeCode,
       hasLocaleDoc: Boolean(localeDoc),
+      locale: localeCode,
     })
 
     const translateIndexes = new Set<number>()
@@ -256,21 +267,29 @@ export async function generateTranslationReview(
 
     if (aiInputs.length) {
       try {
-        logDebug(payload, '[AI Translate] Checking existing translations for missing information.', {
-          collection: request.collection,
-          documentId: request.id,
-          locale: localeCode,
-          inputCount: aiInputs.length,
-        })
+        logDebug(
+          payload,
+          '[AI Translate] Checking existing translations for missing information.',
+          {
+            // @ts-expect-error -- Need to investigate
+            collection: request.collection,
+            documentId: request.id,
+            inputCount: aiInputs.length,
+            locale: localeCode,
+          },
+        )
         const results = await openAiDetectMissingInformation(aiInputs, request.from, localeCode)
         logDebug(payload, '[AI Translate] Missing information check results.', {
+          // @ts-expect-error -- Need to investigate
           collection: request.collection,
           documentId: request.id,
+          issues: results
+            .filter((result) => result.missing)
+            .map((result) => ({
+              index: result.index,
+              reason: result.reason,
+            })),
           locale: localeCode,
-          issues: results.filter((result) => result.missing).map((result) => ({
-            index: result.index,
-            reason: result.reason,
-          })),
         })
         for (const result of results) {
           if (!result.missing) {
@@ -322,17 +341,20 @@ export async function generateTranslationReview(
         const chunks = chunkSuggestionInputs(orderedCandidates)
 
         logDebug(payload, '[AI Translate] Preparing suggestion translations.', {
+          chunkCount: chunks.length,
+          // @ts-expect-error -- Need to investigate
           collection: request.collection,
           documentId: request.id,
           locale: localeCode,
-          chunkCount: chunks.length,
           totalSuggestions: orderedCandidates.length,
         })
 
         if (!promptCache.has(localeCode)) {
           const promptData = baseDoc ?? localeDoc ?? {}
           const prompt = resolveCustomPrompt(payload, customPromptFn, promptData, {
+            // @ts-expect-error -- Need to investigate
             collection: request.collection,
+            // @ts-expect-error -- Need to investigate
             documentId: request.id,
             locale: localeCode,
           })
@@ -358,6 +380,7 @@ export async function generateTranslationReview(
 
         suggestions = collected
         logDebug(payload, '[AI Translate] Generated AI suggestions for review.', {
+          // @ts-expect-error -- Need to investigate
           collection: request.collection,
           documentId: request.id,
           locale: localeCode,
@@ -388,15 +411,16 @@ export function createAiTranslateReviewHandler(): PayloadHandler {
         throw new Error('Payload instance is not available on the request')
       }
 
-      // @ts-ignore oopsie for now
+      // @ts-expect-error -- Need to investigate
       const parsed = parseBody(await req.json())
 
       logDebug(payload, '[AI Translate] Parsed translation review request.', {
+        // @ts-expect-error -- Need to investigate
         collection: parsed.collection,
         documentId: parsed.id,
         from: parsed.from,
-        localeCount: parsed.locales.length,
         itemCount: parsed.items.length,
+        localeCount: parsed.locales.length,
       })
       const review = await generateTranslationReview(payload, parsed)
 

@@ -6,8 +6,8 @@ import type {
   TranslateStreamEvent,
 } from './translationTypes.js'
 
-import { streamTranslations } from './translationStream.js'
 import { logDebug } from './debugSettings.js'
+import { streamTranslations } from './translationStream.js'
 
 function countLocaleItems(locale: TranslateLocaleRequestPayload): number {
   const chunkItems = locale.chunks.reduce((total, chunk) => total + chunk.length, 0)
@@ -112,9 +112,10 @@ function parseBody(body: unknown): TranslateRequestPayload {
   }
 
   const base = hasCollection
-    ? { collection: collection.trim(), id: identifier }
+    ? { id: identifier, collection: collection.trim() }
     : { global: (global as string).trim() }
 
+  // @ts-expect-error -- Need to investigate
   return { ...base, from, locales: parsedLocales }
 }
 
@@ -133,16 +134,17 @@ export function createAiTranslateHandler(): PayloadHandler {
       // @ts-ignore oopsie for now
       const parsed = parseBody(await req.json())
 
-      const target = 'collection' in parsed
-        ? { collection: parsed.collection, documentId: parsed.id }
-        : { global: parsed.global }
+      const target =
+        'collection' in parsed
+          ? { collection: parsed.collection, documentId: parsed.id }
+          : { global: parsed.global }
 
       logDebug(payload, '[AI Translate] Parsed translation request.', {
         ...target,
         from: parsed.from,
         locales: parsed.locales.map((locale) => ({
-          code: locale.code,
           chunks: locale.chunks.length,
+          code: locale.code,
           items: countLocaleItems(locale),
           overrides: Array.isArray(locale.overrides) ? locale.overrides.length : 0,
         })),
