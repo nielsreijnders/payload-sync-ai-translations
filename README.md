@@ -141,6 +141,6 @@ By encapsulating your translation logic in a reusable Payload plugin, you can:
 
 ---
 
-## 🧾 License
+## License
 
 MIT © Niels Reijnders & Codex
