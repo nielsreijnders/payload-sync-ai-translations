@@ -190,7 +190,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
     updateLocaleSkip,
 
     // state
-    disabled: busy || !id,
+    disabled: busy || (collectionSlug ? !id : false),
     modalBusy,
     pendingReview,
     shouldRender,
