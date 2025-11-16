@@ -17,6 +17,7 @@ export type AiLocalizationCollectionOptions = {
 export type AiLocalizationConfig = {
   collections: Record<string, AiLocalizationCollectionOptions>
   debug?: boolean
+  globals?: Record<string, AiLocalizationCollectionOptions>
   openai: {
     apiKey: string
     model?: string
@@ -35,8 +36,9 @@ export const payloadSyncAiTranslations =
   (options: AiLocalizationConfig) =>
   (config: Config): Config => {
     const collectionSlugs = Object.keys(options.collections ?? {})
-    if (!collectionSlugs.length) {
-      throw new Error('AI Localization: configure at least one collection.')
+    const globalSlugs = Object.keys(options.globals ?? {})
+    if (!collectionSlugs.length && !globalSlugs.length) {
+      throw new Error('AI Localization: configure at least one collection or global.')
     }
     if (!options.openai?.apiKey) {
       throw new Error('AI Localization: missing OpenAI API key.')
@@ -56,6 +58,11 @@ export const payloadSyncAiTranslations =
 
     const trackedCollections: Array<{
       config: CollectionConfig
+      customPrompt?: AiLocalizationCollectionOptions['customPrompt']
+      excludeFields?: string[]
+    }> = []
+    const trackedGlobals: Array<{
+      config: GlobalConfig
       customPrompt?: AiLocalizationCollectionOptions['customPrompt']
       excludeFields?: string[]
     }> = []
@@ -96,10 +103,10 @@ export const payloadSyncAiTranslations =
           ...collection.admin,
           components: {
             ...collection.admin?.components,
-            edit: {
-              ...collection.admin?.components?.edit,
+            elements: {
+              ...collection.admin?.components?.elements,
               beforeDocumentControls: [
-                ...(collection.admin?.components?.edit?.beforeDocumentControls ?? []),
+                ...(collection.admin?.components?.elements?.beforeDocumentControls ?? []),
                 ...debugControls,
                 {
                   clientProps, // <-- the key bit
@@ -116,7 +123,60 @@ export const payloadSyncAiTranslations =
       } satisfies CollectionConfig
     })
 
-    configureTranslationState(trackedCollections, { defaultLocale, locales })
+    const globals = (config.globals ?? []).map((global) => {
+      const perGlobal = options.globals?.[global.slug]
+      if (!perGlobal) {
+        return global
+      }
+
+      trackedGlobals.push({
+        config: global,
+        customPrompt: perGlobal.customPrompt,
+        excludeFields: perGlobal.excludeFields,
+      })
+
+      const clientProps = {
+        defaultLocale,
+        locales,
+        ...(perGlobal.clientProps ?? {}),
+      }
+
+      const debugControls = options.debug
+        ? [
+            {
+              clientProps,
+              path: DEBUG_CLIENT_EXPORT,
+            },
+          ]
+        : []
+
+      return {
+        ...global,
+        admin: {
+          ...global.admin,
+          components: {
+            ...global.admin?.components,
+            elements: {
+              ...global.admin?.components?.elements,
+              beforeDocumentControls: [
+                ...(global.admin?.components?.elements?.beforeDocumentControls ?? []),
+                ...debugControls,
+                {
+                  clientProps,
+                  path: CLIENT_EXPORT,
+                },
+                {
+                  clientProps,
+                  path: SYNC_LINKS_CLIENT_EXPORT,
+                },
+              ],
+            },
+          },
+        },
+      } satisfies GlobalConfig
+    })
+
+    configureTranslationState(trackedCollections, trackedGlobals, { defaultLocale, locales })
 
     const storedCollections = listStoredCollections()
 
@@ -176,9 +236,10 @@ export const payloadSyncAiTranslations =
     }
 
     const existingGlobals = config.globals ?? []
-    const globals = storedCollections.length
-      ? [...existingGlobals, bulkGlobal, linkGlobal]
-      : existingGlobals
+    const enhancedGlobals = trackedGlobals.length ? globals : config.globals ?? []
+    const globalsForConfig = storedCollections.length
+      ? [...enhancedGlobals, bulkGlobal, linkGlobal]
+      : enhancedGlobals
 
     return {
       ...config,
@@ -191,6 +252,6 @@ export const payloadSyncAiTranslations =
         { handler: createSyncLinksHandler(), method: 'post', path: '/ai-links/sync' },
         { handler: createBulkSyncLinksHandler(), method: 'post', path: '/ai-links/bulk' },
       ],
-      globals,
+      globals: globalsForConfig,
     }
   }

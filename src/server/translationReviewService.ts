@@ -70,6 +70,7 @@ function parseBody(body: unknown): TranslateReviewRequestPayload {
   const candidate = body as Record<string, unknown>
   const from = candidate.from
   const collection = candidate.collection
+  const global = candidate.global
   const identifier = candidate.id
   const locales = candidate.locales
   const items = candidate.items
@@ -78,16 +79,27 @@ function parseBody(body: unknown): TranslateReviewRequestPayload {
     throw new Error('Missing "from" locale')
   }
 
-  if (typeof collection !== 'string' || !collection) {
-    throw new Error('Missing "collection" slug')
+  const hasCollection = typeof collection === 'string' && collection.length > 0
+  const hasGlobal = typeof global === 'string' && global.length > 0
+
+  if (!hasCollection && !hasGlobal) {
+    throw new Error('Missing "collection" or "global" slug')
   }
 
-  if (typeof identifier !== 'string' && typeof identifier !== 'number') {
-    throw new Error('Missing document "id"')
+  if (hasCollection) {
+    if (typeof identifier !== 'string' && typeof identifier !== 'number') {
+      throw new Error('Missing document "id"')
+    }
+
+    if (typeof identifier === 'string' && !identifier) {
+      throw new Error('Missing document "id"')
+    }
   }
 
-  if (typeof identifier === 'string' && !identifier) {
-    throw new Error('Missing document "id"')
+  if (!hasCollection && identifier !== undefined) {
+    if (typeof identifier !== 'string' && typeof identifier !== 'number') {
+      throw new Error('Invalid document "id"')
+    }
   }
 
   if (!Array.isArray(locales) || locales.some((locale) => typeof locale !== 'string' || !locale)) {
@@ -104,13 +116,21 @@ function parseBody(body: unknown): TranslateReviewRequestPayload {
     throw new Error('No target locales provided')
   }
 
-  return {
-    id: identifier,
-    collection,
-    from,
-    items,
-    locales: uniqueLocales,
-  }
+  return hasCollection
+    ? {
+        id: identifier as string | number,
+        collection,
+        from,
+        items,
+        locales: uniqueLocales,
+      }
+    : {
+        id: identifier as string | number | undefined,
+        global: global as string,
+        from,
+        items,
+        locales: uniqueLocales,
+      }
 }
 
 export async function generateTranslationReview(
@@ -120,7 +140,7 @@ export async function generateTranslationReview(
   const locales: TranslateReviewLocale[] = []
 
   logDebug(payload, '[AI Translate] Generating translation review.', {
-    collection: request.collection,
+    collection: request.collection ?? request.global,
     documentId: request.id,
     from: request.from,
     localeCount: request.locales.length,
@@ -130,13 +150,20 @@ export async function generateTranslationReview(
   let baseDoc: null | Record<string, unknown> = null
 
   try {
-    const doc = await payload.findByID({
-      id: request.id,
-      collection: request.collection,
-      depth: 0,
-      fallbackLocale: false,
-      locale: request.from,
-    })
+    const doc = request.collection
+      ? await payload.findByID({
+          id: request.id,
+          collection: request.collection,
+          depth: 0,
+          fallbackLocale: false,
+          locale: request.from,
+        })
+      : await payload.findGlobal({
+          slug: request.global,
+          depth: 0,
+          fallbackLocale: false,
+          locale: request.from,
+        })
 
     if (doc && typeof doc === 'object') {
       baseDoc = doc as Record<string, unknown>
@@ -148,13 +175,13 @@ export async function generateTranslationReview(
   }
 
   logDebug(payload, '[AI Translate] Loaded base document for review.', {
-    collection: request.collection,
+    collection: request.collection ?? request.global,
     documentId: request.id,
     from: request.from,
     hasBaseDoc: Boolean(baseDoc),
   })
 
-  const storedCollection = getStoredCollection(request.collection)
+  const storedCollection = getStoredCollection(request.collection ?? request.global)
   const customPromptFn = storedCollection?.customPrompt
   const promptCache = new Map<string, string | undefined>()
 
@@ -162,13 +189,20 @@ export async function generateTranslationReview(
     let localeDoc: null | Record<string, unknown> = null
 
     try {
-      const result = await payload.findByID({
-        id: request.id,
-        collection: request.collection,
-        depth: 0,
-        fallbackLocale: false,
-        locale: localeCode,
-      })
+      const result = request.collection
+        ? await payload.findByID({
+            id: request.id,
+            collection: request.collection,
+            depth: 0,
+            fallbackLocale: false,
+            locale: localeCode,
+          })
+        : await payload.findGlobal({
+            slug: request.global,
+            depth: 0,
+            fallbackLocale: false,
+            locale: localeCode,
+          })
 
       if (result && typeof result === 'object') {
         localeDoc = result as Record<string, unknown>
@@ -181,7 +215,7 @@ export async function generateTranslationReview(
     }
 
     logDebug(payload, '[AI Translate] Loaded locale document for review.', {
-      collection: request.collection,
+      collection: request.collection ?? request.global,
       documentId: request.id,
       locale: localeCode,
       hasLocaleDoc: Boolean(localeDoc),

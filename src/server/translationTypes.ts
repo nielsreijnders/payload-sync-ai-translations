@@ -15,19 +15,30 @@ export type TranslateLocaleRequestPayload = {
 }
 
 export type TranslateRequestPayload = {
-  collection: string
+  collection?: string
   from: string
-  id: number | string
+  global?: string
+  id?: number | string
   locales: TranslateLocaleRequestPayload[]
 }
 
-export type TranslateReviewRequestPayload = {
-  collection: string
-  from: string
-  id: number | string
-  items: TranslateItem[]
-  locales: string[]
-}
+export type TranslateReviewRequestPayload =
+  | {
+      collection: string
+      from: string
+      global?: undefined
+      id: number | string
+      items: TranslateItem[]
+      locales: string[]
+    }
+  | {
+      collection?: undefined
+      from: string
+      global: string
+      id?: number | string
+      items: TranslateItem[]
+      locales: string[]
+    }
 
 export type TranslateReviewMismatch = {
   defaultText: string

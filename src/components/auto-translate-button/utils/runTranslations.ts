@@ -18,6 +18,7 @@ export async function runTranslations(
   locales: LocaleTranslationSelection[],
   opts: {
     collectionSlug?: string
+    globalSlug?: string
     defaultLocale: string
     id?: number | string
   },

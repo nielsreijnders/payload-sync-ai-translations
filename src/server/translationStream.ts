@@ -326,7 +326,10 @@ export async function* streamTranslations(
   payload: Payload,
   input: TranslateRequestPayload,
 ): AsyncGenerator<TranslateStreamEvent> {
-  const { id, collection, from, locales } = input
+  const { collection, global, from, locales } = input
+  const targetSlug = collection ?? global ?? ''
+  const id = collection ? input.id : input.id ?? targetSlug
+  const targetLabel = collection ? `${collection}#${id}` : `${targetSlug} (global)`
 
   if (!Array.isArray(locales) || !locales.length) {
     yield { type: 'error', message: 'No target locales provided.' }
@@ -341,11 +344,11 @@ export async function* streamTranslations(
 
   const localeList = locales.map((locale) => locale.code).join(', ')
   payload.logger?.info?.(
-    `[AI Translate] Starting translation for ${collection}#${id} from ${from} to [${localeList}].`,
+    `[AI Translate] Starting translation for ${targetLabel} from ${from} to [${localeList}].`,
   )
 
   logDebug(payload, '[AI Translate] Preparing translation run.', {
-    collection,
+    collection: targetSlug,
     documentId: id,
     from,
     locales: locales.map((locale) => ({
@@ -360,13 +363,20 @@ export async function* streamTranslations(
   // Fetch base document once (default locale) to preserve structural data such as blockType
   let baseDoc: null | Record<string, unknown> = null
   try {
-    const doc = await payload.findByID({
-      id,
-      collection,
-      depth: 0,
-      fallbackLocale: false,
-      locale: from,
-    })
+    const doc = collection
+      ? await payload.findByID({
+          id: id as number | string,
+          collection,
+          depth: 0,
+          fallbackLocale: false,
+          locale: from,
+        })
+      : await payload.findGlobal({
+          slug: targetSlug,
+          depth: 0,
+          fallbackLocale: false,
+          locale: from,
+        })
     if (doc && typeof doc === 'object') {
       baseDoc = doc as Record<string, unknown>
       stripDocumentMetadata(baseDoc)
@@ -375,7 +385,7 @@ export async function* streamTranslations(
     const message = error instanceof Error ? error.message : 'Failed to load base document.'
     yield { type: 'error', message }
     logDebug(payload, '[AI Translate] Failed to load base document.', {
-      collection,
+      collection: targetSlug,
       documentId: id,
       error: message,
       from,
@@ -383,7 +393,7 @@ export async function* streamTranslations(
     return
   }
 
-  const storedCollection = getStoredCollection(collection)
+  const storedCollection = getStoredCollection(targetSlug)
   const customPromptFn = storedCollection?.customPrompt
   const promptCache = new Map<string, string | undefined>()
 
@@ -392,7 +402,9 @@ export async function* streamTranslations(
     let existingLocaleDoc: null | Record<string, unknown> = null
 
     try {
-      const localeDoc = await payload.findByID({ id, collection, depth: 0, locale })
+      const localeDoc = collection
+        ? await payload.findByID({ id: id as number | string, collection, depth: 0, locale })
+        : await payload.findGlobal({ slug: targetSlug, depth: 0, locale })
       if (localeDoc && typeof localeDoc === 'object') {
         existingLocaleDoc = localeDoc as Record<string, unknown>
         stripDocumentMetadata(existingLocaleDoc)
@@ -411,7 +423,7 @@ export async function* streamTranslations(
     if (!promptCache.has(locale)) {
       const promptData = baseDoc ?? existingLocaleDoc ?? {}
       const prompt = resolveCustomPrompt(payload, customPromptFn, promptData, {
-        collection,
+        collection: targetSlug,
         documentId: id,
         locale,
       })
@@ -452,7 +464,7 @@ export async function* streamTranslations(
 
         try {
           logDebug(payload, '[AI Translate] Splitting large lexical item for translation.', {
-            collection,
+            collection: targetSlug,
             documentId: id,
             from,
             locale,
@@ -466,10 +478,10 @@ export async function* streamTranslations(
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to translate chunk'
           payload.logger?.error?.(
-            `[AI Translate] OpenAI translation failed for ${collection}#${id} (${locale}): ${message}`,
+            `[AI Translate] OpenAI translation failed for ${targetSlug}#${id} (${locale}): ${message}`,
           )
           logDebug(payload, '[AI Translate] OpenAI translation failed for lexical chunk.', {
-            collection,
+            collection: targetSlug,
             documentId: id,
             error: message,
             from,
@@ -484,10 +496,10 @@ export async function* streamTranslations(
         if (mismatch) {
           yield { type: 'error', message: mismatch }
           payload.logger?.error?.(
-            `[AI Translate] Translation mismatch for ${collection}#${id} (${locale}).`,
+            `[AI Translate] Translation mismatch for ${targetSlug}#${id} (${locale}).`,
           )
           logDebug(payload, '[AI Translate] Translation length mismatch.', {
-            collection,
+            collection: targetSlug,
             documentId: id,
             expected: chunk.length,
             from,
@@ -506,7 +518,7 @@ export async function* streamTranslations(
 
       try {
         const translatedChunks = await translateChunkGroup(payload, task.chunks, from, locale, {
-          collection,
+          collection: targetSlug,
           customPrompt: localePrompt,
           documentId: id,
         })
@@ -514,20 +526,20 @@ export async function* streamTranslations(
         for (let index = 0; index < task.chunks.length; index += 1) {
           const chunk = task.chunks[index]
           const translated = translatedChunks[index] ?? []
-          const mismatch = getTranslationLengthMismatch(chunk, translated)
+        const mismatch = getTranslationLengthMismatch(chunk, translated)
 
-          if (mismatch) {
-            yield { type: 'error', message: mismatch }
-            payload.logger?.error?.(
-              `[AI Translate] Translation mismatch for ${collection}#${id} (${locale}).`,
-            )
-            logDebug(payload, '[AI Translate] Translation length mismatch.', {
-              collection,
-              documentId: id,
-              expected: chunk.length,
-              from,
-              locale,
-              paths: chunk.map((item) => item.path),
+        if (mismatch) {
+          yield { type: 'error', message: mismatch }
+          payload.logger?.error?.(
+            `[AI Translate] Translation mismatch for ${targetSlug}#${id} (${locale}).`,
+          )
+          logDebug(payload, '[AI Translate] Translation length mismatch.', {
+            collection: targetSlug,
+            documentId: id,
+            expected: chunk.length,
+            from,
+            locale,
+            paths: chunk.map((item) => item.path),
               received: translated.length,
             })
             return
@@ -540,10 +552,10 @@ export async function* streamTranslations(
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to translate chunk'
         payload.logger?.error?.(
-          `[AI Translate] OpenAI translation failed for ${collection}#${id} (${locale}): ${message}`,
+          `[AI Translate] OpenAI translation failed for ${targetSlug}#${id} (${locale}): ${message}`,
         )
         logDebug(payload, '[AI Translate] OpenAI translation failed for chunk batch.', {
-          collection,
+          collection: targetSlug,
           documentId: id,
           error: message,
           from,
@@ -562,7 +574,7 @@ export async function* streamTranslations(
         localeData = setValueAtPath(baseDoc, localeData, override.path, nextValue)
         completed += 1
         logDebug(payload, '[AI Translate] Applied override value.', {
-          collection,
+          collection: targetSlug,
           documentId: id,
           from,
           locale,
@@ -579,15 +591,24 @@ export async function* streamTranslations(
 
     try {
       stripDocumentMetadata(localeData)
-      await payload.update({
-        id,
-        collection,
-        data: localeData as Record<string, unknown>,
-        locale,
-        overrideAccess: true,
-      })
+      if (collection) {
+        await payload.update({
+          id: id as number | string,
+          collection,
+          data: localeData as Record<string, unknown>,
+          locale,
+          overrideAccess: true,
+        })
+      } else {
+        await payload.updateGlobal({
+          slug: targetSlug,
+          data: localeData as Record<string, unknown>,
+          locale,
+          overrideAccess: true,
+        })
+      }
       logDebug(payload, '[AI Translate] Saved locale document.', {
-        collection,
+        collection: targetSlug,
         documentId: id,
         from,
         locale,
@@ -596,10 +617,10 @@ export async function* streamTranslations(
     } catch (error) {
       const message = error instanceof Error ? error.message : `Failed to update locale ${locale}`
       payload.logger?.error?.(
-        `[AI Translate] Failed to save ${collection}#${id} (${locale}): ${message}`,
+        `[AI Translate] Failed to save ${targetSlug}#${id} (${locale}): ${message}`,
       )
       logDebug(payload, '[AI Translate] Failed to save locale document.', {
-        collection,
+        collection: targetSlug,
         documentId: id,
         error: message,
         from,
@@ -609,10 +630,10 @@ export async function* streamTranslations(
       return
     }
 
-    payload.logger?.info?.(`[AI Translate] Saved translations for ${collection}#${id} (${locale}).`)
+    payload.logger?.info?.(`[AI Translate] Saved translations for ${targetSlug}#${id} (${locale}).`)
     yield { type: 'applied', locale }
   }
 
-  payload.logger?.info?.(`[AI Translate] Completed translation for ${collection}#${id}.`)
+  payload.logger?.info?.(`[AI Translate] Completed translation for ${targetSlug}#${id}.`)
   yield { type: 'done' }
 }

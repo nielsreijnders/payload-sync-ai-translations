@@ -4,6 +4,7 @@ import { type AnyField, collectLocalizedFieldPatterns } from '../utils/localized
 
 export type StoredCollection = {
   fieldPatterns: string[]
+  type: 'collection' | 'global'
   label: string
   slug: string
   customPrompt?: (data: unknown, locale: string) => string | undefined
@@ -11,12 +12,14 @@ export type StoredCollection = {
 
 export type TranslationState = {
   collections: Record<string, StoredCollection>
+  globals: Record<string, StoredCollection>
   defaultLocale: string
   locales: string[]
 }
 
 let translationState: TranslationState = {
   collections: {},
+  globals: {},
   defaultLocale: '',
   locales: [],
 }
@@ -61,12 +64,32 @@ export function configureTranslationState(
     customPrompt?: StoredCollection['customPrompt']
     excludeFields?: string[]
   }>,
-  localization: {
+  globalsOrLocalization:
+    | Array<{
+        config: GlobalConfig
+        customPrompt?: StoredCollection['customPrompt']
+        excludeFields?: string[]
+      }>
+    | {
+        defaultLocale?: LocalizationConfig['defaultLocale']
+        locales?: LocalizationConfig['locales']
+      },
+  maybeLocalization?: {
     defaultLocale?: LocalizationConfig['defaultLocale']
     locales?: LocalizationConfig['locales']
   },
 ): void {
-  const entries: Record<string, StoredCollection> = {}
+  const globalsList = Array.isArray(globalsOrLocalization) ? globalsOrLocalization : []
+  const localization = Array.isArray(globalsOrLocalization)
+    ? maybeLocalization
+    : maybeLocalization ?? globalsOrLocalization
+
+  if (!localization) {
+    throw new Error('Missing localization settings for translation state.')
+  }
+
+  const collectionEntries: Record<string, StoredCollection> = {}
+  const globalEntries: Record<string, StoredCollection> = {}
 
   for (const entry of collections) {
     const { config, excludeFields, customPrompt } = entry
@@ -78,17 +101,39 @@ export function configureTranslationState(
     const label = config.labels?.plural || config.labels?.singular || slug || ''
     const fieldPatterns = extractFieldPatterns(config, excludeFields)
 
-    entries[slug] = {
+    collectionEntries[slug] = {
       slug,
       fieldPatterns,
       // @ts-expect-error - i need to look into this
       label,
+      type: 'collection',
+      customPrompt,
+    }
+  }
+
+  for (const entry of globalsList) {
+    const { config, excludeFields, customPrompt } = entry
+    if (!config?.slug) {
+      continue
+    }
+
+    const slug = config.slug
+    const label = config.label || slug || ''
+    const fieldPatterns = extractFieldPatterns(config as unknown as CollectionConfig, excludeFields)
+
+    globalEntries[slug] = {
+      slug,
+      fieldPatterns,
+      // @ts-expect-error - i need to look into this
+      label,
+      type: 'global',
       customPrompt,
     }
   }
 
   translationState = {
-    collections: entries,
+    collections: collectionEntries,
+    globals: globalEntries,
     defaultLocale: localization.defaultLocale || '',
     locales: resolveLocaleCodes(localization.locales || []),
   }
@@ -99,9 +144,13 @@ export function getTranslationState(): TranslationState {
 }
 
 export function getStoredCollection(slug: string): null | StoredCollection {
-  return translationState.collections[slug] ?? null
+  return translationState.collections[slug] ?? translationState.globals[slug] ?? null
 }
 
 export function listStoredCollections(): StoredCollection[] {
   return Object.values(translationState.collections)
+}
+
+export function listStoredGlobals(): StoredCollection[] {
+  return Object.values(translationState.globals)
 }

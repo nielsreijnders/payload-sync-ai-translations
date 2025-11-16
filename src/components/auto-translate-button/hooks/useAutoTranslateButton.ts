@@ -23,7 +23,7 @@ import { useLocalizedFieldPatterns } from './useLocalizedFieldPatterns.js'
 
 export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
   // ---- Document & form context
-  const { id, collectionSlug, docConfig } = useDocumentInfo()
+  const { id, collectionSlug, docConfig, globalSlug } = useDocumentInfo()
   const form = useForm()
   const documentForm = useDocumentForm()
   const { code: activeLocale } = useLocale()
@@ -49,8 +49,10 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
   )
 
   const formApi = (documentForm ?? form) as FormApi | undefined
+  const targetSlug = collectionSlug ?? globalSlug
+
   const shouldRender = Boolean(
-    defaultLocale && collectionSlug && activeLocale === defaultLocale && otherLocales.length,
+    defaultLocale && targetSlug && activeLocale === defaultLocale && otherLocales.length,
   )
 
   // ---- Event handlers
@@ -59,10 +61,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
     if (!formApi?.getData) {
       return toast.error('Form state is not available.')
     }
-    if (!id) {
-      return toast.error('Save the document first before translating.')
-    }
-    if (!defaultLocale || !collectionSlug) {
+    if (!defaultLocale || !targetSlug) {
       return toast.error('Localization settings are missing.')
     }
     if (!otherLocales.length) {
@@ -87,8 +86,9 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
 
       // 2) Ask server what needs attention (mismatches, suggestions, etc.)
       const review = await requestTranslationReview({
-        id,
+        id: id ?? targetSlug,
         collection: collectionSlug,
+        global: globalSlug,
         defaultLocale,
         items,
         // Oopsie for later
@@ -111,8 +111,9 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       // 5) Otherwise, run translations immediately
       const selections = prepareLocalesForTranslation(items, localesToTranslate)
       const { finished, hadError } = await runTranslations(items, selections, {
-        id,
+        id: id ?? targetSlug,
         collectionSlug,
+        globalSlug,
         defaultLocale,
       })
 
@@ -142,8 +143,9 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       }
 
       const { finished, hadError } = await runTranslations(pendingReview.items, selections, {
-        id,
+        id: id ?? targetSlug,
         collectionSlug,
+        globalSlug,
         defaultLocale,
       })
 

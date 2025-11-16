@@ -41,6 +41,7 @@ function parseBody(body: unknown): TranslateRequestPayload {
   const candidate = body as Record<string, unknown>
   const from = candidate.from
   const collection = candidate.collection
+  const global = candidate.global
   const identifier = candidate.id
   const locales = candidate.locales
 
@@ -48,16 +49,27 @@ function parseBody(body: unknown): TranslateRequestPayload {
     throw new Error('Missing "from" locale')
   }
 
-  if (typeof collection !== 'string' || collection.length === 0) {
-    throw new Error('Missing "collection" slug')
+  const hasCollection = typeof collection === 'string' && collection.length > 0
+  const hasGlobal = typeof global === 'string' && global.length > 0
+
+  if (!hasCollection && !hasGlobal) {
+    throw new Error('Missing "collection" or "global" slug')
   }
 
-  if (typeof identifier !== 'string' && typeof identifier !== 'number') {
-    throw new Error('Missing document "id"')
+  if (hasCollection) {
+    if (typeof identifier !== 'string' && typeof identifier !== 'number') {
+      throw new Error('Missing document "id"')
+    }
+
+    if (typeof identifier === 'string' && identifier.length === 0) {
+      throw new Error('Missing document "id"')
+    }
   }
 
-  if (typeof identifier === 'string' && identifier.length === 0) {
-    throw new Error('Missing document "id"')
+  if (!hasCollection && identifier !== undefined) {
+    if (typeof identifier !== 'string' && typeof identifier !== 'number') {
+      throw new Error('Invalid document "id"')
+    }
   }
 
   if (!Array.isArray(locales) || !locales.length) {
@@ -101,7 +113,13 @@ function parseBody(body: unknown): TranslateRequestPayload {
     throw new Error('No translation data provided')
   }
 
-  return { id: identifier, collection, from, locales: parsedLocales }
+  return {
+    id: identifier,
+    collection: hasCollection ? (collection as string) : undefined,
+    global: hasGlobal ? (global as string) : undefined,
+    from,
+    locales: parsedLocales,
+  }
 }
 
 function serializeEvent(event: TranslateStreamEvent): Uint8Array {
@@ -118,10 +136,12 @@ export function createAiTranslateHandler(): PayloadHandler {
 
       // @ts-ignore oopsie for now
       const parsed = parseBody(await req.json())
+      const targetSlug = parsed.collection ?? parsed.global ?? ''
+      const documentId = parsed.id ?? targetSlug
 
       logDebug(payload, '[AI Translate] Parsed translation request.', {
-        collection: parsed.collection,
-        documentId: parsed.id,
+        collection: targetSlug,
+        documentId,
         from: parsed.from,
         locales: parsed.locales.map((locale) => ({
           code: locale.code,
