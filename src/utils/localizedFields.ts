@@ -47,6 +47,9 @@ export function collectLocalizedFieldPatterns(
     }
 
     const name = field.name
+    if (['radio', 'relationship', 'select'].includes(String(field.type))) {
+      continue
+    }
     const currentPath = name ? (prefix ? `${prefix}.${name}` : name) : prefix
     const isLocalized = Boolean(field.localized) || inheritedLocalized
 

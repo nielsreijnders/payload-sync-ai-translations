@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest'
-
 import { collectLocalizedFieldPatterns, type AnyField } from '../../src/utils/localizedFields.js'
+import { describe, expect, it } from 'vitest'
 
 describe('collectLocalizedFieldPatterns', () => {
   it('includes nested fields when localization is inherited from parent groups', () => {
@@ -100,5 +99,47 @@ describe('collectLocalizedFieldPatterns', () => {
     const patterns = collectLocalizedFieldPatterns(fields)
 
     expect(patterns).toContain('components.Richtext.content.richtext')
+  })
+
+  it('does not collect patterns for radio fields', () => {
+    const fields: AnyField[] = [
+      {
+        name: 'layout',
+        type: 'radio',
+        localized: true,
+      },
+    ]
+
+    const patterns = collectLocalizedFieldPatterns(fields)
+
+    expect(patterns).not.toContain('layout')
+  })
+
+  it('does not collect patterns for relationship fields', () => {
+    const fields: AnyField[] = [
+      {
+        name: 'relatedPosts',
+        type: 'relationship',
+        localized: true,
+      },
+    ]
+
+    const patterns = collectLocalizedFieldPatterns(fields)
+
+    expect(patterns).not.toContain('relatedPosts')
+  })
+
+  it('does not collect patterns for select fields', () => {
+    const fields: AnyField[] = [
+      {
+        name: 'status',
+        type: 'select',
+        localized: true,
+      },
+    ]
+
+    const patterns = collectLocalizedFieldPatterns(fields)
+
+    expect(patterns).not.toContain('status')
   })
 })
