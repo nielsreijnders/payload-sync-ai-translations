@@ -3,6 +3,20 @@
 
 ### Bug Fixes
 
+* correct formatting of features section in README ([8a88789](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/8a88789025109b03b4149bb4ce9d5399bbe775b4))
+* versioning issue after reverting ([4c098a6](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/4c098a6ebde226f5de55913d8080823abeb06b01))
+
+
+### Features
+
+* add .swcrc configuration file for TypeScript and React ([6c084d1](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/6c084d13b57cf2d694d1c7fd978c1f9b2d9e3edb))
+* add globals support ([d70eb05](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/d70eb0553792434d0cc9faa3bf231a00ea7b1418))
+
+# [1.16.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.15.1...v1.16.0) (2025-11-16)
+
+
+### Bug Fixes
+
 * versioning issue after reverting ([4c098a6](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/4c098a6ebde226f5de55913d8080823abeb06b01))
 
 
