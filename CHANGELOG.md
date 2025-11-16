@@ -1,3 +1,10 @@
+## [1.16.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.1...v1.16.2) (2025-11-16)
+
+
+### Bug Fixes
+
+* issues loading in custom components ([430d77a](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/430d77ab62a6d8888e8f22fc2cce842d198d7955))
+
 ## [1.16.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.0...v1.16.1) (2025-11-16)
 
 
