@@ -1,3 +1,10 @@
+## [1.16.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.0...v1.16.1) (2025-11-16)
+
+
+### Bug Fixes
+
+* having some versions issue because i have no time ([e54f013](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/e54f0137e4cb552154267e99bbe450e972816c1f))
+
 # [1.16.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.15.1...v1.16.0) (2025-11-16)
 
 
