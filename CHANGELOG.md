@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.13.1...v1.14.0) (2025-11-16)
+
+
+### Features
+
+* optimize batch debug logs ([def29b8](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/def29b833584618212fd6c18c41603809719a6ec))
+
 ## [1.13.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.13.0...v1.13.1) (2025-11-15)
 
 
