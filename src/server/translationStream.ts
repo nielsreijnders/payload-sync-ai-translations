@@ -14,6 +14,7 @@ import { resolveCustomPrompt } from './customPrompt.js'
 import { logDebug } from './debugSettings.js'
 import {
   cloneWithoutDocumentMetadata,
+  cloneWithoutDocumentMetadataDeep,
   loadLocalizedDocument,
   stripDocumentMetadata,
 } from './documentUtils.js'
@@ -629,7 +630,14 @@ export async function* streamTranslations(
 
     try {
       stripDocumentMetadata(localeData)
-      const saveData = cloneWithoutDocumentMetadata(localeData) as Record<string, unknown>
+      const saveData = (isCollectionTarget
+        ? cloneWithoutDocumentMetadata(localeData)
+        : cloneWithoutDocumentMetadataDeep(localeData)) as Record<string, unknown>
+
+      if (!isCollectionTarget) {
+        delete saveData.id
+        delete saveData._id
+      }
 
       if (isCollectionTarget) {
         await payload.update({

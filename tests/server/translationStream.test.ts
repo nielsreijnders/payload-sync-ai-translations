@@ -1,4 +1,4 @@
-import type { CollectionConfig, Payload } from 'payload'
+import type { CollectionConfig, GlobalConfig, Payload } from 'payload'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,6 +16,24 @@ vi.mock('../../src/server/openAiTranslationClient.js', () => ({
 }))
 
 const translateTextsMock = vi.mocked(openAiTranslateTexts)
+
+function containsMetadataKey(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some((entry) => containsMetadataKey(entry))
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    return Object.entries(value).some(([key, child]) => {
+      if (key === 'id' || key === '_id') {
+        return true
+      }
+
+      return containsMetadataKey(child)
+    })
+  }
+
+  return false
+}
 
 describe('streamTranslations', () => {
   beforeEach(() => {
@@ -105,6 +123,203 @@ describe('streamTranslations', () => {
       { type: 'applied', locale: 'nl' },
       { type: 'done' },
     ])
+  })
+
+  it('omits metadata fields when saving globals', async () => {
+    configureTranslationState(
+      [],
+      [
+        {
+          config: {
+            fields: [],
+            label: 'Navigation',
+            slug: 'menu',
+          } as GlobalConfig,
+        },
+      ],
+      { defaultLocale: 'en', locales: ['en', 'nl'] },
+    )
+
+    const baseDoc = {
+      id: 'global:menu',
+      links: {
+        title: 'Menu',
+      },
+    }
+
+    const payloadMock = {
+      findGlobal: vi.fn<Payload['findGlobal']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: 'global:menu' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Menukaart'])
+
+    const request: TranslateRequestPayload = {
+      from: 'en',
+      global: 'menu',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'links.title',
+                text: 'Menu',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    const events: unknown[] = []
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      events.push(event)
+    }
+
+    expect(payloadMock.updateGlobal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { links: { title: 'Menukaart' } },
+        locale: 'nl',
+        overrideAccess: true,
+        slug: 'menu',
+      }),
+    )
+    expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
+
+    const savedPayload = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
+    expect(savedPayload?.data).not.toHaveProperty('id')
+    expect(savedPayload?.data).not.toHaveProperty('_id')
+
+    expect(events).toEqual([
+      { type: 'progress', completed: 1, locale: 'nl', total: 1 },
+      { type: 'applied', locale: 'nl' },
+      { type: 'done' },
+    ])
+  })
+
+  it('strips nested metadata identifiers when saving globals', async () => {
+    configureTranslationState(
+      [],
+      [
+        {
+          config: {
+            fields: [],
+            label: 'Navigation',
+            slug: 'menu',
+          } as GlobalConfig,
+        },
+      ],
+      { defaultLocale: 'en', locales: ['en', 'nl'] },
+    )
+
+    const baseDoc = {
+      id: 'global:menu',
+      mainMenu: [
+        {
+          id: 'main-1',
+          link: {
+            custom: '/',
+            label: 'Home',
+            linkType: 'custom',
+            target: false,
+          },
+          sublinks: [
+            {
+              id: 'sublink-1',
+              links: [
+                {
+                  id: 'link-1',
+                  link: {
+                    custom: '/popular',
+                    label: 'Popular',
+                    linkType: 'custom',
+                    target: false,
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      secondaryMenu: [
+        {
+          id: 'secondary-1',
+          link: {
+            custom: '/contact',
+            label: 'Contact',
+            linkType: 'custom',
+            target: false,
+          },
+        },
+      ],
+    }
+
+    const payloadMock = {
+      findGlobal: vi.fn<Payload['findGlobal']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: 'global:menu' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Thuis', 'Populair'])
+
+    const request: TranslateRequestPayload = {
+      from: 'en',
+      global: 'menu',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'mainMenu.0.link.label',
+                text: 'Home',
+              },
+              {
+                lexical: false,
+                path: 'mainMenu.0.sublinks.0.links.0.link.label',
+                text: 'Popular',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    const events: unknown[] = []
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      events.push(event)
+    }
+
+    expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
+    const savedPayload = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
+    expect(savedPayload?.data?.mainMenu?.[0]?.link?.label).toBe('Thuis')
+    expect(
+      savedPayload?.data?.mainMenu?.[0]?.sublinks?.[0]?.links?.[0]?.link?.label,
+    ).toBe('Populair')
+    expect(containsMetadataKey(savedPayload?.data)).toBe(false)
+    expect(events).not.toContainEqual(expect.objectContaining({ type: 'error' }))
   })
 
   it('applies custom prompt instructions when configured', async () => {
