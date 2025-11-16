@@ -6,15 +6,41 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+const DOCUMENT_METADATA_KEYS = new Set(['id', '_id', 'createdAt', 'updatedAt'])
+
+function deleteDocumentMetadata(record: Record<string, unknown>): void {
+  for (const key of DOCUMENT_METADATA_KEYS) {
+    delete record[key]
+  }
+}
+
+function cloneWithoutMetadata(value: unknown, deep: boolean): unknown {
+  if (Array.isArray(value)) {
+    return deep ? value.map((entry) => cloneWithoutMetadata(entry, true)) : value
+  }
+
+  if (!isPlainObject(value)) {
+    return value
+  }
+
+  const cloned: Record<string, unknown> = {}
+  for (const [key, child] of Object.entries(value)) {
+    if (DOCUMENT_METADATA_KEYS.has(key)) {
+      continue
+    }
+
+    cloned[key] = deep ? cloneWithoutMetadata(child, true) : child
+  }
+
+  return cloned
+}
+
 export function stripDocumentMetadata(value: unknown): void {
   if (!isPlainObject(value)) {
     return
   }
 
-  delete value.id
-  delete value._id
-  delete value.createdAt
-  delete value.updatedAt
+  deleteDocumentMetadata(value)
 }
 
 export function cloneWithoutDocumentMetadata<T>(value: T): T {
@@ -22,8 +48,11 @@ export function cloneWithoutDocumentMetadata<T>(value: T): T {
     return value
   }
 
-  const { _id: __id, id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = value
-  return rest as T
+  return cloneWithoutMetadata(value, false) as T
+}
+
+export function cloneWithoutDocumentMetadataDeep<T>(value: T): T {
+  return cloneWithoutMetadata(value, true) as T
 }
 
 type LoadDocumentOptions =

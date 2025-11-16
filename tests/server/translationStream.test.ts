@@ -17,6 +17,24 @@ vi.mock('../../src/server/openAiTranslationClient.js', () => ({
 
 const translateTextsMock = vi.mocked(openAiTranslateTexts)
 
+function containsMetadataKey(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.some((entry) => containsMetadataKey(entry))
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    return Object.entries(value).some(([key, child]) => {
+      if (key === 'id' || key === '_id') {
+        return true
+      }
+
+      return containsMetadataKey(child)
+    })
+  }
+
+  return false
+}
+
 describe('streamTranslations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -209,7 +227,8 @@ describe('streamTranslations', () => {
             fields: [],
             slug: 'pages',
           } as CollectionConfig,
-          customPrompt: (data) => `Keep original title: ${(data as { layout: { title: string }[] }).layout?.[0]?.title}`,
+          customPrompt: (data) =>
+            `Keep original title: ${(data as { layout: { title: string }[] }).layout?.[0]?.title}`,
         },
       ],
       { defaultLocale: 'en', locales: ['en', 'nl'] },
