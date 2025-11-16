@@ -9,12 +9,12 @@ import type {
 } from './translationTypes.js'
 
 import { splitLexicalText, toLexical } from '../utils/lexical.js'
-import { MAX_CHARS_PER_CHUNK, getValueAtPath } from '../utils/localizedFields.js'
-import { stripDocumentMetadata } from './documentUtils.js'
+import { getValueAtPath, MAX_CHARS_PER_CHUNK } from '../utils/localizedFields.js'
+import { resolveCustomPrompt } from './customPrompt.js'
 import { logDebug } from './debugSettings.js'
+import { stripDocumentMetadata } from './documentUtils.js'
 import { cloneLocaleData, mergeStructuralData, setValueAtPath } from './localeStructure.js'
 import { openAiTranslateTexts } from './openAiTranslationClient.js'
-import { resolveCustomPrompt } from './customPrompt.js'
 import { getStoredCollection } from './translationStateStore.js'
 
 function countItems(chunks: TranslateChunk[]): number {
@@ -64,7 +64,7 @@ function createTranslationTasks(chunks: TranslateChunk[]): TranslationTask[] {
 
   const flushBatch = () => {
     if (currentBatch.length) {
-      tasks.push({ chunks: currentBatch, type: 'batch' })
+      tasks.push({ type: 'batch', chunks: currentBatch })
       currentBatch = []
       currentBatchChars = 0
     }
@@ -77,7 +77,7 @@ function createTranslationTasks(chunks: TranslateChunk[]): TranslationTask[] {
 
     if (isLargeLexicalChunk(chunk)) {
       flushBatch()
-      tasks.push({ chunk, type: 'lexical' })
+      tasks.push({ type: 'lexical', chunk })
       continue
     }
 
@@ -126,7 +126,7 @@ async function translateChunk(
   chunk: TranslateChunk,
   from: string,
   locale: string,
-  options: { collection: string; customPrompt?: string; documentId: string | number },
+  options: { collection: string; customPrompt?: string; documentId: number | string },
 ): Promise<string[]> {
   const texts = chunk.map((item) => item.text)
 
@@ -204,7 +204,7 @@ async function translateChunkGroup(
   chunks: TranslateChunk[],
   from: string,
   locale: string,
-  options: { collection: string; customPrompt?: string; documentId: string | number },
+  options: { collection: string; customPrompt?: string; documentId: number | string },
 ): Promise<string[][]> {
   if (!chunks.length) {
     return []
@@ -215,11 +215,11 @@ async function translateChunkGroup(
 
     try {
       logDebug(payload, '[AI Translate] Sending chunk batch to OpenAI.', {
+        chunkCount: group.length,
         collection: options.collection,
         documentId: options.documentId,
         from,
         locale,
-        chunkCount: group.length,
         paths: group.map((chunk) => chunk.map((item) => item.path)),
         texts,
       })
@@ -229,11 +229,11 @@ async function translateChunkGroup(
       })
 
       logDebug(payload, '[AI Translate] Received OpenAI translation batch.', {
+        chunkCount: group.length,
         collection: options.collection,
         documentId: options.documentId,
         from,
         locale,
-        chunkCount: group.length,
         paths: group.map((chunk) => chunk.map((item) => item.path)),
         translated,
       })
@@ -251,15 +251,19 @@ async function translateChunkGroup(
       const message = error instanceof Error ? error.message : 'Unknown error'
 
       if (group.length === 1) {
-        logDebug(payload, '[AI Translate] Chunk batch translation failed, attempting per-chunk fallback.', {
-          collection: options.collection,
-          documentId: options.documentId,
-          error: message,
-          from,
-          locale,
-          chunkCount: group.length,
-          paths: group.map((chunk) => chunk.map((item) => item.path)),
-        })
+        logDebug(
+          payload,
+          '[AI Translate] Chunk batch translation failed, attempting per-chunk fallback.',
+          {
+            chunkCount: group.length,
+            collection: options.collection,
+            documentId: options.documentId,
+            error: message,
+            from,
+            locale,
+            paths: group.map((chunk) => chunk.map((item) => item.path)),
+          },
+        )
 
         const translated = await translateChunk(payload, group[0] ?? [], from, locale, options)
         return [translated]
@@ -267,15 +271,19 @@ async function translateChunkGroup(
 
       const midpoint = Math.max(1, Math.floor(group.length / 2))
 
-      logDebug(payload, '[AI Translate] Chunk batch translation failed, splitting group for retry.', {
-        collection: options.collection,
-        documentId: options.documentId,
-        error: message,
-        from,
-        locale,
-        chunkCount: group.length,
-        paths: group.map((chunk) => chunk.map((item) => item.path)),
-      })
+      logDebug(
+        payload,
+        '[AI Translate] Chunk batch translation failed, splitting group for retry.',
+        {
+          chunkCount: group.length,
+          collection: options.collection,
+          documentId: options.documentId,
+          error: message,
+          from,
+          locale,
+          paths: group.map((chunk) => chunk.map((item) => item.path)),
+        },
+      )
 
       const firstHalf = await translateGroup(group.slice(0, midpoint))
       const secondHalf = await translateGroup(group.slice(midpoint))
@@ -287,10 +295,7 @@ async function translateChunkGroup(
   return translateGroup(chunks)
 }
 
-function getTranslationLengthMismatch(
-  chunk: TranslateChunk,
-  translated: string[],
-): null | string {
+function getTranslationLengthMismatch(chunk: TranslateChunk, translated: string[]): null | string {
   if (translated.length !== chunk.length) {
     return `Translator mismatch: expected ${chunk.length}, received ${translated.length}`
   }
@@ -344,8 +349,8 @@ export async function* streamTranslations(
     documentId: id,
     from,
     locales: locales.map((locale) => ({
-      code: locale.code,
       chunks: locale.chunks.length,
+      code: locale.code,
       items: countItems(locale.chunks),
       overrides: countOverrides(locale.overrides),
     })),
@@ -416,11 +421,11 @@ export async function* streamTranslations(
     const localePrompt = promptCache.get(locale)
 
     logDebug(payload, '[AI Translate] Starting locale translation.', {
+      chunkCount: chunks.length,
       collection,
       documentId: id,
       from,
       locale,
-      chunkCount: chunks.length,
       overrideCount: overrideItems.length,
     })
 
