@@ -1,3 +1,10 @@
+## [1.16.6](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.5...v1.16.6) (2025-11-16)
+
+
+### Bug Fixes
+
+* strip nested metadata when saving globals ([a12e6b0](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/a12e6b0e47926535a7068744675f135ae77c448e))
+
 ## [1.16.5](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.4...v1.16.5) (2025-11-16)
 
 
