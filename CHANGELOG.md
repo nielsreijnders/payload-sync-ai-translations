@@ -1,3 +1,10 @@
+# [1.15.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.14.0...v1.15.0) (2025-11-16)
+
+
+### Features
+
+* prevent AI model from translating the prompt by isolating items payload ([15e6f61](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/15e6f61fdceb01f728d70c8519df32684eeaa627))
+
 # [1.14.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.13.1...v1.14.0) (2025-11-16)
 
 
