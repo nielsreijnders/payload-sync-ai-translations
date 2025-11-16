@@ -1,3 +1,10 @@
+# [1.16.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.15.1...v1.16.0) (2025-11-16)
+
+
+### Features
+
+* add globals support ([d70eb05](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/d70eb0553792434d0cc9faa3bf231a00ea7b1418))
+
 ## [1.15.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.15.0...v1.15.1) (2025-11-16)
 
 
