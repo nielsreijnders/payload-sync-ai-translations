@@ -17,7 +17,9 @@ import styles from './AutoTranslateButton.module.css'
 
 export function DebugDocumentCopyButton(props: AutoTranslateButtonProps) {
   const { id, collectionSlug, docConfig, globalSlug } = useDocumentInfo()
+
   const form = useForm()
+
   const documentForm = useDocumentForm()
   const [busy, setBusy] = React.useState(false)
 
