@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest'
-
 import { collectLocalizedFieldPatterns, type AnyField } from '../../src/utils/localizedFields.js'
+import { describe, expect, it } from 'vitest'
 
 describe('collectLocalizedFieldPatterns', () => {
   it('includes nested fields when localization is inherited from parent groups', () => {
