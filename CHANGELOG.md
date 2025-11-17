@@ -1,3 +1,10 @@
+## [1.16.8](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.7...v1.16.8) (2025-11-17)
+
+
+### Bug Fixes
+
+* add comment to clarify purpose of pruneIdentifierFields function ([3e4eff1](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/3e4eff151142b852bd956fc8a5fe35f1159f50cf))
+
 ## [1.16.7](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.6...v1.16.7) (2025-11-17)
 
 
