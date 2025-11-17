@@ -6,7 +6,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-const DOCUMENT_METADATA_KEYS = new Set(['id', '_id', 'createdAt', 'updatedAt'])
+const DOCUMENT_METADATA_KEYS = new Set(['_id', 'createdAt', 'id', 'updatedAt'])
 
 function deleteDocumentMetadata(record: Record<string, unknown>): void {
   for (const key of DOCUMENT_METADATA_KEYS) {
