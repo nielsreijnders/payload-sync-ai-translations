@@ -7,7 +7,10 @@ import type {
   TranslateReviewLocale,
 } from './translationTypes.js'
 
-import { buildTranslatableItems } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
+import {
+  buildTranslatableItems,
+  collectIdentifierPaths,
+} from '../components/auto-translate-button/utils/buildTranslatableItems.js'
 import { chunkItems } from '../utils/localizedFields.js'
 import { logDebug } from './debugSettings.js'
 import { generateTranslationReview } from './translationReviewService.js'
@@ -68,6 +71,7 @@ function toIdentifier(value: unknown): null | number | string {
 function buildLocaleRequests(
   items: ReturnType<typeof buildTranslatableItems>,
   locales: TranslateReviewLocale[],
+  identifierPaths: ReturnType<typeof collectIdentifierPaths>,
 ): TranslateLocaleRequestPayload[] {
   return locales
     .map((locale) => {
@@ -107,6 +111,7 @@ function buildLocaleRequests(
       return {
         chunks: chunkItems(toTranslate),
         code: locale.code,
+        identifierPaths,
         overrides,
       }
     })
@@ -277,6 +282,7 @@ async function* runBulkTranslations(
         )
         yield { id: docLabel, type: 'document-start', collection: entry.slug }
 
+        const identifierPaths = collectIdentifierPaths(doc, entry.fieldPatterns)
         const items = buildTranslatableItems(doc, entry.fieldPatterns)
 
         logDebug(payload, '[AI Translate] Built translatable items for bulk document.', {
@@ -330,7 +336,7 @@ async function* runBulkTranslations(
           continue
         }
 
-        const localeRequests = buildLocaleRequests(items, review.locales)
+        const localeRequests = buildLocaleRequests(items, review.locales, identifierPaths)
 
         logDebug(payload, '[AI Translate] Prepared locale requests for bulk document.', {
           collection: entry.slug,

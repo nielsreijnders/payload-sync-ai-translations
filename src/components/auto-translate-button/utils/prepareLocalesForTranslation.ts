@@ -13,6 +13,7 @@ import type { LocaleTranslationSelection, PendingReview } from '../hooks/types.j
 export function prepareLocalesForTranslation(
   items: PendingReview['items'],
   locales: PendingReview['locales'],
+  identifierPaths: PendingReview['identifierPaths'],
 ): LocaleTranslationSelection[] {
   return locales
     .map((locale) => {
@@ -49,6 +50,7 @@ export function prepareLocalesForTranslation(
 
       return {
         code: locale.code,
+        identifierPaths,
         overrides: overrideEntries.map((e) => e.item),
         translateIndexes,
       }

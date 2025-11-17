@@ -209,6 +209,154 @@ describe('streamTranslations', () => {
     ])
   })
 
+  it('preserves nested identifiers when translating globals', async () => {
+    configureTranslationState(
+      [],
+      [
+        {
+          config: {
+            fields: [],
+            label: 'Navigation',
+            slug: 'menu',
+          } as GlobalConfig,
+        },
+      ],
+      { defaultLocale: 'en', locales: ['en', 'nl'] },
+    )
+
+    const baseDoc = {
+      id: 'global:menu',
+      links: [
+        { id: 'link-1', link: { label: 'Menu' } },
+        { id: 'link-2', link: { label: 'About' } },
+      ],
+    }
+
+    const payloadMock = {
+      findGlobal: vi.fn<Payload['findGlobal']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: 'global:menu' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Menukaart', 'link-1'])
+
+    const request: TranslateRequestPayload = {
+      from: 'en',
+      global: 'menu',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'links.0.link.label',
+                text: 'Menu',
+              },
+            ],
+          ],
+          code: 'nl',
+          identifierPaths: ['links.0.id'],
+        },
+      ],
+    }
+
+    for await (const _event of streamTranslations(payloadMock as Payload, request)) {
+      // exhaust iterator
+    }
+
+    expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
+    const savedPayload = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
+    expect(savedPayload?.data).toEqual({
+      links: [
+        { id: 'link-1', link: { label: 'Menukaart' } },
+        { link: { label: 'About' } },
+      ],
+    })
+  })
+
+  it('removes identifier metadata that is not part of the translation payload', async () => {
+    configureTranslationState(
+      [],
+      [
+        {
+          config: {
+            fields: [],
+            label: 'Navigation',
+            slug: 'menu',
+          } as GlobalConfig,
+        },
+      ],
+      { defaultLocale: 'en', locales: ['en', 'nl'] },
+    )
+
+    const baseDoc = {
+      id: 'global:menu',
+      links: [
+        { id: 'link-1', link: { label: 'Menu' } },
+        { id: 'link-2', link: { label: 'About' } },
+      ],
+    }
+
+    const payloadMock = {
+      findGlobal: vi.fn<Payload['findGlobal']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: 'global:menu' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Menukaart'])
+
+    const request: TranslateRequestPayload = {
+      from: 'en',
+      global: 'menu',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'links.0.link.label',
+                text: 'Menu',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    for await (const _event of streamTranslations(payloadMock as Payload, request)) {
+      // exhaust iterator
+    }
+
+    expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
+    const savedPayload = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
+    expect(savedPayload?.data).toEqual({
+      links: [
+        { link: { label: 'Menukaart' } },
+        { link: { label: 'About' } },
+      ],
+    })
+    expect(containsMetadataKey(savedPayload?.data)).toBe(false)
+  })
+
   it('applies custom prompt instructions when configured', async () => {
     const baseDoc = {
       id: '1',

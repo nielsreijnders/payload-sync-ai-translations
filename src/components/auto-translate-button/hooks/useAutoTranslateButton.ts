@@ -8,7 +8,7 @@ import type {
   PendingReview,
 } from './types.js'
 
-import { buildTranslatableItems } from '../utils/buildTranslatableItems.js'
+import { buildTranslatableItems, collectIdentifierPaths } from '../utils/buildTranslatableItems.js'
 import { prepareLocalesForTranslation } from '../utils/prepareLocalesForTranslation.js'
 import { requiresHumanReview, sanitizeLocalesFromReviewResponse } from '../utils/reviewHelpers.js'
 import { applyLocaleOverride, applyLocaleSkip } from '../utils/reviewState.js'
@@ -81,6 +81,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
 
       // 1) Collect translatable fields from form data
       const data = formApi.getData()
+      const identifierPaths = collectIdentifierPaths(data, fieldPatterns)
       const items = buildTranslatableItems(data, fieldPatterns)
 
       // if (items) {
@@ -112,12 +113,12 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
 
       // 4) If a human should review, open review modal/state
       if (requiresHumanReview(localesToTranslate)) {
-        setPendingReview({ items, locales: localesToTranslate })
+        setPendingReview({ identifierPaths, items, locales: localesToTranslate })
         return toast.info('Check missing information before proceeding with translations.')
       }
 
       // 5) Otherwise, run translations immediately
-      const selections = prepareLocalesForTranslation(items, localesToTranslate)
+      const selections = prepareLocalesForTranslation(items, localesToTranslate, identifierPaths)
       const { finished, hadError } = await runTranslations(items, selections, {
         id,
         collectionSlug,
@@ -144,7 +145,11 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       setModalBusy(true)
       setBusy(true)
 
-      const selections = prepareLocalesForTranslation(pendingReview.items, pendingReview.locales)
+      const selections = prepareLocalesForTranslation(
+        pendingReview.items,
+        pendingReview.locales,
+        pendingReview.identifierPaths,
+      )
       if (!selections.length) {
         setPendingReview(null)
         return toast.info('No fields selected for translation.')

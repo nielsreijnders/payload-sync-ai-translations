@@ -4,6 +4,7 @@ import type { TranslatableItem } from './buildTranslatableItems.js'
 export type LocaleTranslationPlan = {
   chunks: TranslatableItem[][]
   code: string
+  identifierPaths?: string[]
   overrides?: TranslatableItem[]
 }
 
@@ -40,6 +41,7 @@ export async function performTranslations(
       locales: request.locales.map((locale) => ({
         chunks: locale.chunks,
         code: locale.code,
+        identifierPaths: locale.identifierPaths,
         overrides: locale.overrides,
       })),
     }),

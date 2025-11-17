@@ -9,7 +9,7 @@ describe('buildTranslationRequest', () => {
   ]
 
   const sampleLocales: LocaleTranslationSelection[] = [
-    { code: 'nl', overrides: [], translateIndexes: [0] },
+    { code: 'nl', identifierPaths: [], overrides: [], translateIndexes: [0] },
   ]
 
   it('preserves numeric identifiers without coercion', () => {
@@ -41,5 +41,17 @@ describe('buildTranslationRequest', () => {
         id: '   ',
       }),
     ).toThrowError('Document ID is missing.')
+  })
+
+  it('includes identifier paths on each locale', () => {
+    const request = buildTranslationRequest(sampleItems, sampleLocales, {
+      collectionSlug: 'pages',
+      defaultLocale: 'en',
+      id: 42,
+    })
+
+    expect(request.locales).toEqual([
+      expect.objectContaining({ identifierPaths: [] }),
+    ])
   })
 })
