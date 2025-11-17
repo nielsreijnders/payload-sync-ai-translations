@@ -1,3 +1,10 @@
+## [1.17.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.17.1...v1.17.2) (2025-11-17)
+
+
+### Bug Fixes
+
+* skip saving for default locale in global documents ([ca89d6d](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/ca89d6d2c6a0b5db5419d84afb56045b4be0ad2e))
+
 ## [1.17.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.17.0...v1.17.1) (2025-11-17)
 
 
