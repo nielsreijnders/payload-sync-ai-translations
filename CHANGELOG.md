@@ -1,3 +1,10 @@
+## [1.17.3](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.17.2...v1.17.3) (2025-11-17)
+
+
+### Bug Fixes
+
+* streamline imports and remove default locale save check in translation stream ([e50329f](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/e50329f3851f5e6f6659f920b8c7951c046eb20f))
+
 ## [1.17.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.17.1...v1.17.2) (2025-11-17)
 
 
