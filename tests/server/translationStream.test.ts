@@ -280,10 +280,7 @@ describe('streamTranslations', () => {
     expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
     const savedPayload = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
     expect(savedPayload?.data).toEqual({
-      links: [
-        { id: 'link-1', link: { label: 'Menukaart' } },
-        { link: { label: 'About' } },
-      ],
+      links: [{ id: 'link-1', link: { label: 'Menukaart' } }, { link: { label: 'About' } }],
     })
   })
 
@@ -353,10 +350,7 @@ describe('streamTranslations', () => {
     expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
     const savedPayload = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
     expect(savedPayload?.data).toEqual({
-      links: [
-        { link: { label: 'Menukaart' } },
-        { link: { label: 'About' } },
-      ],
+      links: [{ link: { label: 'Menukaart' } }, { link: { label: 'About' } }],
     })
     expect(containsMetadataKey(savedPayload?.data)).toBe(false)
   })
