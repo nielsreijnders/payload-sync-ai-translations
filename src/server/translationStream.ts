@@ -49,7 +49,7 @@ function collectIdentifierPaths(locales: TranslateLocaleRequestPayload[]): Local
   }
 
   for (const localeEntry of locales) {
-    const { code: locale, chunks, identifierPaths, overrides } = localeEntry
+    const { chunks, code: locale, identifierPaths, overrides } = localeEntry
 
     for (const chunk of chunks) {
       for (const item of chunk) {
@@ -73,11 +73,7 @@ function collectIdentifierPaths(locales: TranslateLocaleRequestPayload[]): Local
   return identifierMap
 }
 
-function pruneIdentifierFields(
-  value: unknown,
-  allowed: Set<string>,
-  currentPath = '',
-): unknown {
+function pruneIdentifierFields(value: unknown, allowed: Set<string>, currentPath = ''): unknown {
   if (Array.isArray(value)) {
     return value.map((entry, index) => {
       const nextPath = currentPath ? `${currentPath}.${index}` : String(index)
@@ -718,9 +714,9 @@ export async function* streamTranslations(
       const sanitizedSource = isCollectionTarget
         ? localeData
         : pruneIdentifierFields(localeData, allowedIdentifiers)
-      const saveData = (isCollectionTarget
-        ? sanitizedSource
-        : cloneWithoutDocumentMetadata(sanitizedSource)) as Record<string, unknown>
+      const saveData = (
+        isCollectionTarget ? sanitizedSource : cloneWithoutDocumentMetadata(sanitizedSource)
+      ) as Record<string, unknown>
 
       if (!isCollectionTarget) {
         delete saveData.id
