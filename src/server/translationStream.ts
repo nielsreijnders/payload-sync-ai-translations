@@ -1,4 +1,6 @@
-import { isPlainObject, type Payload } from 'payload'
+import type { LocalizationConfig, Payload } from 'payload'
+
+import { isPlainObject } from 'payload'
 
 import type {
   TranslateChunk,
@@ -721,6 +723,18 @@ export async function* streamTranslations(
       if (!isCollectionTarget) {
         delete saveData.id
         delete saveData._id
+      }
+
+      if (locale === (payload.config.localization as LocalizationConfig).defaultLocale) {
+        // Skip saving if the target locale is the default locale for global documents
+        logDebug(payload, '[AI Translate] Skipping save for default locale of a document.', {
+          collection: collectionSlug,
+          documentId: translationDocumentId,
+          from,
+          global: globalSlug,
+          locale,
+        })
+        continue
       }
 
       if (isCollectionTarget) {
