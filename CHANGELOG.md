@@ -1,3 +1,10 @@
+## [1.17.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.17.0...v1.17.1) (2025-11-17)
+
+
+### Bug Fixes
+
+* reorder identifier keys for consistency ([279f418](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/279f4182c75f748e8dd2d1b01b6cff0dc8ec93f7))
+
 # [1.17.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.8...v1.17.0) (2025-11-17)
 
 
