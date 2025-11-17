@@ -5,7 +5,7 @@ import {
   getValueAtPath,
 } from '../../../utils/localizedFields.js'
 
-const IDENTIFIER_KEYS = new Set(['id', '_id'])
+const IDENTIFIER_KEYS = new Set(['_id', 'id'])
 
 function isIdentifierPath(path: string): boolean {
   if (!path) {
@@ -57,12 +57,39 @@ export function buildTranslatableItems(data: unknown, fieldPatterns: string[]): 
 export function collectIdentifierPaths(data: unknown, fieldPatterns: string[]): string[] {
   const paths = new Set<string>()
 
+  const addIdentifierPath = (path: string) => {
+    if (!path) {
+      return
+    }
+
+    const value = getValueAtPath(data, path)
+    if (value === undefined) {
+      return
+    }
+
+    paths.add(path)
+  }
+
+  const isIndexSegment = (segment: string) => /^\d+$/.test(segment)
+
   for (const pattern of fieldPatterns) {
     const concretePaths = expandConcretePathsFromPattern(data, pattern)
 
     for (const path of concretePaths) {
       if (isIdentifierPath(path)) {
-        paths.add(path)
+        addIdentifierPath(path)
+        continue
+      }
+
+      const segments = path.split('.')
+      for (let index = 0; index < segments.length; index += 1) {
+        if (!isIndexSegment(segments[index] ?? '')) {
+          continue
+        }
+
+        const ancestor = segments.slice(0, index + 1).join('.')
+        addIdentifierPath(`${ancestor}.id`)
+        addIdentifierPath(`${ancestor}._id`)
       }
     }
   }
