@@ -5,7 +5,7 @@ import {
   getValueAtPath,
 } from '../../../utils/localizedFields.js'
 
-const IDENTIFIER_KEYS = new Set(['id', '_id'])
+const IDENTIFIER_KEYS = new Set(['_id', 'id'])
 
 function isIdentifierPath(path: string): boolean {
   if (!path) {
