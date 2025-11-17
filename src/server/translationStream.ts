@@ -49,7 +49,7 @@ function collectIdentifierPaths(locales: TranslateLocaleRequestPayload[]): Local
   }
 
   for (const localeEntry of locales) {
-    const { chunks, code: locale, overrides } = localeEntry
+    const { chunks, code: locale, identifierPaths, overrides } = localeEntry
 
     for (const chunk of chunks) {
       for (const item of chunk) {
@@ -62,12 +62,17 @@ function collectIdentifierPaths(locales: TranslateLocaleRequestPayload[]): Local
         addPath(locale, override?.path)
       }
     }
+
+    if (Array.isArray(identifierPaths)) {
+      for (const identifier of identifierPaths) {
+        addPath(locale, identifier)
+      }
+    }
   }
 
   return identifierMap
 }
 
-// Recursively prune identifier fields from the value unless their paths are in the allowed set
 function pruneIdentifierFields(value: unknown, allowed: Set<string>, currentPath = ''): unknown {
   if (Array.isArray(value)) {
     return value.map((entry, index) => {

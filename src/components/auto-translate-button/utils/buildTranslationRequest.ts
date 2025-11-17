@@ -46,6 +46,7 @@ export function buildTranslationRequest(
       return {
         chunks: chunkItems(selected),
         code: locale.code,
+        identifierPaths: locale.identifierPaths,
         overrides: locale.overrides,
       }
     })

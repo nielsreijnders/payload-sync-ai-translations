@@ -261,14 +261,10 @@ describe('streamTranslations', () => {
                 path: 'links.0.link.label',
                 text: 'Menu',
               },
-              {
-                lexical: false,
-                path: 'links.0.id',
-                text: 'link-1',
-              },
             ],
           ],
           code: 'nl',
+          identifierPaths: ['links.0.id'],
         },
       ],
     }

@@ -11,6 +11,7 @@ export type TranslateOverride = TranslateItem
 export type TranslateLocaleRequestPayload = {
   chunks: TranslateChunk[]
   code: string
+  identifierPaths?: string[]
   overrides?: TranslateOverride[]
 }
 
