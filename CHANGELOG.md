@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.8...v1.17.0) (2025-11-17)
+
+
+### Features
+
+* add identifierPaths to remove id's from being translated ([0599fee](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/0599fee55c3c50f556f4baf1df12655b6d98ce2d))
+
 ## [1.16.8](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.16.7...v1.16.8) (2025-11-17)
 
 
