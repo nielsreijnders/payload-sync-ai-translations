@@ -67,6 +67,7 @@ function collectIdentifierPaths(locales: TranslateLocaleRequestPayload[]): Local
   return identifierMap
 }
 
+// Recursively prune identifier fields from the value unless their paths are in the allowed set
 function pruneIdentifierFields(value: unknown, allowed: Set<string>, currentPath = ''): unknown {
   if (Array.isArray(value)) {
     return value.map((entry, index) => {
