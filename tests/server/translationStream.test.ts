@@ -209,6 +209,79 @@ describe('streamTranslations', () => {
     ])
   })
 
+  it('preserves nested identifiers when translating globals', async () => {
+    configureTranslationState(
+      [],
+      [
+        {
+          config: {
+            fields: [],
+            label: 'Navigation',
+            slug: 'menu',
+          } as GlobalConfig,
+        },
+      ],
+      { defaultLocale: 'en', locales: ['en', 'nl'] },
+    )
+
+    const baseDoc = {
+      id: 'global:menu',
+      links: [
+        { _id: 'link-1', link: { label: 'Menu' } },
+        { _id: 'link-2', link: { label: 'About' } },
+      ],
+    }
+
+    const payloadMock = {
+      findGlobal: vi.fn<Payload['findGlobal']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: 'global:menu' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Menukaart'])
+
+    const request: TranslateRequestPayload = {
+      from: 'en',
+      global: 'menu',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'links.0.link.label',
+                text: 'Menu',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    for await (const _event of streamTranslations(payloadMock as Payload, request)) {
+      // exhaust iterator
+    }
+
+    expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
+    const savedPayload = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
+    expect(savedPayload?.data).toEqual({
+      links: [
+        { _id: 'link-1', link: { label: 'Menukaart' } },
+        { _id: 'link-2', link: { label: 'About' } },
+      ],
+    })
+  })
+
   it('applies custom prompt instructions when configured', async () => {
     const baseDoc = {
       id: '1',
