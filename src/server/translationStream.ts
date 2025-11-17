@@ -21,86 +21,6 @@ import { cloneLocaleData, mergeStructuralData, setValueAtPath } from './localeSt
 import { openAiTranslateTexts } from './openAiTranslationClient.js'
 import { getStoredTarget } from './translationStateStore.js'
 
-type LocaleIdentifierMap = Map<string, Set<string>>
-
-function isIdentifierKey(key: string): boolean {
-  return key === 'id' || key === '_id'
-}
-
-function collectIdentifierPaths(locales: TranslateLocaleRequestPayload[]): LocaleIdentifierMap {
-  const identifierMap: LocaleIdentifierMap = new Map()
-
-  const addPath = (locale: string, path?: string) => {
-    if (!path) {
-      return
-    }
-
-    const segments = path.split('.')
-    const key = segments.at(-1)
-    if (!key || !isIdentifierKey(key)) {
-      return
-    }
-
-    if (!identifierMap.has(locale)) {
-      identifierMap.set(locale, new Set())
-    }
-
-    identifierMap.get(locale)?.add(path)
-  }
-
-  for (const localeEntry of locales) {
-    const { chunks, code: locale, identifierPaths, overrides } = localeEntry
-
-    for (const chunk of chunks) {
-      for (const item of chunk) {
-        addPath(locale, item?.path)
-      }
-    }
-
-    if (Array.isArray(overrides)) {
-      for (const override of overrides) {
-        addPath(locale, override?.path)
-      }
-    }
-
-    if (Array.isArray(identifierPaths)) {
-      for (const identifier of identifierPaths) {
-        addPath(locale, identifier)
-      }
-    }
-  }
-
-  return identifierMap
-}
-
-function pruneIdentifierFields(value: unknown, allowed: Set<string>, currentPath = ''): unknown {
-  if (Array.isArray(value)) {
-    return value.map((entry, index) => {
-      const nextPath = currentPath ? `${currentPath}.${index}` : String(index)
-      return pruneIdentifierFields(entry, allowed, nextPath)
-    })
-  }
-
-  if (isPlainObject(value)) {
-    const record = value as Record<string, unknown>
-    const next: Record<string, unknown> = {}
-
-    for (const [key, child] of Object.entries(record)) {
-      const childPath = currentPath ? `${currentPath}.${key}` : key
-
-      if (isIdentifierKey(key) && !allowed.has(childPath)) {
-        continue
-      }
-
-      next[key] = pruneIdentifierFields(child, allowed, childPath)
-    }
-
-    return next
-  }
-
-  return value
-}
-
 function countItems(chunks: TranslateChunk[]): number {
   return chunks.reduce((total, chunk) => total + chunk.length, 0)
 }
@@ -495,8 +415,6 @@ export async function* streamTranslations(
   })
   const customPromptFn = storedEntry?.customPrompt
   const promptCache = new Map<string, string | undefined>()
-  const localeIdentifierPaths = collectIdentifierPaths(locales)
-
   for (const localeEntry of locales) {
     const { chunks, code: locale } = localeEntry
     let existingLocaleDoc: null | Record<string, unknown> = null
@@ -710,12 +628,8 @@ export async function* streamTranslations(
 
     try {
       stripDocumentMetadata(localeData)
-      const allowedIdentifiers = localeIdentifierPaths.get(locale) ?? new Set<string>()
-      const sanitizedSource = isCollectionTarget
-        ? localeData
-        : pruneIdentifierFields(localeData, allowedIdentifiers)
       const saveData = (
-        isCollectionTarget ? sanitizedSource : cloneWithoutDocumentMetadata(sanitizedSource)
+        isCollectionTarget ? localeData : cloneWithoutDocumentMetadata(localeData)
       ) as Record<string, unknown>
 
       if (!isCollectionTarget) {

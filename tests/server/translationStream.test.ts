@@ -276,11 +276,14 @@ describe('streamTranslations', () => {
     expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
     const savedPayload = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
     expect(savedPayload?.data).toEqual({
-      links: [{ id: 'link-1', link: { label: 'Menukaart' } }, { link: { label: 'About' } }],
+      links: [
+        { id: 'link-1', link: { label: 'Menukaart' } },
+        { id: 'link-2', link: { label: 'About' } },
+      ],
     })
   })
 
-  it('removes identifier metadata that is not part of the translation payload', async () => {
+  it('retains identifier metadata that is not part of the translation payload', async () => {
     configureTranslationState(
       [],
       [
@@ -346,9 +349,11 @@ describe('streamTranslations', () => {
     expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
     const savedPayload = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
     expect(savedPayload?.data).toEqual({
-      links: [{ link: { label: 'Menukaart' } }, { link: { label: 'About' } }],
+      links: [
+        { id: 'link-1', link: { label: 'Menukaart' } },
+        { id: 'link-2', link: { label: 'About' } },
+      ],
     })
-    expect(containsMetadataKey(savedPayload?.data)).toBe(false)
   })
 
   it('applies custom prompt instructions when configured', async () => {
