@@ -3,7 +3,7 @@ import type { PayloadHandler } from 'payload'
 import type { BulkLinkSyncRequestPayload, BulkLinkSyncResponse } from './linkSyncTypes.js'
 
 import { synchronizeLinksForDocument } from './linkSyncService.js'
-import { getStoredTarget, getTranslationState } from './translationStateStore.js'
+import { getStoredCollection, getStoredTarget, getTranslationState } from './translationStateStore.js'
 
 function parseDocumentBody(body: unknown): {
   collection?: string
