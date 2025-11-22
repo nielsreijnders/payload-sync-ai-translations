@@ -1,9 +1,8 @@
 import type { Payload } from 'payload'
 
-import { collectIdentifierPaths } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
-
 import type { LinkSyncLocaleReport, LinkSyncResult } from './linkSyncTypes.js'
 
+import { collectIdentifierPaths } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
 import {
   cloneWithoutDocumentMetadata,
   loadLocalizedDocument,
@@ -22,13 +21,13 @@ type GlobalLinkOptions = {
   global: string
 }
 
-type LinkSyncOptions = (CollectionLinkOptions | GlobalLinkOptions) & {
+type LinkSyncOptions = {
   defaultLocale: string
   fieldPatterns: string[]
   payload: Payload
   serverURL?: string
   targetLocales: string[]
-}
+} & (CollectionLinkOptions | GlobalLinkOptions)
 
 type FetchCache = Map<string, Map<string, string>>
 
@@ -45,7 +44,7 @@ function pruneIdentifierFields(value: unknown, allowed: Set<string>, currentPath
   }
 
   if (isPlainObject(value)) {
-    const record = value as Record<string, unknown>
+    const record = value
     const next: Record<string, unknown> = {}
 
     for (const [key, child] of Object.entries(record)) {
@@ -95,8 +94,8 @@ export async function synchronizeLinksForDocument(
           locale: defaultLocale,
         }
       : {
-          global: options.global,
           fallbackLocale: false,
+          global: options.global,
           locale: defaultLocale,
         },
   )
@@ -116,8 +115,8 @@ export async function synchronizeLinksForDocument(
     return {
       collection: collectionSlug,
       documentId: isCollectionTarget ? options.id : undefined,
-      global: isCollectionTarget ? undefined : options.global,
       errors,
+      global: isCollectionTarget ? undefined : options.global,
       missingAlternateLocales: [],
       processedLocales,
       processedUrls: 0,
@@ -193,8 +192,8 @@ export async function synchronizeLinksForDocument(
             locale,
           }
         : {
-            global: options.global,
             fallbackLocale: true,
+            global: options.global,
             locale,
           },
     )
@@ -230,9 +229,7 @@ export async function synchronizeLinksForDocument(
       ? localeData
       : pruneIdentifierFields(localeData, allowedIdentifiers)
     const saveData = (
-      isCollectionTarget
-        ? identifierSafeData
-        : cloneWithoutDocumentMetadata(identifierSafeData)
+      isCollectionTarget ? identifierSafeData : cloneWithoutDocumentMetadata(identifierSafeData)
     ) as Record<string, unknown>
 
     if (!isCollectionTarget) {
@@ -277,8 +274,8 @@ export async function synchronizeLinksForDocument(
   return {
     collection: collectionSlug,
     documentId: isCollectionTarget ? options.id : undefined,
-    global: isCollectionTarget ? undefined : options.global,
     errors,
+    global: isCollectionTarget ? undefined : options.global,
     missingAlternateLocales: missingLocales,
     processedLocales,
     processedUrls: uniqueDefaultUrls.size,
