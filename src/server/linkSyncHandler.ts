@@ -1,4 +1,4 @@
-import type { PayloadHandler } from 'payload'
+import type { Payload, PayloadHandler } from 'payload'
 
 import type { BulkLinkSyncRequestPayload, BulkLinkSyncResponse } from './linkSyncTypes.js'
 
@@ -8,6 +8,34 @@ import {
   getStoredTarget,
   getTranslationState,
 } from './translationStateStore.js'
+
+function resolveBaseUrl(
+  payload: Payload,
+  req: Request,
+  configuredBaseUrl?: string,
+): string | undefined {
+  const configured = configuredBaseUrl?.trim() || payload.config?.serverURL
+  if (configured) {
+    return configured
+  }
+
+  try {
+    const parsed = new URL(req.url)
+    if (parsed.origin && parsed.origin !== 'null') {
+      return parsed.origin
+    }
+  } catch (_error) {
+    // Ignore errors and attempt to infer from headers instead
+  }
+
+  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host')
+  if (!host) {
+    return undefined
+  }
+
+  const protocol = req.headers.get('x-forwarded-proto') ?? 'https'
+  return `${protocol}://${host}`
+}
 
 function parseDocumentBody(body: unknown): {
   collection?: string
@@ -83,7 +111,7 @@ function parseBulkBody(body: unknown): BulkLinkSyncRequestPayload {
   return { collections: sanitized }
 }
 
-export function createSyncLinksHandler(): PayloadHandler {
+export function createSyncLinksHandler(configuredBaseUrl?: string): PayloadHandler {
   return async (req) => {
     try {
       const payload = req.payload
@@ -103,6 +131,8 @@ export function createSyncLinksHandler(): PayloadHandler {
         throw new Error('Default locale is not configured')
       }
 
+      const serverURL = resolveBaseUrl(payload, req, configuredBaseUrl)
+
       const result = await synchronizeLinksForDocument(
         // @ts-expect-error -- Need to investigate
         {
@@ -110,7 +140,7 @@ export function createSyncLinksHandler(): PayloadHandler {
           defaultLocale: state.defaultLocale,
           fieldPatterns: stored.fieldPatterns,
           payload,
-          serverURL: payload.config?.serverURL,
+          serverURL,
           targetLocales: state.locales,
         },
         new Map(),
@@ -124,7 +154,7 @@ export function createSyncLinksHandler(): PayloadHandler {
   }
 }
 
-export function createBulkSyncLinksHandler(): PayloadHandler {
+export function createBulkSyncLinksHandler(configuredBaseUrl?: string): PayloadHandler {
   return async (req) => {
     try {
       const payload = req.payload
@@ -134,6 +164,8 @@ export function createBulkSyncLinksHandler(): PayloadHandler {
 
       const request = parseBulkBody(await (req as any).json())
       const state = getTranslationState()
+
+      const serverURL = resolveBaseUrl(payload, req, configuredBaseUrl)
 
       if (!state.defaultLocale) {
         throw new Error('Default locale is not configured')
@@ -193,7 +225,7 @@ export function createBulkSyncLinksHandler(): PayloadHandler {
                   defaultLocale: state.defaultLocale,
                   fieldPatterns: stored.fieldPatterns,
                   payload,
-                  serverURL: payload.config?.serverURL,
+                  serverURL,
                   targetLocales: state.locales,
                 },
                 cache,
@@ -214,8 +246,7 @@ export function createBulkSyncLinksHandler(): PayloadHandler {
 
               reports.push({ ...report, label })
             } catch (error) {
-              const message =
-                error instanceof Error ? error.message : 'Failed to synchronize document'
+              const message = error instanceof Error ? error.message : 'Failed to synchronize document'
               errors.push(`${slug}#${label}: ${message}`)
             }
           }

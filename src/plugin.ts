@@ -22,6 +22,11 @@ export type AiLocalizationConfig = {
     apiKey: string
     model?: string
   }
+  /**
+   * Optional base URL for building absolute links when syncing translated alternates.
+   * If omitted, the plugin falls back to Payload's `serverURL` or the incoming request.
+   */
+  serverURL?: string
 }
 
 const CLIENT_EXPORT = 'payload-sync-ai-translations/client#AutoTranslateButton'
@@ -253,8 +258,16 @@ export const payloadSyncAiTranslations =
         { handler: createAiBulkTranslateHandler(), method: 'post', path: '/ai-translate/bulk' },
         { handler: createAiTranslateHandler(), method: 'post', path: '/ai-translate' },
         { handler: createAiTranslateReviewHandler(), method: 'post', path: '/ai-translate/review' },
-        { handler: createSyncLinksHandler(), method: 'post', path: '/ai-links/sync' },
-        { handler: createBulkSyncLinksHandler(), method: 'post', path: '/ai-links/bulk' },
+        {
+          handler: createSyncLinksHandler(options.serverURL),
+          method: 'post',
+          path: '/ai-links/sync',
+        },
+        {
+          handler: createBulkSyncLinksHandler(options.serverURL),
+          method: 'post',
+          path: '/ai-links/bulk',
+        },
       ],
       globals: enhancedGlobals,
     }
