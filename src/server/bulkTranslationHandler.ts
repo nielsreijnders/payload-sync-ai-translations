@@ -98,7 +98,7 @@ function buildLocaleRequests(
 
           return { ...source, text }
         })
-        .filter((entry): entry is typeof items[number] => Boolean(entry))
+        .filter((entry): entry is (typeof items)[number] => Boolean(entry))
 
       const translateIndexes = Array.from(new Set(locale.translateIndexes))
         .filter((index) => Number.isInteger(index) && index >= 0 && index < items.length)
@@ -106,7 +106,7 @@ function buildLocaleRequests(
 
       const toTranslate = translateIndexes
         .map((index) => items[index])
-        .filter((entry): entry is typeof items[number] => Boolean(entry))
+        .filter((entry): entry is (typeof items)[number] => Boolean(entry))
 
       return {
         chunks: chunkItems(toTranslate),
@@ -150,8 +150,8 @@ async function* runBulkTranslations(
     requestedCollections: request.collections,
     resolvedCollections: selected.map((entry) => ({
       slug: entry.slug,
-      label: entry.label,
       fieldPatterns: entry.fieldPatterns,
+      label: entry.label,
     })),
     targetLocales,
   })
@@ -188,8 +188,8 @@ async function* runBulkTranslations(
   )
 
   logDebug(payload, '[AI Translate] Bulk translation totals calculated.', {
-    totals: Object.fromEntries(totals.entries()),
     grandTotal,
+    totals: Object.fromEntries(totals.entries()),
   })
 
   yield { type: 'bulk-start', totalCollections: selected.length, totalDocuments: grandTotal }
@@ -320,8 +320,8 @@ async function* runBulkTranslations(
             documentId: docIdentifier,
             locales: review.locales.map((locale) => ({
               code: locale.code,
-              translateIndexes: locale.translateIndexes,
               suggestions: locale.suggestions?.length ?? 0,
+              translateIndexes: locale.translateIndexes,
             })),
           })
         } catch (error) {
@@ -342,8 +342,8 @@ async function* runBulkTranslations(
           collection: entry.slug,
           documentId: docIdentifier,
           locales: localeRequests.map((locale) => ({
-            code: locale.code,
             chunkCount: locale.chunks.length,
+            code: locale.code,
             overrideCount: locale.overrides?.length ?? 0,
           })),
         })
