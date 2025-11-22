@@ -1,3 +1,10 @@
+## [1.17.5](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.17.4...v1.17.5) (2025-11-22)
+
+
+### Bug Fixes
+
+* improve type filtering and logging in bulk translation and link sync handlers ([8916f25](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/8916f25b0b4872e8a38b354d35852fd43570bc18))
+
 ## [1.17.4](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.17.3...v1.17.4) (2025-11-22)
 
 
