@@ -3,7 +3,11 @@ import type { PayloadHandler } from 'payload'
 import type { BulkLinkSyncRequestPayload, BulkLinkSyncResponse } from './linkSyncTypes.js'
 
 import { synchronizeLinksForDocument } from './linkSyncService.js'
-import { getStoredCollection, getStoredTarget, getTranslationState } from './translationStateStore.js'
+import {
+  getStoredCollection,
+  getStoredTarget,
+  getTranslationState,
+} from './translationStateStore.js'
 
 function parseDocumentBody(body: unknown): {
   collection?: string
@@ -146,7 +150,6 @@ export function createBulkSyncLinksHandler(): PayloadHandler {
       const cache = new Map<string, Map<string, string>>()
 
       for (const slug of request.collections) {
-        // @ts-expect-error -- Need to investigate
         const stored = getStoredCollection(slug)
         if (!stored) {
           warnings.push(`Collection "${slug}" is not configured; skipping.`)
