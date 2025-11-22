@@ -1,3 +1,10 @@
+## [1.17.6](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.17.5...v1.17.6) (2025-11-22)
+
+
+### Bug Fixes
+
+* invalid id for globals ([16b1f6d](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/16b1f6d6dfd966dfc1db435b668adc5370fce7cc))
+
 ## [1.17.5](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.17.4...v1.17.5) (2025-11-22)
 
 
