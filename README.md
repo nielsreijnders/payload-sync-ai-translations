@@ -77,6 +77,13 @@ export interface PayloadSyncAiTranslationsOptions {
   openai: {
     apiKey: string
   }
+
+  /**
+   * Optional base URL for link synchronization when your Payload `serverURL`
+   * isn't set or differs from the admin URL. Relative links will be prefixed
+   * with this value before fetching alternates.
+   */
+  serverURL?: string
 }
 ```
 
