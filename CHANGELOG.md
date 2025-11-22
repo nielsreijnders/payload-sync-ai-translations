@@ -1,3 +1,10 @@
+## [1.17.4](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.17.3...v1.17.4) (2025-11-22)
+
+
+### Bug Fixes
+
+* format imports and remove unnecessary comment in bulk sync handler ([9c3467d](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/9c3467d8c356d22202374cd38206bfa1ed1a6eaa))
+
 ## [1.17.3](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.17.2...v1.17.3) (2025-11-17)
 
 
