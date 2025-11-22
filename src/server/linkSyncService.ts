@@ -1,5 +1,6 @@
 import type { Payload } from 'payload'
 
+
 import type { LinkSyncLocaleReport, LinkSyncResult } from './linkSyncTypes.js'
 
 import {
@@ -29,6 +30,38 @@ type LinkSyncOptions = (CollectionLinkOptions | GlobalLinkOptions) & {
 }
 
 type FetchCache = Map<string, Map<string, string>>
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function pruneIdentifierFields(value: unknown, allowed: Set<string>, currentPath = ''): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry, index) => {
+      const nextPath = currentPath ? `${currentPath}.${index}` : String(index)
+      return pruneIdentifierFields(entry, allowed, nextPath)
+    })
+  }
+
+  if (isPlainObject(value)) {
+    const record = value as Record<string, unknown>
+    const next: Record<string, unknown> = {}
+
+    for (const [key, child] of Object.entries(record)) {
+      const childPath = currentPath ? `${currentPath}.${key}` : key
+
+      if ((key === 'id' || key === '_id') && !allowed.has(childPath)) {
+        continue
+      }
+
+      next[key] = pruneIdentifierFields(child, allowed, childPath)
+    }
+
+    return next
+  }
+
+  return value
+}
 
 function ensureArray<T>(value: Iterable<T> | undefined): T[] {
   return value ? Array.from(value) : []
@@ -70,6 +103,9 @@ export async function synchronizeLinksForDocument(
   if (!defaultDoc) {
     throw new Error(`Document ${targetLabel} is not available in ${defaultLocale}`)
   }
+
+  // Global saves reject persisted identifiers; prune all ids for globals to avoid validation errors.
+  const allowedIdentifiers = new Set<string>()
 
   const defaultLinks = collectLinkOccurrences(defaultDoc, fieldPatterns)
   const uniqueDefaultUrls = new Set(defaultLinks.map((entry) => entry.value))
@@ -188,7 +224,19 @@ export async function synchronizeLinksForDocument(
     }
 
     stripDocumentMetadata(localeData)
-    const saveData = cloneWithoutDocumentMetadata(localeData) as Record<string, unknown>
+    const identifierSafeData = isCollectionTarget
+      ? localeData
+      : pruneIdentifierFields(localeData, allowedIdentifiers)
+    const saveData = (
+      isCollectionTarget
+        ? identifierSafeData
+        : cloneWithoutDocumentMetadata(identifierSafeData)
+    ) as Record<string, unknown>
+
+    if (!isCollectionTarget) {
+      delete saveData.id
+      delete saveData._id
+    }
 
     try {
       if (isCollectionTarget) {
