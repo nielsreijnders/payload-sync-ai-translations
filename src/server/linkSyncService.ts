@@ -2,6 +2,7 @@ import type { Payload } from 'payload'
 
 import type { LinkSyncLocaleReport, LinkSyncResult } from './linkSyncTypes.js'
 
+import { collectIdentifierPaths } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
 import {
   cloneWithoutDocumentMetadata,
   loadLocalizedDocument,
@@ -20,15 +21,47 @@ type GlobalLinkOptions = {
   global: string
 }
 
-type LinkSyncOptions = (CollectionLinkOptions | GlobalLinkOptions) & {
+type LinkSyncOptions = {
   defaultLocale: string
   fieldPatterns: string[]
   payload: Payload
   serverURL?: string
   targetLocales: string[]
-}
+} & (CollectionLinkOptions | GlobalLinkOptions)
 
 type FetchCache = Map<string, Map<string, string>>
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function pruneIdentifierFields(value: unknown, allowed: Set<string>, currentPath = ''): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry, index) => {
+      const nextPath = currentPath ? `${currentPath}.${index}` : String(index)
+      return pruneIdentifierFields(entry, allowed, nextPath)
+    })
+  }
+
+  if (isPlainObject(value)) {
+    const record = value
+    const next: Record<string, unknown> = {}
+
+    for (const [key, child] of Object.entries(record)) {
+      const childPath = currentPath ? `${currentPath}.${key}` : key
+
+      if ((key === 'id' || key === '_id') && !allowed.has(childPath)) {
+        continue
+      }
+
+      next[key] = pruneIdentifierFields(child, allowed, childPath)
+    }
+
+    return next
+  }
+
+  return value
+}
 
 function ensureArray<T>(value: Iterable<T> | undefined): T[] {
   return value ? Array.from(value) : []
@@ -61,8 +94,8 @@ export async function synchronizeLinksForDocument(
           locale: defaultLocale,
         }
       : {
-          global: options.global,
           fallbackLocale: false,
+          global: options.global,
           locale: defaultLocale,
         },
   )
@@ -71,6 +104,10 @@ export async function synchronizeLinksForDocument(
     throw new Error(`Document ${targetLabel} is not available in ${defaultLocale}`)
   }
 
+  const allowedIdentifiers = new Set<string>(
+    isCollectionTarget ? [] : collectIdentifierPaths(defaultDoc, fieldPatterns),
+  )
+
   const defaultLinks = collectLinkOccurrences(defaultDoc, fieldPatterns)
   const uniqueDefaultUrls = new Set(defaultLinks.map((entry) => entry.value))
 
@@ -78,8 +115,8 @@ export async function synchronizeLinksForDocument(
     return {
       collection: collectionSlug,
       documentId: isCollectionTarget ? options.id : undefined,
-      global: isCollectionTarget ? undefined : options.global,
       errors,
+      global: isCollectionTarget ? undefined : options.global,
       missingAlternateLocales: [],
       processedLocales,
       processedUrls: 0,
@@ -155,8 +192,8 @@ export async function synchronizeLinksForDocument(
             locale,
           }
         : {
-            global: options.global,
             fallbackLocale: true,
+            global: options.global,
             locale,
           },
     )
@@ -188,7 +225,17 @@ export async function synchronizeLinksForDocument(
     }
 
     stripDocumentMetadata(localeData)
-    const saveData = cloneWithoutDocumentMetadata(localeData) as Record<string, unknown>
+    const identifierSafeData = isCollectionTarget
+      ? localeData
+      : pruneIdentifierFields(localeData, allowedIdentifiers)
+    const saveData = (
+      isCollectionTarget ? identifierSafeData : cloneWithoutDocumentMetadata(identifierSafeData)
+    ) as Record<string, unknown>
+
+    if (!isCollectionTarget) {
+      delete saveData.id
+      delete saveData._id
+    }
 
     try {
       if (isCollectionTarget) {
@@ -227,8 +274,8 @@ export async function synchronizeLinksForDocument(
   return {
     collection: collectionSlug,
     documentId: isCollectionTarget ? options.id : undefined,
-    global: isCollectionTarget ? undefined : options.global,
     errors,
+    global: isCollectionTarget ? undefined : options.global,
     missingAlternateLocales: missingLocales,
     processedLocales,
     processedUrls: uniqueDefaultUrls.size,
