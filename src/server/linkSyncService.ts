@@ -119,6 +119,16 @@ export async function synchronizeLinksForDocument(
     acc.get(entry.path)?.add(entry.value)
     return acc
   }, new Map<string, Set<string>>())
+  const normalizePath = (path: string) => path.replace(/\.\d+(?=\.|$)/g, '.[]')
+  const defaultLinksByNormalizedPath = defaultLinks.reduce((acc, entry) => {
+    const normalized = normalizePath(entry.path)
+    if (!acc.has(normalized)) {
+      acc.set(normalized, new Set<string>())
+    }
+
+    acc.get(normalized)?.add(entry.value)
+    return acc
+  }, new Map<string, Set<string>>())
   const uniqueDefaultUrls = new Set(defaultLinks.map((entry) => entry.value))
 
   if (!uniqueDefaultUrls.size) {
@@ -215,7 +225,9 @@ export async function synchronizeLinksForDocument(
 
     let changed = false
     for (const occurrence of localeLinks) {
-      const defaultValues = defaultLinksByPath.get(occurrence.path)
+      const defaultValues =
+        defaultLinksByPath.get(occurrence.path) ??
+        defaultLinksByNormalizedPath.get(normalizePath(occurrence.path))
       const replacement =
         replacementsForLocale.get(occurrence.value) ??
         Array.from(defaultValues ?? [])
