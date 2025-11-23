@@ -36,8 +36,8 @@ function cloneStructuralShape(value: unknown): unknown {
     const record = value
     const out: Record<string, unknown> = {}
 
-    if (typeof record.blockType === 'string') {
-      out.blockType = record.blockType
+    if (typeof (record as { blockType?: unknown }).blockType === 'string') {
+      out.blockType = (record as { blockType?: unknown }).blockType
     }
 
     for (const [key, child] of Object.entries(record)) {
@@ -59,37 +59,64 @@ function cloneStructuralShape(value: unknown): unknown {
   return undefined
 }
 
-export function mergeStructuralData(base: unknown, target: unknown): unknown {
+type MergeStructuralOptions = {
+  matchByIdentity?: boolean
+  preferBaseForUnmatchedIndexedItems?: boolean
+}
+
+export function mergeStructuralData(
+  base: unknown,
+  target: unknown,
+  options: MergeStructuralOptions = {},
+): unknown {
+  const matchByIdentity = options.matchByIdentity ?? true
+  const preferBaseForUnmatchedIndexedItems = options.preferBaseForUnmatchedIndexedItems ?? false
+
+  // --- Arrays ---------------------------------------------------------------
   if (Array.isArray(base)) {
     const baseArray = base as unknown[]
     const targetArray = Array.isArray(target) ? [...target] : []
     const used = new Set<number>()
     const result: unknown[] = new Array(baseArray.length)
 
-    baseArray.forEach((item, index) => {
+    const findIdentityMatch = (item: unknown): number => {
+      if (!matchByIdentity) {
+        return -1
+      }
       const identity = getIdentity(item)
-      let matchIndex = -1
+      if (identity === null) {
+        return -1
+      }
 
-      if (identity !== null) {
-        for (let i = 0; i < targetArray.length; i += 1) {
-          if (used.has(i)) {
-            continue
-          }
-
-          if (getIdentity(targetArray[i]) === identity) {
-            matchIndex = i
-            break
-          }
+      for (let i = 0; i < targetArray.length; i += 1) {
+        if (used.has(i)) {
+          continue
+        }
+        if (getIdentity(targetArray[i]) === identity) {
+          return i
         }
       }
 
+      return -1
+    }
+
+    baseArray.forEach((item, index) => {
+      let matchIndex = findIdentityMatch(item)
+
       if (matchIndex === -1 && index < targetArray.length && !used.has(index)) {
+        if (preferBaseForUnmatchedIndexedItems) {
+          used.add(index)
+          const cloned = cloneStructuralShape(item)
+          result[index] = cloned !== undefined ? cloned : item
+          return
+        }
+
         matchIndex = index
       }
 
       if (matchIndex !== -1) {
         used.add(matchIndex)
-        result[index] = mergeStructuralData(item, targetArray[matchIndex])
+        result[index] = mergeStructuralData(item, targetArray[matchIndex], options)
         return
       }
 
@@ -99,13 +126,14 @@ export function mergeStructuralData(base: unknown, target: unknown): unknown {
 
     targetArray.forEach((entry, index) => {
       if (!used.has(index)) {
-        result.push(entry)
+        result.push(cloneLocaleData(entry))
       }
     })
 
     return result
   }
 
+  // --- Objects --------------------------------------------------------------
   if (isPlainObject(base)) {
     const baseRecord = base
     const targetRecord = isPlainObject(target) ? { ...target } : {}
@@ -123,7 +151,7 @@ export function mergeStructuralData(base: unknown, target: unknown): unknown {
       }
 
       if (Array.isArray(value) || isPlainObject(value)) {
-        targetRecord[key] = mergeStructuralData(value, targetRecord[key])
+        targetRecord[key] = mergeStructuralData(value, targetRecord[key], options)
         continue
       }
 
@@ -135,6 +163,7 @@ export function mergeStructuralData(base: unknown, target: unknown): unknown {
     return targetRecord
   }
 
+  // --- Primitives -----------------------------------------------------------
   return target ?? base
 }
 

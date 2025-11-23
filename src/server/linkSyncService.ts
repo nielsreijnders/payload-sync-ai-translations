@@ -225,7 +225,11 @@ export async function synchronizeLinksForDocument(
           },
     )
 
-    let localeData: unknown = mergeStructuralData(defaultDoc, existingLocaleDoc)
+    let localeData: unknown = mergeStructuralData(defaultDoc, existingLocaleDoc, {
+      matchByIdentity: false,
+      preferBaseForUnmatchedIndexedItems: true,
+    })
+
     stripDocumentMetadata(localeData)
 
     const localeLinks = collectLinkOccurrences(localeData, fieldPatterns)
