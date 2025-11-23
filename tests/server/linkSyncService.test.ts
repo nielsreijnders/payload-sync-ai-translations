@@ -5,13 +5,10 @@ import type { Payload } from 'payload'
 vi.mock('../../src/server/linkAlternate.js', () => ({
   fetchAlternateLinks: vi.fn(async (url: string) => {
     const localized = url.replace('/collections/', '/nl/collections/')
-    return new Map([[
-      'nl',
-      localized,
-    ]])
+    return new Map([['nl', localized]])
   }),
-  selectAlternateForLocale: vi.fn((alternates: Map<string, string>, locale: string) =>
-    alternates.get(locale) ?? null,
+  selectAlternateForLocale: vi.fn(
+    (alternates: Map<string, string>, locale: string) => alternates.get(locale) ?? null,
   ),
 }))
 
@@ -138,4 +135,3 @@ describe('synchronizeLinksForDocument', () => {
     expect(containsId).toBe(false)
   })
 })
-
