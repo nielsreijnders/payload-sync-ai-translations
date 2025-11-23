@@ -2,7 +2,6 @@ import type { Payload } from 'payload'
 
 import type { LinkSyncLocaleReport, LinkSyncResult } from './linkSyncTypes.js'
 
-import { collectIdentifierPaths } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
 import {
   cloneWithoutDocumentMetadata,
   loadLocalizedDocument,
@@ -104,9 +103,12 @@ export async function synchronizeLinksForDocument(
     throw new Error(`Document ${targetLabel} is not available in ${defaultLocale}`)
   }
 
-  const allowedIdentifiers = new Set<string>(
-    isCollectionTarget ? [] : collectIdentifierPaths(defaultDoc, fieldPatterns),
-  )
+  // Identifier metadata (id/_id) should never be sent back when updating globals during link
+  // synchronization. Some nested menus (such as the Navigation global) include many internal IDs
+  // that Payload treats as read-only; keeping them triggers validation errors like
+  // "The following field is invalid: id". For collections we already pass an empty set so IDs are
+  // pruned, and we mirror that behaviour for globals here.
+  const allowedIdentifiers = new Set<string>()
 
   const defaultLinks = collectLinkOccurrences(defaultDoc, fieldPatterns)
   const uniqueDefaultUrls = new Set(defaultLinks.map((entry) => entry.value))
