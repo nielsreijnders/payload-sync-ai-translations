@@ -1,3 +1,10 @@
+## [1.18.5](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.18.4...v1.18.5) (2025-11-23)
+
+
+### Bug Fixes
+
+* streamline array formatting in global link definitions ([f9d3141](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/f9d31415b27a92feb2fecc6172ac3f7be1735104))
+
 ## [1.18.4](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.18.3...v1.18.4) (2025-11-23)
 
 
