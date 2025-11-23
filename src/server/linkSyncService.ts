@@ -104,9 +104,7 @@ export async function synchronizeLinksForDocument(
     throw new Error(`Document ${targetLabel} is not available in ${defaultLocale}`)
   }
 
-  const allowedIdentifiers = new Set<string>(
-    isCollectionTarget ? [] : collectIdentifierPaths(defaultDoc, fieldPatterns),
-  )
+  const allowedIdentifiers = new Set<string>()
 
   const defaultLinks = collectLinkOccurrences(defaultDoc, fieldPatterns)
   const uniqueDefaultUrls = new Set(defaultLinks.map((entry) => entry.value))
