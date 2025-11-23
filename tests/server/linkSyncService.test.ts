@@ -134,4 +134,51 @@ describe('synchronizeLinksForDocument', () => {
     const containsId = JSON.stringify(saved?.data ?? {}).includes('"id"')
     expect(containsId).toBe(false)
   })
+
+  it('reuses existing array items when identifiers were stripped in a previous sync', async () => {
+    const fieldPatterns = ['mainMenu', 'mainMenu[].link', 'mainMenu[].link.custom']
+
+    const defaultGlobal = {
+      id: 'global:menu',
+      mainMenu: [
+        { id: 'main-0', link: { custom: '/collections/shop-all', linkType: 'custom' } },
+        { id: 'main-1', link: { custom: '/collections/gifts', linkType: 'custom' } },
+      ],
+    }
+
+    const payloadMock = {
+      findGlobal: vi.fn<Payload['findGlobal']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return { ...defaultGlobal, locale }
+        }
+
+        // Simulate a previously synced locale that no longer contains identifiers.
+        return {
+          ...defaultGlobal,
+          locale,
+          mainMenu: [
+            { ...defaultGlobal.mainMenu[0], id: undefined },
+            { ...defaultGlobal.mainMenu[1], id: undefined },
+          ],
+        }
+      }),
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+      logger: { error: vi.fn(), info: vi.fn() },
+    } satisfies Partial<Payload>
+
+    const result = await synchronizeLinksForDocument({
+      defaultLocale: 'en',
+      fieldPatterns,
+      global: 'menu',
+      payload: payloadMock as Payload,
+      targetLocales: ['en', 'nl'],
+    })
+
+    expect(result.updatedLocales).toEqual(['nl'])
+    expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
+    const saved = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
+    const savedMenu = saved?.data?.mainMenu
+    expect(Array.isArray(savedMenu)).toBe(true)
+    expect(savedMenu).toHaveLength(defaultGlobal.mainMenu.length)
+  })
 })
