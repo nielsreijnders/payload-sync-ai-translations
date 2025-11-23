@@ -136,9 +136,13 @@ describe('synchronizeLinksForDocument', () => {
     expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
     const saved = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
     expect(saved?.data).toBeDefined()
-    // All identifier metadata should be pruned from the payload we send back to Payload CMS.
-    const containsId = JSON.stringify(saved?.data ?? {}).includes('"id"')
-    expect(containsId).toBe(false)
+    // Document identifiers are still stripped, but nested array identifiers are kept when the
+    // field patterns include them to avoid duplicating items on save.
+    expect(saved?.data?.id).toBeUndefined()
+    const serialized = JSON.stringify(saved?.data ?? {})
+    expect(serialized).toContain('"main-0"')
+    expect(serialized).toContain('"sublink-1-0"')
+    expect(serialized).toContain('"item-1-0-5"')
   })
 
   it('reuses existing array items when identifiers were stripped in a previous sync', async () => {
@@ -187,19 +191,13 @@ describe('synchronizeLinksForDocument', () => {
     expect(Array.isArray(savedMenu)).toBe(true)
     expect(savedMenu).toHaveLength(defaultGlobal.mainMenu.length)
   })
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
->>>>>>> 873d3fbfd76f52f3470c63e0fcd13a799f4c6b52
 
   it('updates locales when default links change even if they already contain alternates', async () => {
     const fieldPatterns = ['mainMenu', 'mainMenu[].link', 'mainMenu[].link.custom']
 
     const defaultGlobal = {
       id: 'global:menu',
-      mainMenu: [
-        { id: 'main-0', link: { custom: '/collections/new', linkType: 'custom' } },
-      ],
+      mainMenu: [{ id: 'main-0', link: { custom: '/collections/new', linkType: 'custom' } }],
       __links: [{ path: 'mainMenu.0.link.custom', value: '/collections/new' }],
     }
 
@@ -239,7 +237,6 @@ describe('synchronizeLinksForDocument', () => {
     const saved = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
     expect(saved?.data?.replaced).toBe('/nl/collections/new')
   })
-<<<<<<< HEAD
 
   it('matches default links by normalized array path when items are reordered', async () => {
     const fieldPatterns = [
@@ -263,9 +260,7 @@ describe('synchronizeLinksForDocument', () => {
         },
         { id: 'main-1', sublinks: [] },
       ],
-      __links: [
-        { path: 'mainMenu.0.sublinks.0.link.custom', value: '/collections/shop-all' },
-      ],
+      __links: [{ path: 'mainMenu.0.sublinks.0.link.custom', value: '/collections/shop-all' }],
     }
 
     const payloadMock = {
@@ -289,9 +284,7 @@ describe('synchronizeLinksForDocument', () => {
             },
             ...defaultGlobal.mainMenu,
           ],
-          __links: [
-            { path: 'mainMenu.1.sublinks.0.link.custom', value: '/nl/collections/old' },
-          ],
+          __links: [{ path: 'mainMenu.1.sublinks.0.link.custom', value: '/nl/collections/old' }],
         }
       }),
       updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
@@ -311,8 +304,4 @@ describe('synchronizeLinksForDocument', () => {
     const saved = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
     expect(saved?.data?.replaced).toBe('/nl/collections/shop-all')
   })
-=======
-=======
->>>>>>> e604047ba273f5a9d0b36612a5f9e2ad5354795d
->>>>>>> 873d3fbfd76f52f3470c63e0fcd13a799f4c6b52
 })
