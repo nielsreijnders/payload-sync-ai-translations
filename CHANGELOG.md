@@ -1,3 +1,10 @@
+## [1.18.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.18.1...v1.18.2) (2025-11-23)
+
+
+### Bug Fixes
+
+* a issue with duplicated array items ([f623770](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/f6237705d1d70092c820b7a1f3f81edd1d9b189d))
+
 ## [1.18.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.18.0...v1.18.1) (2025-11-23)
 
 
