@@ -10,6 +10,7 @@ import {
 import { fetchAlternateLinks, selectAlternateForLocale } from './linkAlternate.js'
 import { applyLinkOccurrence, collectLinkOccurrences } from './linkCollector.js'
 import { mergeStructuralData } from './localeStructure.js'
+import { extractPlainText, getValueAtPath } from '../utils/localizedFields.js'
 
 type CollectionLinkOptions = {
   collection: string
@@ -67,6 +68,21 @@ function ensureArray<T>(value: Iterable<T> | undefined): T[] {
   return value ? Array.from(value) : []
 }
 
+function resolveLinkValue(
+  defaultDoc: unknown,
+  localeData: unknown,
+  path: string,
+): string | null {
+  const value = getValueAtPath(defaultDoc, path, { base: localeData })
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed || null
+  }
+
+  return extractPlainText(value)
+}
+
 export async function synchronizeLinksForDocument(
   options: LinkSyncOptions,
   cache: FetchCache = new Map(),
@@ -119,14 +135,6 @@ export async function synchronizeLinksForDocument(
   // identifiers are pruned.
 
   const defaultLinks = collectLinkOccurrences(defaultDoc, fieldPatterns)
-  const defaultLinksByPath = defaultLinks.reduce((acc, entry) => {
-    if (!acc.has(entry.path)) {
-      acc.set(entry.path, new Set<string>())
-    }
-
-    acc.get(entry.path)?.add(entry.value)
-    return acc
-  }, new Map<string, Set<string>>())
   const defaultLinksByNormalizedPath = defaultLinks.reduce((acc, entry) => {
     const normalized = normalizePath(entry.path)
     if (!acc.has(normalized)) {
@@ -232,14 +240,17 @@ export async function synchronizeLinksForDocument(
 
     let changed = false
     for (const occurrence of localeLinks) {
-      const defaultValues =
-        defaultLinksByPath.get(occurrence.path) ??
-        defaultLinksByNormalizedPath.get(normalizePath(occurrence.path))
-      const replacement =
-        replacementsForLocale.get(occurrence.value) ??
-        Array.from(defaultValues ?? [])
-          .map((value) => replacementsForLocale.get(value))
-          .find(Boolean)
+      const defaultValue =
+        resolveLinkValue(defaultDoc, localeData, occurrence.path) ??
+        (uniqueDefaultUrls.has(occurrence.value) ? occurrence.value : null) ??
+        Array.from(defaultLinksByNormalizedPath.get(normalizePath(occurrence.path)) ?? [])[0] ??
+        null
+
+      if (!defaultValue) {
+        continue
+      }
+
+      const replacement = replacementsForLocale.get(defaultValue)
 
       if (!replacement) {
         continue
