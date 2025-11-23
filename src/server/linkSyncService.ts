@@ -48,8 +48,9 @@ function pruneIdentifierFields(value: unknown, allowed: Set<string>, currentPath
 
     for (const [key, child] of Object.entries(record)) {
       const childPath = currentPath ? `${currentPath}.${key}` : key
+      const normalizedChildPath = childPath.replace(/\.\d+(?=\.|$)/g, '.[]')
 
-      if ((key === 'id' || key === '_id') && !allowed.has(childPath)) {
+      if ((key === 'id' || key === '_id') && !allowed.has(normalizedChildPath)) {
         continue
       }
 
@@ -82,6 +83,13 @@ export async function synchronizeLinksForDocument(
   const warnings: string[] = []
   const errors: string[] = []
   const missingAlternates = new Map<string, Set<string>>()
+  const normalizePath = (path: string) => path.replace(/\.\d+(?=\.|$)/g, '.[]')
+
+  const allowedIdentifiers = new Set(
+    fieldPatterns
+      .filter((pattern) => /\.(_?id)$/.test(pattern))
+      .map((pattern) => normalizePath(pattern.replace(/\[\]/g, '.[]'))),
+  )
 
   const defaultDoc = await loadLocalizedDocument(
     payload,
@@ -106,9 +114,9 @@ export async function synchronizeLinksForDocument(
   // Identifier metadata (id/_id) should never be sent back when updating globals during link
   // synchronization. Some nested menus (such as the Navigation global) include many internal IDs
   // that Payload treats as read-only; keeping them triggers validation errors like
-  // "The following field is invalid: id". For collections we already pass an empty set so IDs are
-  // pruned, and we mirror that behaviour for globals here.
-  const allowedIdentifiers = new Set<string>()
+  // "The following field is invalid: id". When field patterns explicitly include identifier
+  // fields we keep them so Payload can match existing array items and avoid duplicates; all other
+  // identifiers are pruned.
 
   const defaultLinks = collectLinkOccurrences(defaultDoc, fieldPatterns)
   const defaultLinksByPath = defaultLinks.reduce((acc, entry) => {
@@ -119,7 +127,6 @@ export async function synchronizeLinksForDocument(
     acc.get(entry.path)?.add(entry.value)
     return acc
   }, new Map<string, Set<string>>())
-  const normalizePath = (path: string) => path.replace(/\.\d+(?=\.|$)/g, '.[]')
   const defaultLinksByNormalizedPath = defaultLinks.reduce((acc, entry) => {
     const normalized = normalizePath(entry.path)
     if (!acc.has(normalized)) {
