@@ -85,7 +85,6 @@ export function mergeStructuralData(base: unknown, target: unknown): unknown {
 
       if (
         matchIndex === -1 &&
-        identity === null &&
         index < targetArray.length &&
         !used.has(index)
       ) {
