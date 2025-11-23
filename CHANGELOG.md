@@ -1,3 +1,10 @@
+## [1.19.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.19.0...v1.19.1) (2025-11-23)
+
+
+### Bug Fixes
+
+* replace mergeStructuralData with cloneLocaleData for locale handling ([539b450](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/539b450cc15b474a9fb43a2f68845c8278c6f23f))
+
 # [1.19.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.18.5...v1.19.0) (2025-11-23)
 
 
