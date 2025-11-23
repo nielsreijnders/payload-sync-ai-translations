@@ -110,11 +110,11 @@ export async function synchronizeLinksForDocument(
   // pruned, and we mirror that behaviour for globals here.
   const allowedIdentifiers = new Set<string>()
 
-const defaultLinks = collectLinkOccurrences(defaultDoc, fieldPatterns)
-const defaultLinksByPath = defaultLinks.reduce((acc, entry) => {
-  if (!acc.has(entry.path)) {
-    acc.set(entry.path, new Set<string>())
-  }
+  const defaultLinks = collectLinkOccurrences(defaultDoc, fieldPatterns)
+  const defaultLinksByPath = defaultLinks.reduce((acc, entry) => {
+    if (!acc.has(entry.path)) {
+      acc.set(entry.path, new Set<string>())
+    }
 
     acc.get(entry.path)?.add(entry.value)
     return acc
