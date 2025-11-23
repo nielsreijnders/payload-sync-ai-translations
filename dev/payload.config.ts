@@ -52,6 +52,51 @@ const buildConfigWithMemoryDB = async () => {
     }),
     editor: lexicalEditor(),
     email: testEmailAdapter,
+    globals: [
+      {
+        slug: 'menu',
+        fields: [
+          {
+            name: 'title',
+            type: 'text',
+            required: true,
+          },
+          {
+            name: 'links',
+            type: 'array',
+            fields: [
+              {
+                name: 'label',
+                type: 'text',
+                required: true,
+              },
+              {
+                name: 'url',
+                type: 'text',
+                required: true,
+              },
+              {
+                name: 'subLinks',
+                type: 'array',
+                fields: [
+                  {
+                    name: 'sublinkLabel',
+                    type: 'text',
+                    required: true,
+                  },
+                  {
+                    name: 'sublinkUrl',
+                    type: 'text',
+                    required: true,
+                  },
+                ],
+              },
+            ],
+            localized: true,
+          },
+        ],
+      },
+    ],
     localization: {
       defaultLocale: 'en',
       locales: [
@@ -75,6 +120,9 @@ const buildConfigWithMemoryDB = async () => {
           },
         },
         debug: true,
+        globals: {
+          menu: {},
+        },
         openai: {
           apiKey: process.env.OPENAI_API_KEY || '',
         },
