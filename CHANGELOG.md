@@ -1,3 +1,17 @@
+# [1.19.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.18.5...v1.19.0) (2025-11-23)
+
+
+### Bug Fixes
+
+* add eslint directive to suppress warning for unused capturing group in regex ([9717fb4](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/9717fb46bb4223160a007feecb323d54469c1841))
+* enhance mergeStructuralData function with additional options for better array handling ([b36dd9d](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/b36dd9d5344ebf26656e036ddabb1a8d1111aa91))
+* restore validator dependency in the lockfile ([528b951](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/528b951fe99f912d7be7e9d02259c6418e19a079))
+
+
+### Features
+
+* add LinkField and LinksField components for menu configuration ([0a0510d](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/0a0510d44b5ac7b103b20171eb8c7e19eb45ac54))
+
 ## [1.18.5](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.18.4...v1.18.5) (2025-11-23)
 
 
