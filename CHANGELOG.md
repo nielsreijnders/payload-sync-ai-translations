@@ -1,3 +1,10 @@
+## [1.18.3](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.18.2...v1.18.3) (2025-11-23)
+
+
+### Bug Fixes
+
+* streamline conditional check in mergeStructuralData function ([f5a060d](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/f5a060d148ca4ba11e35d994e6a10c5a9f30df76))
+
 ## [1.18.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.18.1...v1.18.2) (2025-11-23)
 
 
