@@ -9,7 +9,7 @@ import {
 } from './documentUtils.js'
 import { fetchAlternateLinks, selectAlternateForLocale } from './linkAlternate.js'
 import { applyLinkOccurrence, collectLinkOccurrences } from './linkCollector.js'
-import { mergeStructuralData } from './localeStructure.js'
+import { cloneLocaleData } from './localeStructure.js'
 
 type CollectionLinkOptions = {
   collection: string
@@ -226,10 +226,20 @@ export async function synchronizeLinksForDocument(
           },
     )
 
-    let localeData: unknown = mergeStructuralData(defaultDoc, existingLocaleDoc, {
-      matchByIdentity: false,
-      preferBaseForUnmatchedIndexedItems: true,
-    })
+    // let localeData: unknown = mergeStructuralData(defaultDoc, existingLocaleDoc, {
+    //   matchByIdentity: false,
+    //   preferBaseForUnmatchedIndexedItems: true,
+    // })
+
+    let localeData: unknown
+
+    if (existingLocaleDoc) {
+      // echte locale + fallback, dus vertaalde teksten blijven intact
+      localeData = cloneLocaleData(existingLocaleDoc)
+    } else {
+      // geen locale-doc? dan de default als basis gebruiken
+      localeData = cloneLocaleData(defaultDoc)
+    }
 
     stripDocumentMetadata(localeData)
 
