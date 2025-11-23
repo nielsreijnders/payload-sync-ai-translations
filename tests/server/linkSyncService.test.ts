@@ -13,10 +13,16 @@ vi.mock('../../src/server/linkAlternate.js', () => ({
 }))
 
 vi.mock('../../src/server/linkCollector.js', () => ({
-  collectLinkOccurrences: vi.fn(() => [
-    { path: 'USP.custom', value: '/collections/shop-all' },
-    { path: 'mainMenu.1.sublinks.0.links.0.link.custom', value: '/collections/shop-all/' },
-  ]),
+  collectLinkOccurrences: vi.fn((data: unknown) => {
+    if (Array.isArray((data as any)?.__links)) {
+      return (data as any).__links
+    }
+
+    return [
+      { path: 'USP.custom', value: '/collections/shop-all' },
+      { path: 'mainMenu.1.sublinks.0.links.0.link.custom', value: '/collections/shop-all/' },
+    ]
+  }),
   applyLinkOccurrence: vi.fn((_occurrence, _defaultDoc, localeData, replacement) => ({
     data: { ...(localeData as Record<string, unknown>), replaced: replacement },
     changed: true,
@@ -181,4 +187,55 @@ describe('synchronizeLinksForDocument', () => {
     expect(Array.isArray(savedMenu)).toBe(true)
     expect(savedMenu).toHaveLength(defaultGlobal.mainMenu.length)
   })
+<<<<<<< HEAD
+
+  it('updates locales when default links change even if they already contain alternates', async () => {
+    const fieldPatterns = ['mainMenu', 'mainMenu[].link', 'mainMenu[].link.custom']
+
+    const defaultGlobal = {
+      id: 'global:menu',
+      mainMenu: [
+        { id: 'main-0', link: { custom: '/collections/new', linkType: 'custom' } },
+      ],
+      __links: [{ path: 'mainMenu.0.link.custom', value: '/collections/new' }],
+    }
+
+    const payloadMock = {
+      findGlobal: vi.fn<Payload['findGlobal']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return { ...defaultGlobal, locale }
+        }
+
+        return {
+          ...defaultGlobal,
+          locale,
+          mainMenu: [
+            {
+              ...defaultGlobal.mainMenu[0],
+              link: { ...defaultGlobal.mainMenu[0].link, custom: '/nl/collections/old' },
+            },
+          ],
+          __links: [{ path: 'mainMenu.0.link.custom', value: '/nl/collections/old' }],
+        }
+      }),
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+      logger: { error: vi.fn(), info: vi.fn() },
+    } satisfies Partial<Payload>
+
+    const result = await synchronizeLinksForDocument({
+      defaultLocale: 'en',
+      fieldPatterns,
+      global: 'menu',
+      payload: payloadMock as Payload,
+      targetLocales: ['en', 'nl'],
+    })
+
+    expect(result.updatedLocales).toEqual(['nl'])
+    expect(result.replacements).toBeGreaterThan(0)
+    expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
+    const saved = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
+    expect(saved?.data?.replaced).toBe('/nl/collections/new')
+  })
+=======
+>>>>>>> e604047ba273f5a9d0b36612a5f9e2ad5354795d
 })
