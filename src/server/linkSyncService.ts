@@ -8,8 +8,8 @@ import {
   stripDocumentMetadata,
 } from './documentUtils.js'
 import { fetchAlternateLinks, selectAlternateForLocale } from './linkAlternate.js'
-import { applyLinkOccurrence, collectLinkOccurrences } from './linkCollector.js'
-import { cloneLocaleData } from './localeStructure.js'
+import { collectLinkOccurrences } from './linkCollector.js'
+import { cloneLocaleData, setValueAtPath } from './localeStructure.js'
 
 type CollectionLinkOptions = {
   collection: string
@@ -112,34 +112,48 @@ export async function synchronizeLinksForDocument(
     throw new Error(`Document ${targetLabel} is not available in ${defaultLocale}`)
   }
 
-  // Identifier metadata (id/_id) should never be sent back when updating globals during link
-  // synchronization. Some nested menus (such as the Navigation global) include many internal IDs
-  // that Payload treats as read-only; keeping them triggers validation errors like
-  // "The following field is invalid: id". When field patterns explicitly include identifier
-  // fields we keep them so Payload can match existing array items and avoid duplicates; all other
-  // identifiers are pruned.
-
+  const allUrls = new Set<string>()
   const defaultLinks = collectLinkOccurrences(defaultDoc, fieldPatterns)
-  const defaultLinksByPath = defaultLinks.reduce((acc, entry) => {
-    if (!acc.has(entry.path)) {
-      acc.set(entry.path, new Set<string>())
+  defaultLinks.forEach((entry) => {
+    allUrls.add(entry.value)
+  })
+
+  const localeDocs = new Map<string, unknown>()
+  const localeLinksByLocale = new Map<string, ReturnType<typeof collectLinkOccurrences>>()
+
+  for (const locale of processedLocales) {
+    const existingLocaleDoc = await loadLocalizedDocument(
+      payload,
+      isCollectionTarget
+        ? {
+            id: options.id,
+            collection: options.collection,
+            fallbackLocale: true,
+            locale,
+          }
+        : {
+            fallbackLocale: true,
+            global: options.global,
+            locale,
+          },
+    )
+
+    if (!existingLocaleDoc) {
+      localeDocs.set(locale, null)
+      localeLinksByLocale.set(locale, [])
+      continue
     }
 
-    acc.get(entry.path)?.add(entry.value)
-    return acc
-  }, new Map<string, Set<string>>())
-  const defaultLinksByNormalizedPath = defaultLinks.reduce((acc, entry) => {
-    const normalized = normalizePath(entry.path)
-    if (!acc.has(normalized)) {
-      acc.set(normalized, new Set<string>())
-    }
+    localeDocs.set(locale, existingLocaleDoc)
 
-    acc.get(normalized)?.add(entry.value)
-    return acc
-  }, new Map<string, Set<string>>())
-  const uniqueDefaultUrls = new Set(defaultLinks.map((entry) => entry.value))
+    const localeLinks = collectLinkOccurrences(existingLocaleDoc, fieldPatterns)
+    localeLinksByLocale.set(locale, localeLinks)
+    localeLinks.forEach((entry) => {
+      allUrls.add(entry.value)
+    })
+  }
 
-  if (!uniqueDefaultUrls.size) {
+  if (!allUrls.size) {
     return {
       collection: collectionSlug,
       documentId: isCollectionTarget ? options.id : undefined,
@@ -158,11 +172,15 @@ export async function synchronizeLinksForDocument(
 
   const localeUrlMap = new Map<string, Map<string, string>>()
 
-  for (const url of uniqueDefaultUrls) {
+  for (const url of allUrls) {
     let alternates = cache.get(url)
+
+    console.log('URL:', url)
+
     if (!alternates) {
       try {
         alternates = await fetchAlternateLinks(url, { baseUrl: serverURL })
+        console.log('Alternates map:', Array.from(alternates.entries()))
         cache.set(url, alternates)
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to fetch alternates'
@@ -210,68 +228,27 @@ export async function synchronizeLinksForDocument(
       continue
     }
 
-    const existingLocaleDoc = await loadLocalizedDocument(
-      payload,
-      isCollectionTarget
-        ? {
-            id: options.id,
-            collection: options.collection,
-            fallbackLocale: true,
-            locale,
-          }
-        : {
-            fallbackLocale: true,
-            global: options.global,
-            locale,
-          },
-    )
+    const existingLocaleDoc = localeDocs.get(locale) ?? null
 
-    // let localeData: unknown = mergeStructuralData(defaultDoc, existingLocaleDoc, {
-    //   matchByIdentity: false,
-    //   preferBaseForUnmatchedIndexedItems: true,
-    // })
-
-    let localeData: unknown
-
-    if (existingLocaleDoc) {
-      // echte locale + fallback, dus vertaalde teksten blijven intact
-      localeData = cloneLocaleData(existingLocaleDoc)
-    } else {
-      // geen locale-doc? dan de default als basis gebruiken
-      localeData = cloneLocaleData(defaultDoc)
-    }
-
+    let localeData: unknown = cloneLocaleData(existingLocaleDoc ?? defaultDoc)
     stripDocumentMetadata(localeData)
 
     const localeLinks = collectLinkOccurrences(localeData, fieldPatterns)
 
     let changed = false
-    for (const occurrence of localeLinks) {
-      const defaultValues =
-        defaultLinksByPath.get(occurrence.path) ??
-        defaultLinksByNormalizedPath.get(normalizePath(occurrence.path))
-      const replacement =
-        replacementsForLocale.get(occurrence.value) ??
-        Array.from(defaultValues ?? [])
-          .map((value) => replacementsForLocale.get(value))
-          .find(Boolean)
 
-      if (!replacement) {
+    for (const occurrence of localeLinks) {
+      const currentValue = occurrence.value
+      const replacement = replacementsForLocale.get(currentValue)
+
+      if (!replacement || replacement === currentValue) {
         continue
       }
 
-      const result = applyLinkOccurrence(occurrence, defaultDoc, localeData, replacement)
-      localeData = result.data
-      if (result.changed) {
-        localeReport.replacements += 1
-        changed = true
-      }
-    }
+      localeData = setValueAtPath(defaultDoc, localeData, occurrence.path, replacement)
 
-    if (!changed) {
-      unchangedLocales.push(locale)
-      reports.push(localeReport)
-      continue
+      localeReport.replacements += 1
+      changed = true
     }
 
     stripDocumentMetadata(localeData)
@@ -328,7 +305,7 @@ export async function synchronizeLinksForDocument(
     global: isCollectionTarget ? undefined : options.global,
     missingAlternateLocales: missingLocales,
     processedLocales,
-    processedUrls: uniqueDefaultUrls.size,
+    processedUrls: allUrls.size,
     replacements: totalReplacements,
     reports,
     unchangedLocales,
