@@ -1,3 +1,10 @@
+## [1.18.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.18.0...v1.18.1) (2025-11-23)
+
+
+### Bug Fixes
+
+* simplify map creation in linkAlternate mock ([3304b96](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/3304b961161cfc7957f6b848206abdbdbd3cb4f6))
+
 # [1.18.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.17.6...v1.18.0) (2025-11-23)
 
 
