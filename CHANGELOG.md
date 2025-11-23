@@ -1,3 +1,10 @@
+# [1.18.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.17.6...v1.18.0) (2025-11-23)
+
+
+### Features
+
+* add globals configuration for menu with title and links structure ([d35ac1e](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/d35ac1e9b3c43429aa01d50cf91f8bedddf4ba2b))
+
 ## [1.17.6](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.17.5...v1.17.6) (2025-11-22)
 
 
