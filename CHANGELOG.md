@@ -1,3 +1,10 @@
+## [1.18.4](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.18.3...v1.18.4) (2025-11-23)
+
+
+### Bug Fixes
+
+* refactor link occurrence collection for clarity ([ecaa993](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/ecaa99357f9bfa8aeb8dc892cdfe71908a759293))
+
 ## [1.18.3](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.18.2...v1.18.3) (2025-11-23)
 
 
