@@ -1,3 +1,10 @@
+## [1.19.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.19.1...v1.19.2) (2025-11-23)
+
+
+### Bug Fixes
+
+* refactor link synchronization logic to improve URL collection and locale handling ([22cdba7](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/22cdba7dcc88dfb3d8ca51a68b8edee02f9b7ca3))
+
 ## [1.19.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.19.0...v1.19.1) (2025-11-23)
 
 
