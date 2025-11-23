@@ -87,6 +87,7 @@ export async function synchronizeLinksForDocument(
 
   const allowedIdentifiers = new Set(
     fieldPatterns
+      // eslint-disable-next-line regexp/no-unused-capturing-group
       .filter((pattern) => /\.(_?id)$/.test(pattern))
       .map((pattern) => normalizePath(pattern.replace(/\[\]/g, '.[]'))),
   )
