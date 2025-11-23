@@ -34,6 +34,22 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function normalizeArrayPath(path: string): string {
+  return path
+    .split('.')
+    .map((segment) => {
+      if (segment === '[]') {
+        return segment
+      }
+
+      const asNumber = Number(segment)
+      const isArrayIndex = Number.isInteger(asNumber) && String(asNumber) === segment
+
+      return isArrayIndex ? '[]' : segment
+    })
+    .join('.')
+}
+
 function pruneIdentifierFields(value: unknown, allowed: Set<string>, currentPath = ''): unknown {
   if (Array.isArray(value)) {
     return value.map((entry, index) => {
@@ -48,7 +64,7 @@ function pruneIdentifierFields(value: unknown, allowed: Set<string>, currentPath
 
     for (const [key, child] of Object.entries(record)) {
       const childPath = currentPath ? `${currentPath}.${key}` : key
-      const normalizedChildPath = childPath.replace(/\.\d+(?=\.|$)/g, '.[]')
+      const normalizedChildPath = normalizeArrayPath(childPath)
 
       if ((key === 'id' || key === '_id') && !allowed.has(normalizedChildPath)) {
         continue
@@ -83,12 +99,11 @@ export async function synchronizeLinksForDocument(
   const warnings: string[] = []
   const errors: string[] = []
   const missingAlternates = new Map<string, Set<string>>()
-  const normalizePath = (path: string) => path.replace(/\.\d+(?=\.|$)/g, '.[]')
 
   const allowedIdentifiers = new Set(
     fieldPatterns
-      .filter((pattern) => /\.(_?id)$/.test(pattern))
-      .map((pattern) => normalizePath(pattern.replace(/\[\]/g, '.[]'))),
+      .filter((pattern) => pattern.endsWith('.id') || pattern.endsWith('._id'))
+      .map((pattern) => normalizeArrayPath(pattern.split('[]').join('.[]'))),
   )
 
   const defaultDoc = await loadLocalizedDocument(
@@ -120,20 +135,14 @@ export async function synchronizeLinksForDocument(
 
   const defaultLinks = collectLinkOccurrences(defaultDoc, fieldPatterns)
   const defaultLinksByPath = defaultLinks.reduce((acc, entry) => {
-    if (!acc.has(entry.path)) {
-      acc.set(entry.path, new Set<string>())
-    }
+    const normalizedPath = normalizeArrayPath(entry.path)
+    const exactValues = acc.get(entry.path) ?? new Set<string>()
+    exactValues.add(entry.value)
+    acc.set(entry.path, exactValues)
 
-    acc.get(entry.path)?.add(entry.value)
-    return acc
-  }, new Map<string, Set<string>>())
-  const defaultLinksByNormalizedPath = defaultLinks.reduce((acc, entry) => {
-    const normalized = normalizePath(entry.path)
-    if (!acc.has(normalized)) {
-      acc.set(normalized, new Set<string>())
-    }
-
-    acc.get(normalized)?.add(entry.value)
+    const normalizedValues = acc.get(normalizedPath) ?? exactValues
+    normalizedValues.add(entry.value)
+    acc.set(normalizedPath, normalizedValues)
     return acc
   }, new Map<string, Set<string>>())
   const uniqueDefaultUrls = new Set(defaultLinks.map((entry) => entry.value))
@@ -232,11 +241,11 @@ export async function synchronizeLinksForDocument(
 
     let changed = false
     for (const occurrence of localeLinks) {
+      const normalizedPath = normalizeArrayPath(occurrence.path)
       const defaultValues =
-        defaultLinksByPath.get(occurrence.path) ??
-        defaultLinksByNormalizedPath.get(normalizePath(occurrence.path))
-      const replacement =
-        replacementsForLocale.get(occurrence.value) ??
+        defaultLinksByPath.get(occurrence.path) ?? defaultLinksByPath.get(normalizedPath)
+      const replacement = replacementsForLocale.get(occurrence.value)
+        ??
         Array.from(defaultValues ?? [])
           .map((value) => replacementsForLocale.get(value))
           .find(Boolean)
