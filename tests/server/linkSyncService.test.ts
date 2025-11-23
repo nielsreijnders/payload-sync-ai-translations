@@ -197,9 +197,7 @@ describe('synchronizeLinksForDocument', () => {
 
     const defaultGlobal = {
       id: 'global:menu',
-      mainMenu: [
-        { id: 'main-0', link: { custom: '/collections/new', linkType: 'custom' } },
-      ],
+      mainMenu: [{ id: 'main-0', link: { custom: '/collections/new', linkType: 'custom' } }],
       __links: [{ path: 'mainMenu.0.link.custom', value: '/collections/new' }],
     }
 
@@ -262,9 +260,7 @@ describe('synchronizeLinksForDocument', () => {
         },
         { id: 'main-1', sublinks: [] },
       ],
-      __links: [
-        { path: 'mainMenu.0.sublinks.0.link.custom', value: '/collections/shop-all' },
-      ],
+      __links: [{ path: 'mainMenu.0.sublinks.0.link.custom', value: '/collections/shop-all' }],
     }
 
     const payloadMock = {
@@ -288,9 +284,7 @@ describe('synchronizeLinksForDocument', () => {
             },
             ...defaultGlobal.mainMenu,
           ],
-          __links: [
-            { path: 'mainMenu.1.sublinks.0.link.custom', value: '/nl/collections/old' },
-          ],
+          __links: [{ path: 'mainMenu.1.sublinks.0.link.custom', value: '/nl/collections/old' }],
         }
       }),
       updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
