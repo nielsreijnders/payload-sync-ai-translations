@@ -240,10 +240,14 @@ export async function synchronizeLinksForDocument(
 
     let changed = false
     for (const occurrence of localeLinks) {
+      const normalizedPath = normalizePath(occurrence.path)
+      const defaultsForPath = defaultLinksByNormalizedPath.get(normalizedPath)
+
       const defaultValue =
         resolveLinkValue(defaultDoc, localeData, occurrence.path) ??
+        Array.from(defaultsForPath ?? []).find((candidate) => replacementsForLocale.has(candidate)) ??
         (uniqueDefaultUrls.has(occurrence.value) ? occurrence.value : null) ??
-        Array.from(defaultLinksByNormalizedPath.get(normalizePath(occurrence.path)) ?? [])[0] ??
+        Array.from(defaultsForPath ?? [])[0] ??
         null
 
       if (!defaultValue) {
