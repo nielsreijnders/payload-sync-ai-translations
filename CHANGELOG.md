@@ -1,3 +1,10 @@
+# [1.20.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.19.2...v1.20.0) (2026-03-02)
+
+
+### Features
+
+* Add Payload skills ([dde63a4](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/dde63a4b4870cf778c1b3d640b91a1bea15fef8b))
+
 ## [1.19.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.19.1...v1.19.2) (2025-11-23)
 
 
