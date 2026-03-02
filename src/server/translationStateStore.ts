@@ -5,6 +5,7 @@ import { type AnyField, collectLocalizedFieldPatterns } from '../utils/localized
 export type StoredEntry = {
   customPrompt?: (data: unknown, locale: string) => string | undefined
   fieldPatterns: string[]
+  grammarCheckPrompt?: (data: unknown, locale: string) => string | undefined
   label: string
   slug: string
 }
@@ -62,6 +63,7 @@ export function configureTranslationState(
     config: CollectionConfig
     customPrompt?: StoredEntry['customPrompt']
     excludeFields?: string[]
+    grammarCheckPrompt?: StoredEntry['grammarCheckPrompt']
   }>,
   globals: Array<{
     config: GlobalConfig
@@ -77,7 +79,7 @@ export function configureTranslationState(
   const storedGlobals: Record<string, StoredEntry> = {}
 
   for (const entry of collections) {
-    const { config, customPrompt, excludeFields } = entry
+    const { config, customPrompt, excludeFields, grammarCheckPrompt } = entry
     if (!config?.slug) {
       continue
     }
@@ -90,6 +92,7 @@ export function configureTranslationState(
       slug,
       customPrompt,
       fieldPatterns,
+      grammarCheckPrompt,
       // @ts-expect-error -- Need to investigate
       label,
     }

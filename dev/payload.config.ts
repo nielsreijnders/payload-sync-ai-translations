@@ -1,6 +1,5 @@
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
-import { menuGlobal } from 'collections/menu.global.js'
 import { MongoMemoryReplSet } from 'mongodb-memory-server'
 import path from 'path'
 import { buildConfig } from 'payload'
@@ -8,6 +7,7 @@ import { payloadSyncAiTranslations } from 'payload-sync-ai-translations'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
+import { menuGlobal } from './collections/menu.global.js'
 import { posts } from './collections/posts.collection.js'
 import { testEmailAdapter } from './helpers/testEmailAdapter.js'
 import { seed } from './seed.js'
@@ -81,7 +81,7 @@ const buildConfigWithMemoryDB = async () => {
           menu: {},
         },
         openai: {
-          apiKey: process.env.OPENAI_API_KEY || '',
+          apiKey: process.env.OPENAI_API_KEY || 'dev-placeholder-key',
         },
       }),
     ],

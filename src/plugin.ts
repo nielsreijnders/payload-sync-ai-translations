@@ -2,16 +2,32 @@ import type { CollectionConfig, Config, GlobalConfig } from 'payload'
 
 import { createAiBulkTranslateHandler } from './server/bulkTranslationHandler.js'
 import { setDebugEnabled } from './server/debugSettings.js'
+import { createAiGrammarCheckHandler } from './server/grammarCheckHandler.js'
 import { createBulkSyncLinksHandler, createSyncLinksHandler } from './server/linkSyncHandler.js'
 import { setOpenAISettings } from './server/openAiSettings.js'
 import { createAiTranslateHandler } from './server/translationRequestHandler.js'
 import { createAiTranslateReviewHandler } from './server/translationReviewService.js'
-import { configureTranslationState, listStoredCollections } from './server/translationStateStore.js'
+import {
+  configureTranslationState,
+  listStoredCollections,
+  listStoredGlobals,
+} from './server/translationStateStore.js'
+
+export type AiLocalePromptResolver = (data: unknown, locale: string) => string | undefined
+export type AiLocalePromptSetting = AiLocalePromptResolver | Record<string, string> | string
 
 export type AiLocalizationCollectionOptions = {
   clientProps?: Record<string, unknown> // add this
   customPrompt?: (data: unknown, locale: string) => string | undefined
   excludeFields?: string[]
+  /**
+   * Optional locale-aware prompt for grammar checks only (not used in translation flows).
+   * Supports:
+   * - function: (data, locale) => string
+   * - object map: { 'en-us': '...', 'en-gb': '...', default: '...' }
+   * - single string: applied to all locales
+   */
+  grammarCheckPrompt?: AiLocalePromptSetting
 }
 
 export type AiLocalizationConfig = {
@@ -31,11 +47,61 @@ export type AiLocalizationConfig = {
 
 const CLIENT_EXPORT = 'payload-sync-ai-translations/client#AutoTranslateButton'
 const BULK_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#BulkTranslateGlobal'
+const GRAMMAR_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#GrammarCheckGlobal'
 const LINK_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#SyncLinksGlobal'
 const BULK_GLOBAL_SLUG = 'ai-bulk-translation'
+const GRAMMAR_GLOBAL_SLUG = 'grammar-check'
 const LINK_GLOBAL_SLUG = 'sync-links'
 const DEBUG_CLIENT_EXPORT = 'payload-sync-ai-translations/client#DebugDocumentCopyButton'
 const SYNC_LINKS_CLIENT_EXPORT = 'payload-sync-ai-translations/client#DocumentSyncLinksButton'
+
+function normalizeLocalePromptSetting(input?: AiLocalePromptSetting): AiLocalePromptResolver | undefined {
+  if (!input) {
+    return undefined
+  }
+
+  const normalizeLocaleCode = (value: string) => value.trim().toLowerCase().replace(/_/g, '-')
+
+  if (typeof input === 'function') {
+    return input
+  }
+
+  if (typeof input === 'string') {
+    const trimmed = input.trim()
+    if (!trimmed) {
+      return undefined
+    }
+
+    return () => trimmed
+  }
+
+  if (typeof input !== 'object') {
+    return undefined
+  }
+
+  const entries = Object.entries(input)
+    .map(([key, value]) => [normalizeLocaleCode(key), typeof value === 'string' ? value.trim() : ''] as const)
+    .filter(([key, value]) => Boolean(key) && Boolean(value))
+
+  if (!entries.length) {
+    return undefined
+  }
+
+  const map = new Map(entries)
+
+  return (_data, locale) => {
+    const normalizedLocale = normalizeLocaleCode(locale)
+    const baseLocale = normalizedLocale.split('-')[0] || normalizedLocale
+
+    return (
+      map.get(normalizedLocale) ??
+      map.get(baseLocale) ??
+      map.get('default') ??
+      map.get('*') ??
+      undefined
+    )
+  }
+}
 
 export const payloadSyncAiTranslations =
   (options: AiLocalizationConfig) =>
@@ -66,6 +132,7 @@ export const payloadSyncAiTranslations =
       config: CollectionConfig
       customPrompt?: AiLocalizationCollectionOptions['customPrompt']
       excludeFields?: string[]
+      grammarCheckPrompt?: AiLocalePromptResolver
     }> = []
 
     const trackedGlobals: Array<{
@@ -84,6 +151,7 @@ export const payloadSyncAiTranslations =
         config: collection,
         customPrompt: perColl.customPrompt,
         excludeFields: perColl.excludeFields,
+        grammarCheckPrompt: normalizeLocalePromptSetting(perColl.grammarCheckPrompt),
       })
 
       // Merge any user-supplied clientProps with helpful defaults
@@ -189,6 +257,7 @@ export const payloadSyncAiTranslations =
     configureTranslationState(trackedCollections, trackedGlobals, { defaultLocale, locales })
 
     const storedCollections = listStoredCollections()
+    const storedGlobals = listStoredGlobals()
 
     const bulkClientProps = {
       collections: storedCollections.map((entry) => ({
@@ -201,6 +270,9 @@ export const payloadSyncAiTranslations =
 
     const bulkGlobal: GlobalConfig = {
       slug: BULK_GLOBAL_SLUG,
+      admin: {
+        group: 'Plugins',
+      },
       fields: [
         {
           name: 'bulkTranslate',
@@ -221,8 +293,43 @@ export const payloadSyncAiTranslations =
       },
     }
 
+    const grammarGlobal: GlobalConfig = {
+      slug: GRAMMAR_GLOBAL_SLUG,
+      admin: {
+        group: 'Plugins',
+      },
+      fields: [
+        {
+          name: 'grammarCheck',
+          type: 'ui',
+          admin: {
+            components: {
+              Field: {
+                clientProps: {
+                  collections: bulkClientProps.collections,
+                  defaultLocale,
+                  globals: storedGlobals.map((entry) => ({
+                    slug: entry.slug,
+                    label: entry.label,
+                  })),
+                },
+                path: GRAMMAR_GLOBAL_COMPONENT,
+              },
+            },
+          },
+        },
+      ],
+      label: {
+        plural: 'Grammar Checks',
+        singular: 'Grammar Check',
+      },
+    }
+
     const linkGlobal: GlobalConfig = {
       slug: LINK_GLOBAL_SLUG,
+      admin: {
+        group: 'Plugins',
+      },
       fields: [
         {
           name: 'syncLinks',
@@ -247,7 +354,7 @@ export const payloadSyncAiTranslations =
 
     const existingGlobals = globals ?? config.globals ?? []
     const enhancedGlobals = storedCollections.length
-      ? [...existingGlobals, bulkGlobal, linkGlobal]
+      ? [...existingGlobals, bulkGlobal, grammarGlobal, linkGlobal]
       : existingGlobals
 
     return {
@@ -256,6 +363,7 @@ export const payloadSyncAiTranslations =
       endpoints: [
         ...(config.endpoints ?? []),
         { handler: createAiBulkTranslateHandler(), method: 'post', path: '/ai-translate/bulk' },
+        { handler: createAiGrammarCheckHandler(), method: 'post', path: '/ai-grammar/bulk' },
         { handler: createAiTranslateHandler(), method: 'post', path: '/ai-translate' },
         { handler: createAiTranslateReviewHandler(), method: 'post', path: '/ai-translate/review' },
         {

@@ -67,6 +67,31 @@ export type BulkTranslateRequestPayload = {
   collections: string[]
 }
 
+export type BulkGrammarCheckRequestPayload = {
+  apply: boolean
+  applyTargets?: BulkGrammarApplyTarget[]
+  collections: string[]
+  globals?: string[]
+}
+
+export type BulkGrammarApplyTarget =
+  | {
+      collection: string
+      id: number | string
+      overrides: TranslateOverride[]
+    }
+  | {
+      global: string
+      overrides: TranslateOverride[]
+    }
+
+export type BulkGrammarFix = {
+  after: string
+  before: string
+  lexical: boolean
+  path: string
+}
+
 export type BulkStartEvent = {
   totalCollections: number
   totalDocuments: number
@@ -122,6 +147,14 @@ export type BulkDocumentErrorEvent = {
   type: 'document-error'
 }
 
+export type BulkDocumentFixesEvent = {
+  collection: string
+  fixes: BulkGrammarFix[]
+  global?: string
+  id: string
+  type: 'document-fixes'
+}
+
 export type BulkCollectionCompleteEvent = {
   collection: string
   failed: number
@@ -148,6 +181,7 @@ export type BulkStreamEvent =
   | BulkCompleteEvent
   | BulkDocumentAppliedEvent
   | BulkDocumentErrorEvent
+  | BulkDocumentFixesEvent
   | BulkDocumentProgressEvent
   | BulkDocumentSkippedEvent
   | BulkDocumentStartEvent

@@ -20,6 +20,14 @@ const REVIEW_SYSTEM_PROMPT = [
   'Do not include any additional text outside of the JSON.',
 ].join(' ')
 
+const PROOFREAD_SYSTEM_PROMPT = [
+  'You are a proofreading assistant.',
+  'Reply using strict JSON that matches {"t":["..."]}.',
+  'Correct clear typos, spelling mistakes, and grammar errors only.',
+  'Keep the same language and do not translate.',
+  'Preserve placeholders, casing, punctuation, and formatting.',
+].join(' ')
+
 const LEXICAL_MARKER_ERROR =
   'Invalid translation response from OpenAI: lexical markers were modified or removed.'
 
@@ -336,6 +344,122 @@ export async function openAiTranslateTexts(
   if (!normalized || normalized.length !== inputs.length) {
     throw new Error(
       `Invalid translation response from OpenAI: expected ${inputs.length} entries, received ${list.length}.`,
+    )
+  }
+
+  return normalized.map((entry, index) => {
+    const source = inputs[index] ?? ''
+    const coerced = entry
+
+    if (containsLexicalMarkers(source) && !lexicalMarkersMatch(source, coerced)) {
+      throw new Error(LEXICAL_MARKER_ERROR)
+    }
+
+    if (shouldPreserveOriginalValue(source)) {
+      return source
+    }
+
+    return coerced
+  })
+}
+
+export async function openAiProofreadTexts(
+  inputs: string[],
+  locale: string,
+  options: { customPrompt?: string } = {},
+): Promise<string[]> {
+  if (!inputs.length) {
+    return []
+  }
+
+  const { client, model } = getClientAndModel()
+  const itemsPayload = JSON.stringify(inputs)
+
+  const userPromptSections = [
+    `Proofread the values inside the "items" array for locale "${locale}".`,
+    'Fix obvious typos, spelling mistakes, and grammar errors.',
+    'Do not translate to another language.',
+    'Keep style and tone unchanged unless required for a correction.',
+    'If text includes markers like [[LEX-0]]...[[/LEX-0]], preserve them exactly as-is.',
+    `Return strict JSON in the shape {"t": [...]} with exactly ${inputs.length} entries in the same order as "items".`,
+    'If an item is already correct, return it unchanged.',
+  ]
+
+  if (options.customPrompt) {
+    userPromptSections.push(`Additional instructions: ${options.customPrompt}`)
+  }
+
+  userPromptSections.push(`items: ${itemsPayload}`)
+
+  const userPrompt = userPromptSections.join('\n')
+
+  const response = await client.chat.completions.create({
+    messages: [
+      { content: PROOFREAD_SYSTEM_PROMPT, role: 'system' },
+      { content: userPrompt, role: 'user' },
+    ],
+    model,
+    response_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'ai_proofread_response',
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            t: {
+              type: 'array',
+              items: { type: 'string' },
+              maxItems: inputs.length,
+              minItems: inputs.length,
+            },
+          },
+          required: ['t'],
+        },
+      },
+    },
+    temperature: 0,
+  })
+
+  logDebug(null, '[AI Grammar] OpenAI proofread completion executed.', {
+    model,
+    requestMessages: [
+      { content: PROOFREAD_SYSTEM_PROMPT, role: 'system' },
+      { content: userPrompt, role: 'user' },
+    ],
+    responseMetadata: {
+      id: response.id,
+      created: response.created,
+      usage: response.usage,
+    },
+  })
+
+  const content = response?.choices?.[0]?.message?.content ?? '{}'
+
+  logDebug(null, '[AI Grammar] OpenAI proofread raw response content.', {
+    content,
+    customPromptApplied: Boolean(options.customPrompt),
+  })
+
+  const parsed: unknown = safeParseJsonResponse(content)
+
+  if (!parsed || typeof parsed !== 'object' || parsed === null) {
+    throw new Error('Invalid proofread response from OpenAI: unable to parse JSON payload.')
+  }
+
+  const list = Array.isArray((parsed as { t?: unknown[] })?.t)
+    ? (parsed as { t: unknown[] }).t
+    : null
+
+  if (!Array.isArray(list)) {
+    throw new Error('Invalid proofread response from OpenAI: missing "t" array.')
+  }
+
+  const normalized = normalizeTranslationEntries(list, inputs.length)
+
+  if (!normalized || normalized.length !== inputs.length) {
+    throw new Error(
+      `Invalid proofread response from OpenAI: expected ${inputs.length} entries, received ${list.length}.`,
     )
   }
 

@@ -25,6 +25,7 @@ import { DebugDocumentCopyButton as DebugDocumentCopyButton_2043071721ce9b13e636
 import { AutoTranslateButton as AutoTranslateButton_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
 import { DocumentSyncLinksButton as DocumentSyncLinksButton_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
 import { BulkTranslateGlobal as BulkTranslateGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
+import { GrammarCheckGlobal as GrammarCheckGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
 import { SyncLinksGlobal as SyncLinksGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
 
 export const importMap = {
@@ -55,5 +56,6 @@ export const importMap = {
   "payload-sync-ai-translations/client#AutoTranslateButton": AutoTranslateButton_2043071721ce9b13e636c3dacf801366,
   "payload-sync-ai-translations/client#DocumentSyncLinksButton": DocumentSyncLinksButton_2043071721ce9b13e636c3dacf801366,
   "payload-sync-ai-translations/client#BulkTranslateGlobal": BulkTranslateGlobal_2043071721ce9b13e636c3dacf801366,
+  "payload-sync-ai-translations/client#GrammarCheckGlobal": GrammarCheckGlobal_2043071721ce9b13e636c3dacf801366,
   "payload-sync-ai-translations/client#SyncLinksGlobal": SyncLinksGlobal_2043071721ce9b13e636c3dacf801366
 }
