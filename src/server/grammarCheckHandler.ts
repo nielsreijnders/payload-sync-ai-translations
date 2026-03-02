@@ -12,7 +12,8 @@ import {
   buildTranslatableItems,
   collectIdentifierPaths,
 } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
-import { chunkItems } from '../utils/localizedFields.js'
+import { isLexicalValue, serializeLexicalValue } from '../utils/lexical.js'
+import { chunkItems, extractPlainText, getValueAtPath } from '../utils/localizedFields.js'
 import { resolveCustomPrompt } from './customPrompt.js'
 import { logDebug } from './debugSettings.js'
 import { openAiProofreadTexts } from './openAiTranslationClient.js'
@@ -279,6 +280,184 @@ function isTrailingPunctuationOnlyChange(before: string, after: string): boolean
   )
 }
 
+const GRAMMAR_SCAN_IGNORED_TERMINAL_KEYS = new Set([
+  '__v',
+  '_id',
+  'blockname',
+  'blocktype',
+  'createdat',
+  'deletedat',
+  'id',
+  'internal',
+  'linktype',
+  'relationto',
+  'singularslug',
+  'slug',
+  'target',
+  'updatedat',
+  'value',
+])
+
+const GRAMMAR_SCAN_IGNORED_TRAVERSAL_KEYS = new Set(['__v', '_id', 'createdat', 'deletedat', 'id', 'updatedat'])
+
+function isIndexSegment(segment: string): boolean {
+  return /^\d+$/.test(segment)
+}
+
+function shouldSkipTerminalPath(path: string): boolean {
+  const segments = path
+    .split('.')
+    .map((segment) => segment.trim().toLowerCase())
+    .filter(Boolean)
+
+  const last = segments.at(-1)
+  if (!last) {
+    return true
+  }
+
+  return GRAMMAR_SCAN_IGNORED_TERMINAL_KEYS.has(last)
+}
+
+function shouldSkipTraversalKey(key: string): boolean {
+  const normalized = key.trim().toLowerCase()
+  return GRAMMAR_SCAN_IGNORED_TRAVERSAL_KEYS.has(normalized)
+}
+
+function collectFallbackGrammarItems(document: unknown): TranslatableItem[] {
+  const items: TranslatableItem[] = []
+
+  const walk = (value: unknown, segments: string[]) => {
+    const path = segments.join('.')
+
+    if (isLexicalValue(value)) {
+      if (!path || shouldSkipTerminalPath(path)) {
+        return
+      }
+
+      const serialized = serializeLexicalValue(value)
+      const text = serialized?.text?.trim()
+      if (!text) {
+        return
+      }
+
+      items.push({ lexical: true, path, text })
+      return
+    }
+
+    if (typeof value === 'string') {
+      if (!path || shouldSkipTerminalPath(path)) {
+        return
+      }
+
+      const text = extractPlainText(value)
+      if (!text) {
+        return
+      }
+
+      items.push({ lexical: false, path, text })
+      return
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((child, index) => walk(child, [...segments, String(index)]))
+      return
+    }
+
+    if (typeof value !== 'object' || value === null) {
+      return
+    }
+
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (!key || shouldSkipTraversalKey(key)) {
+        continue
+      }
+
+      walk(child, [...segments, key])
+    }
+  }
+
+  walk(document, [])
+  return items
+}
+
+function collectIdentifierPathsFromItemPaths(data: unknown, items: TranslatableItem[]): string[] {
+  const paths = new Set<string>()
+
+  const addIdentifierPath = (path: string) => {
+    if (!path) {
+      return
+    }
+
+    const value = getValueAtPath(data, path)
+    if (value === undefined) {
+      return
+    }
+
+    paths.add(path)
+  }
+
+  for (const item of items) {
+    const segments = item.path.split('.')
+
+    for (let index = 0; index < segments.length; index += 1) {
+      const segment = segments[index] ?? ''
+      if (!isIndexSegment(segment)) {
+        continue
+      }
+
+      const ancestor = segments.slice(0, index + 1).join('.')
+      addIdentifierPath(`${ancestor}.id`)
+      addIdentifierPath(`${ancestor}._id`)
+    }
+  }
+
+  return Array.from(paths)
+}
+
+function mergeIdentifierPaths(...entries: string[][]): string[] {
+  const merged = new Set<string>()
+
+  for (const list of entries) {
+    for (const entry of list) {
+      const normalized = entry.trim()
+      if (normalized) {
+        merged.add(normalized)
+      }
+    }
+  }
+
+  return Array.from(merged)
+}
+
+function buildGrammarCandidates(
+  document: unknown,
+  fieldPatterns: string[],
+): { identifierPaths: string[]; items: TranslatableItem[] } {
+  const scopedItems = buildTranslatableItems(document, fieldPatterns)
+  const fallbackItems = collectFallbackGrammarItems(document)
+
+  const merged = new Map<string, TranslatableItem>()
+
+  for (const item of [...scopedItems, ...fallbackItems]) {
+    const key = `${item.lexical ? '1' : '0'}:${item.path}`
+    if (!merged.has(key)) {
+      merged.set(key, item)
+    }
+  }
+
+  const items = Array.from(merged.values())
+
+  const identifierPaths = mergeIdentifierPaths(
+    collectIdentifierPaths(document, fieldPatterns),
+    collectIdentifierPathsFromItemPaths(document, items),
+  )
+
+  return {
+    identifierPaths,
+    items,
+  }
+}
+
 async function buildTypoOverrides(
   items: TranslatableItem[],
   locale: string,
@@ -487,7 +666,10 @@ async function* runApplyFromTargets(
           fallbackLocale: false,
           locale: options.defaultLocale,
         })
-        identifierPaths = collectIdentifierPaths(document, entry.fieldPatterns)
+        identifierPaths = mergeIdentifierPaths(
+          collectIdentifierPaths(document, entry.fieldPatterns),
+          collectIdentifierPathsFromItemPaths(document, target.overrides),
+        )
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Failed to load document for applying fixes.'
@@ -589,7 +771,10 @@ async function* runApplyFromTargets(
           fallbackLocale: false,
           locale: options.defaultLocale,
         })
-        identifierPaths = collectIdentifierPaths(document, entry.fieldPatterns)
+        identifierPaths = mergeIdentifierPaths(
+          collectIdentifierPaths(document, entry.fieldPatterns),
+          collectIdentifierPathsFromItemPaths(document, target.overrides),
+        )
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Failed to load global for applying fixes.'
@@ -828,8 +1013,7 @@ async function* runBulkGrammarCheck(
         const eventCollection = toCollectionLabel(entry.slug)
         yield { id: docLabel, type: 'document-start', collection: eventCollection }
 
-        const identifierPaths = collectIdentifierPaths(doc, entry.fieldPatterns)
-        const items = buildTranslatableItems(doc, entry.fieldPatterns)
+        const { identifierPaths, items } = buildGrammarCandidates(doc, entry.fieldPatterns)
 
         if (!items.length) {
           collectionSkipped += 1
@@ -1008,8 +1192,7 @@ async function* runBulkGrammarCheck(
 
     yield { id: entry.slug, type: 'document-start', collection: eventCollection }
 
-    const identifierPaths = collectIdentifierPaths(globalDoc, entry.fieldPatterns)
-    const items = buildTranslatableItems(globalDoc, entry.fieldPatterns)
+    const { identifierPaths, items } = buildGrammarCandidates(globalDoc, entry.fieldPatterns)
 
     if (!items.length) {
       collectionSkipped += 1
