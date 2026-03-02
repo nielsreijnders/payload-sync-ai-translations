@@ -1,3 +1,10 @@
+# [1.22.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.21.0...v1.22.0) (2026-03-02)
+
+
+### Features
+
+* enhance grammar check handler with fallback item collection and identifier path merging ([2e304c9](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/2e304c9a2f3feaae680cfc4bc1e1c6af9e65a98d))
+
 # [1.21.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.20.0...v1.21.0) (2026-03-02)
 
 
