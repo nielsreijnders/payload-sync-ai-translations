@@ -1,3 +1,10 @@
+# [1.21.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.20.0...v1.21.0) (2026-03-02)
+
+
+### Features
+
+* add bulk grammar check functionality with OpenAI integration ([8225385](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/82253857b49f33270b78d7b04eefba80b969e91b))
+
 # [1.20.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.19.2...v1.20.0) (2026-03-02)
 
 
