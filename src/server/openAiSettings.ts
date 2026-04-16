@@ -1,5 +1,6 @@
 export type OpenAISettings = {
   apiKey: string
+  baseURL?: string
   model?: string
 }
 
@@ -21,6 +22,7 @@ export function getOpenAISettings(): null | OpenAISettings {
 
   return {
     apiKey,
+    baseURL: process.env.OPENAI_ENDPOINT,
     model: process.env.OPENAI_TRANSLATE_MODEL,
   }
 }

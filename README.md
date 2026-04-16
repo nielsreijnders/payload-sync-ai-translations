@@ -50,6 +50,7 @@ export default buildConfig({
       },
       openai: {
         apiKey: process.env.OPENAI_API_KEY || '',
+        baseURL: process.env.OPENAI_ENDPOINT, // Optional openai compatible endpoint
       },
     }),
   ],
@@ -76,6 +77,13 @@ export interface PayloadSyncAiTranslationsOptions {
    */
   openai: {
     apiKey: string
+    /**
+     * Optional custom endpoint URL for self-hosted or alternative OpenAI-compatible APIs.
+     * Supports Azure OpenAI, local LLMs, custom proxies, and other compatible providers.
+     * Example: 'https://your-domain.com/v1' or 'http://localhost:8080/v1'
+     */
+    baseURL?: string
+    model?: string
   }
 
   /**
