@@ -1,3 +1,10 @@
+# [1.23.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.22.0...v1.23.0) (2026-04-16)
+
+
+### Features
+
+* Add support for a custom openai compatible endpoint ([10e92fb](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/10e92fb041e693116b8debc298e06eb32125816d))
+
 # [1.22.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.21.0...v1.22.0) (2026-03-02)
 
 
