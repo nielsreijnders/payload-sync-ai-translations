@@ -38,6 +38,32 @@ describe('collectLocalizedFieldPatterns', () => {
     expect(patterns).toContain('components.Text.content.content')
   })
 
+  it('resolves blockReferences against available top-level blocks', () => {
+    const fields: AnyField[] = [
+      {
+        name: 'components',
+        type: 'blocks',
+        blockReferences: ['Text'],
+        blocks: [],
+      },
+    ]
+
+    const patterns = collectLocalizedFieldPatterns(fields, '', false, [
+      {
+        slug: 'Text',
+        fields: [
+          {
+            name: 'content',
+            type: 'text',
+            localized: true,
+          },
+        ],
+      },
+    ])
+
+    expect(patterns).toContain('components.Text.content')
+  })
+
   it('propagates inherited localization flags through nested structures', () => {
     const fields: AnyField[] = [
       {

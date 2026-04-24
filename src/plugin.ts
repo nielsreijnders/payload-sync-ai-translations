@@ -9,6 +9,7 @@ import { createAiTranslateHandler } from './server/translationRequestHandler.js'
 import { createAiTranslateReviewHandler } from './server/translationReviewService.js'
 import {
   configureTranslationState,
+  extractFieldPatterns,
   listStoredCollections,
   listStoredGlobals,
 } from './server/translationStateStore.js'
@@ -129,6 +130,7 @@ export const payloadSyncAiTranslations =
     setDebugEnabled(Boolean(options.debug))
 
     const { defaultLocale, locales = [] } = config.localization
+    const availableBlocks = config.blocks ?? []
 
     const localeCodes = locales
       .map((locale) => (typeof locale === 'string' ? locale : locale.code))
@@ -161,9 +163,15 @@ export const payloadSyncAiTranslations =
       })
 
       // Merge any user-supplied clientProps with helpful defaults
+      const fieldPatterns = extractFieldPatterns(collection, {
+        availableBlocks,
+        exclude: perColl.excludeFields,
+      })
+
       const clientProps = {
         // your defaults coming from Payload localization config:
         defaultLocale,
+        fieldPatterns,
         locales,
         // user-provided overrides / extras:
         ...(perColl.clientProps ?? {}),
@@ -216,8 +224,14 @@ export const payloadSyncAiTranslations =
         excludeFields: perGlobal.excludeFields,
       })
 
+      const fieldPatterns = extractFieldPatterns(global, {
+        availableBlocks,
+        exclude: perGlobal.excludeFields,
+      })
+
       const clientProps = {
         defaultLocale,
+        fieldPatterns,
         locales,
         ...(perGlobal.clientProps ?? {}),
       }
@@ -260,7 +274,12 @@ export const payloadSyncAiTranslations =
       } satisfies GlobalConfig
     })
 
-    configureTranslationState(trackedCollections, trackedGlobals, { defaultLocale, locales })
+    configureTranslationState(
+      trackedCollections,
+      trackedGlobals,
+      { defaultLocale, locales },
+      { availableBlocks },
+    )
 
     const storedCollections = listStoredCollections()
     const storedGlobals = listStoredGlobals()

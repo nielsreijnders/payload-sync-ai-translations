@@ -23,8 +23,14 @@ function getIdentity(value: unknown): null | number | string {
   return null
 }
 
+export type AnyBlock = {
+  fields?: AnyField[]
+  slug: string
+}
+
 export type AnyField = {
-  blocks?: { fields: AnyField[]; slug: string }[]
+  blockReferences?: readonly (AnyBlock | string)[]
+  blocks?: AnyBlock[]
   fields?: AnyField[]
   localized?: boolean
   name?: string
@@ -34,10 +40,32 @@ export type AnyField = {
 
 export const MAX_CHARS_PER_CHUNK = 3200
 
+function resolveBlocksForField(field: AnyField, availableBlocks: AnyBlock[]): AnyBlock[] {
+  if ((field.blocks?.length ?? 0) > 0) {
+    return field.blocks ?? []
+  }
+
+  if (!field.blockReferences?.length || !availableBlocks.length) {
+    return []
+  }
+
+  const blocksBySlug = new Map(availableBlocks.map((block) => [block.slug, block]))
+
+  return field.blockReferences.flatMap((reference) => {
+    if (typeof reference !== 'string') {
+      return reference.slug ? [reference] : []
+    }
+
+    const block = blocksBySlug.get(reference)
+    return block ? [block] : []
+  })
+}
+
 export function collectLocalizedFieldPatterns(
   fields: AnyField[] = [],
   prefix = '',
   inheritedLocalized = false,
+  availableBlocks: AnyBlock[] = [],
 ): string[] {
   const patterns: string[] = []
 
@@ -60,24 +88,32 @@ export function collectLocalizedFieldPatterns(
     switch (field.type) {
       case 'array': {
         patterns.push(
-          ...collectLocalizedFieldPatterns(field.fields, `${currentPath}[]`, isLocalized),
+          ...collectLocalizedFieldPatterns(
+            field.fields,
+            `${currentPath}[]`,
+            isLocalized,
+            availableBlocks,
+          ),
         )
         break
       }
       case 'blocks': {
-        for (const block of field.blocks ?? []) {
+        for (const block of resolveBlocksForField(field, availableBlocks)) {
           patterns.push(
             ...collectLocalizedFieldPatterns(
               block.fields,
               `${currentPath}.${block.slug}`,
               isLocalized,
+              availableBlocks,
             ),
           )
         }
         break
       }
       case 'group': {
-        patterns.push(...collectLocalizedFieldPatterns(field.fields, currentPath, isLocalized))
+        patterns.push(
+          ...collectLocalizedFieldPatterns(field.fields, currentPath, isLocalized, availableBlocks),
+        )
         break
       }
       case 'tabs': {
@@ -89,7 +125,14 @@ export function collectLocalizedFieldPatterns(
             : currentPath
           const tabLocalized = Boolean(tab?.localized) || isLocalized
 
-          patterns.push(...collectLocalizedFieldPatterns(tab?.fields, tabPath, tabLocalized))
+          patterns.push(
+            ...collectLocalizedFieldPatterns(
+              tab?.fields,
+              tabPath,
+              tabLocalized,
+              availableBlocks,
+            ),
+          )
         }
         break
       }

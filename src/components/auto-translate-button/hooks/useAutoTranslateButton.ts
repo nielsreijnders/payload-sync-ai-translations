@@ -36,6 +36,7 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
   // ---- Config-derived values
   const fieldPatterns = useLocalizedFieldPatterns(
     (docConfig as LocalizedFieldPatternsInput)?.fields,
+    props.fieldPatterns,
   )
   const defaultLocale = props.defaultLocale || 'en'
   const otherLocales = React.useMemo(

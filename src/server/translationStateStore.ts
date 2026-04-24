@@ -1,6 +1,6 @@
 import type { CollectionConfig, GlobalConfig, LocalizationConfig } from 'payload'
 
-import { type AnyField, collectLocalizedFieldPatterns } from '../utils/localizedFields.js'
+import { type AnyBlock, type AnyField, collectLocalizedFieldPatterns } from '../utils/localizedFields.js'
 
 export type StoredEntry = {
   customPrompt?: (data: unknown, locale: string) => string | undefined
@@ -46,10 +46,16 @@ function filterPatterns(patterns: string[], exclude: string[] = []): string[] {
   return patterns.filter((pattern) => !excluded.has(normalizeRoot(pattern)))
 }
 
-function extractFieldPatterns(config: { fields?: AnyField[] }, exclude?: string[]): string[] {
-  const fields = config.fields ?? []
-  const allPatterns = collectLocalizedFieldPatterns(fields)
-  return filterPatterns(allPatterns, exclude)
+export function extractFieldPatterns(
+  config: { fields?: unknown[] },
+  options: {
+    availableBlocks?: AnyBlock[]
+    exclude?: string[]
+  } = {},
+): string[] {
+  const fields = (config.fields ?? []) as AnyField[]
+  const allPatterns = collectLocalizedFieldPatterns(fields, '', false, options.availableBlocks ?? [])
+  return filterPatterns(allPatterns, options.exclude)
 }
 
 function resolveLocaleCodes(locales: LocalizationConfig['locales']): string[] {
@@ -74,6 +80,9 @@ export function configureTranslationState(
     defaultLocale?: LocalizationConfig['defaultLocale']
     locales?: LocalizationConfig['locales']
   } = {},
+  options: {
+    availableBlocks?: AnyBlock[]
+  } = {},
 ): void {
   const storedCollections: Record<string, StoredEntry> = {}
   const storedGlobals: Record<string, StoredEntry> = {}
@@ -86,7 +95,10 @@ export function configureTranslationState(
 
     const slug = config.slug
     const label = config.labels?.plural || config.labels?.singular || slug || ''
-    const fieldPatterns = extractFieldPatterns(config, excludeFields)
+    const fieldPatterns = extractFieldPatterns(config, {
+      availableBlocks: options.availableBlocks,
+      exclude: excludeFields,
+    })
 
     storedCollections[slug] = {
       slug,
@@ -108,7 +120,10 @@ export function configureTranslationState(
 
     const slug = config.slug
     const label = config.label || slug || ''
-    const fieldPatterns = extractFieldPatterns(config, excludeFields)
+    const fieldPatterns = extractFieldPatterns(config, {
+      availableBlocks: options.availableBlocks,
+      exclude: excludeFields,
+    })
 
     storedGlobals[slug] = {
       slug,

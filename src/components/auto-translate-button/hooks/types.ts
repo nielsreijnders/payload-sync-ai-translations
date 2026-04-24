@@ -9,6 +9,7 @@ import type {
 
 export type AutoTranslateButtonProps = {
   defaultLocale: TypedLocale
+  fieldPatterns?: string[]
   locales: LocalizationConfig['locales']
 }
 

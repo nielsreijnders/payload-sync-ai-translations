@@ -27,7 +27,7 @@ export function logDebug(source: LoggerSource, message: string, details?: unknow
 
   if (logger?.debug) {
     if (details !== undefined) {
-      logger.debug(message, details)
+      logger.debug({ details }, message)
     } else {
       logger.debug(message)
     }

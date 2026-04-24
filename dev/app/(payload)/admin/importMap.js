@@ -27,7 +27,9 @@ import { DocumentSyncLinksButton as DocumentSyncLinksButton_2043071721ce9b13e636
 import { BulkTranslateGlobal as BulkTranslateGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
 import { GrammarCheckGlobal as GrammarCheckGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
 import { SyncLinksGlobal as SyncLinksGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
+import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
+/** @type import('payload').ImportMap */
 export const importMap = {
   "@payloadcms/richtext-lexical/rsc#RscEntryLexicalCell": RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e,
   "@payloadcms/richtext-lexical/rsc#RscEntryLexicalField": RscEntryLexicalField_44fe37237e0ebf4470c9990d8cb7b07e,
@@ -57,5 +59,6 @@ export const importMap = {
   "payload-sync-ai-translations/client#DocumentSyncLinksButton": DocumentSyncLinksButton_2043071721ce9b13e636c3dacf801366,
   "payload-sync-ai-translations/client#BulkTranslateGlobal": BulkTranslateGlobal_2043071721ce9b13e636c3dacf801366,
   "payload-sync-ai-translations/client#GrammarCheckGlobal": GrammarCheckGlobal_2043071721ce9b13e636c3dacf801366,
-  "payload-sync-ai-translations/client#SyncLinksGlobal": SyncLinksGlobal_2043071721ce9b13e636c3dacf801366
+  "payload-sync-ai-translations/client#SyncLinksGlobal": SyncLinksGlobal_2043071721ce9b13e636c3dacf801366,
+  "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

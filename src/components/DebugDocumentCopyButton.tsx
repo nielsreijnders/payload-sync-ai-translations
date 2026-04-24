@@ -25,6 +25,7 @@ export function DebugDocumentCopyButton(props: AutoTranslateButtonProps) {
 
   const fieldPatterns = useLocalizedFieldPatterns(
     (docConfig as LocalizedFieldPatternsInput)?.fields,
+    props.fieldPatterns,
   )
 
   const formApi = (documentForm ?? form) as FormApi | undefined
