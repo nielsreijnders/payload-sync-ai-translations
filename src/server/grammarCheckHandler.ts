@@ -298,7 +298,14 @@ const GRAMMAR_SCAN_IGNORED_TERMINAL_KEYS = new Set([
   'value',
 ])
 
-const GRAMMAR_SCAN_IGNORED_TRAVERSAL_KEYS = new Set(['__v', '_id', 'createdat', 'deletedat', 'id', 'updatedat'])
+const GRAMMAR_SCAN_IGNORED_TRAVERSAL_KEYS = new Set([
+  '__v',
+  '_id',
+  'createdat',
+  'deletedat',
+  'id',
+  'updatedat',
+])
 
 function isIndexSegment(segment: string): boolean {
   return /^\d+$/.test(segment)
@@ -470,9 +477,13 @@ async function buildTypoOverrides(
   const overrides: TypoOverride[] = []
 
   for (const chunk of chunkItems(items)) {
-    const corrected = await openAiProofreadTexts(chunk.map((item) => item.text), locale, {
-      customPrompt,
-    })
+    const corrected = await openAiProofreadTexts(
+      chunk.map((item) => item.text),
+      locale,
+      {
+        customPrompt,
+      },
+    )
 
     for (let index = 0; index < chunk.length; index += 1) {
       const source = chunk[index]
@@ -482,7 +493,7 @@ async function buildTypoOverrides(
         continue
       }
 
-       // Button/link labels often should stay punctuation-free; ignore punctuation-only deltas.
+      // Button/link labels often should stay punctuation-free; ignore punctuation-only deltas.
       if (isLabelLikePath(source.path) && isTrailingPunctuationOnlyChange(source.text, next)) {
         continue
       }
@@ -863,7 +874,10 @@ async function* runBulkGrammarCheck(
     .filter((entry): entry is StoredGlobalEntry => Boolean(entry))
 
   if (!selectedCollections.length && !selectedGlobals.length) {
-    yield { type: 'error', message: 'No matching collections or globals configured for grammar check.' }
+    yield {
+      type: 'error',
+      message: 'No matching collections or globals configured for grammar check.',
+    }
     return
   }
 
@@ -1038,7 +1052,9 @@ async function* runBulkGrammarCheck(
           overrides = await buildTypoOverrides(items, defaultLocale, grammarPrompt)
         } catch (error) {
           const message =
-            error instanceof Error ? error.message : 'Failed to scan document for grammar corrections.'
+            error instanceof Error
+              ? error.message
+              : 'Failed to scan document for grammar corrections.'
           collectionFailed += 1
           overallFailed += 1
           yield { id: docLabel, type: 'document-error', collection: eventCollection, message }
@@ -1176,7 +1192,8 @@ async function* runBulkGrammarCheck(
         locale: defaultLocale,
       })
     } catch (error) {
-      const message = error instanceof Error ? error.message : `Failed to load global ${entry.slug}.`
+      const message =
+        error instanceof Error ? error.message : `Failed to load global ${entry.slug}.`
       collectionFailed += 1
       overallFailed += 1
       yield { id: entry.slug, type: 'document-error', collection: eventCollection, message }
@@ -1224,7 +1241,8 @@ async function* runBulkGrammarCheck(
     try {
       overrides = await buildTypoOverrides(items, defaultLocale, grammarPrompt)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to scan global for grammar corrections.'
+      const message =
+        error instanceof Error ? error.message : 'Failed to scan global for grammar corrections.'
       collectionFailed += 1
       overallFailed += 1
       yield { id: entry.slug, type: 'document-error', collection: eventCollection, message }
@@ -1392,7 +1410,8 @@ export function createAiGrammarCheckHandler(): PayloadHandler {
               }
             }
           } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to run bulk grammar check.'
+            const message =
+              error instanceof Error ? error.message : 'Failed to run bulk grammar check.'
             controller.enqueue(serializeEvent({ type: 'error', message }))
           } finally {
             controller.close()
