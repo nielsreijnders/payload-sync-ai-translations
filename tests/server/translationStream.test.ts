@@ -747,6 +747,126 @@ describe('streamTranslations', () => {
     ])
   })
 
+  it('restores missing nested required fields from the base locale before saving', async () => {
+    const baseDoc = {
+      id: '37',
+      heroes: [
+        {
+          blockType: 'HeroHome',
+          globeTags: [
+            {
+              id: 'tag-1',
+              image: 92,
+              label: 'Agri Food',
+            },
+            {
+              id: 'tag-2',
+              image: 145,
+              label: 'Healthy Food',
+            },
+          ],
+        },
+      ],
+      title: 'Home',
+    }
+
+    const localeDoc = {
+      heroes: [
+        {
+          blockType: 'HeroHome',
+          globeTags: [
+            {
+              id: 'tag-1',
+              image: 92,
+              label: null,
+            },
+            {
+              id: 'tag-2',
+              image: 145,
+            },
+          ],
+        },
+      ],
+      id: '37',
+      title: 'Start',
+    }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return localeDoc
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Startpagina'])
+
+    const request: TranslateRequestPayload = {
+      id: '37',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'title',
+                text: 'Home',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    const events: unknown[] = []
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      events.push(event)
+    }
+
+    expect(payloadMock.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          heroes: [
+            {
+              blockType: 'HeroHome',
+              globeTags: [
+                {
+                  id: 'tag-1',
+                  image: 92,
+                  label: 'Agri Food',
+                },
+                {
+                  id: 'tag-2',
+                  image: 145,
+                  label: 'Healthy Food',
+                },
+              ],
+            },
+          ],
+          title: 'Startpagina',
+        }),
+        id: '37',
+        locale: 'nl',
+      }),
+    )
+
+    expect(events).toEqual([
+      { type: 'progress', completed: 1, locale: 'nl', total: 1 },
+      { type: 'applied', locale: 'nl' },
+      { type: 'done' },
+    ])
+  })
+
   it('batches multiple small chunks into a single translation request', async () => {
     const baseDoc = {
       id: '1',

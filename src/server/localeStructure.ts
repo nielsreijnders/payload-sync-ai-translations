@@ -155,7 +155,7 @@ export function mergeStructuralData(
         continue
       }
 
-      if (!(key in targetRecord)) {
+      if (!(key in targetRecord) || targetRecord[key] === null || targetRecord[key] === undefined) {
         targetRecord[key] = value
       }
     }
