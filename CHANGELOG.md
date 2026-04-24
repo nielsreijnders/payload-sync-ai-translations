@@ -1,3 +1,10 @@
+## [1.23.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.23.0...v1.23.1) (2026-04-24)
+
+
+### Bug Fixes
+
+* restore missing nested localized fields before saving translations ([cf661da](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/cf661da9a915c0a04fddca2dc56c7b33730ed393))
+
 # [1.23.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.22.0...v1.23.0) (2026-04-16)
 
 
