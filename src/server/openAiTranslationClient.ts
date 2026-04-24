@@ -240,7 +240,11 @@ function getClientAndModel(): { client: OpenAI; model: string } {
     throw new Error('Missing OpenAI API key')
   }
 
-  const client = new OpenAI({ apiKey: settings.apiKey })
+  const client = new OpenAI({
+    apiKey: settings.apiKey,
+    baseURL: settings.baseURL
+  })
+
   const model = settings.model || DEFAULT_MODEL
 
   return { client, model }

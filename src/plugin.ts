@@ -36,6 +36,7 @@ export type AiLocalizationConfig = {
   globals?: Record<string, AiLocalizationCollectionOptions>
   openai: {
     apiKey: string
+    baseURL?: string
     model?: string
   }
   /**
@@ -55,7 +56,9 @@ const LINK_GLOBAL_SLUG = 'sync-links'
 const DEBUG_CLIENT_EXPORT = 'payload-sync-ai-translations/client#DebugDocumentCopyButton'
 const SYNC_LINKS_CLIENT_EXPORT = 'payload-sync-ai-translations/client#DocumentSyncLinksButton'
 
-function normalizeLocalePromptSetting(input?: AiLocalePromptSetting): AiLocalePromptResolver | undefined {
+function normalizeLocalePromptSetting(
+  input?: AiLocalePromptSetting,
+): AiLocalePromptResolver | undefined {
   if (!input) {
     return undefined
   }
@@ -80,7 +83,10 @@ function normalizeLocalePromptSetting(input?: AiLocalePromptSetting): AiLocalePr
   }
 
   const entries = Object.entries(input)
-    .map(([key, value]) => [normalizeLocaleCode(key), typeof value === 'string' ? value.trim() : ''] as const)
+    .map(
+      ([key, value]) =>
+        [normalizeLocaleCode(key), typeof value === 'string' ? value.trim() : ''] as const,
+    )
     .filter(([key, value]) => Boolean(key) && Boolean(value))
 
   if (!entries.length) {
