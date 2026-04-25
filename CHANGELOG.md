@@ -1,3 +1,10 @@
+## [1.24.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.24.1...v1.24.2) (2026-04-25)
+
+
+### Bug Fixes
+
+* issues invalid id document ([04f0a3a](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/04f0a3a76fac26fcc5fdeb88cf1c791de279f811))
+
 ## [1.24.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.24.0...v1.24.1) (2026-04-25)
 
 
