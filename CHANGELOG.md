@@ -1,3 +1,10 @@
+## [1.24.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.24.0...v1.24.1) (2026-04-25)
+
+
+### Bug Fixes
+
+* issues updating rows in a globals ([9f4a83d](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/9f4a83d2473e304287ee55048f9303e44aac9042))
+
 # [1.24.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.23.1...v1.24.0) (2026-04-24)
 
 
