@@ -110,6 +110,12 @@ export function collectLocalizedFieldPatterns(
         }
         break
       }
+      case 'collapsible': {
+        patterns.push(
+          ...collectLocalizedFieldPatterns(field.fields, currentPath, isLocalized, availableBlocks),
+        )
+        break
+      }
       case 'group': {
         patterns.push(
           ...collectLocalizedFieldPatterns(field.fields, currentPath, isLocalized, availableBlocks),

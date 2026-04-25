@@ -127,6 +127,43 @@ describe('collectLocalizedFieldPatterns', () => {
     expect(patterns).toContain('components.Richtext.content.richtext')
   })
 
+  it('traverses collapsible fields without adding a path segment', () => {
+    const fields: AnyField[] = [
+      {
+        name: 'pA',
+        type: 'group',
+        fields: [
+          {
+            name: 'thmbnail',
+            type: 'group',
+            fields: [
+              {
+                label: 'Thumbnail',
+                type: 'collapsible',
+                fields: [
+                  {
+                    name: 'smText',
+                    type: 'richText',
+                    localized: true,
+                  },
+                  {
+                    name: 'smTextLengthIndicator',
+                    type: 'ui',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const patterns = collectLocalizedFieldPatterns(fields)
+
+    expect(patterns).toContain('pA.thmbnail.smText')
+    expect(patterns).not.toContain('pA.thmbnail.smTextLengthIndicator')
+  })
+
   it('does not collect patterns for radio fields', () => {
     const fields: AnyField[] = [
       {
