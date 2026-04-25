@@ -1,3 +1,11 @@
+# [1.24.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.23.1...v1.24.0) (2026-04-24)
+
+
+### Features
+
+* add blockReferences support ([5265d6f](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/5265d6fedac00825277368d2736190a8cb4d3a9a))
+* update payload packages ([167a401](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/167a401eb098b640bf94f1d242d1a988c10f5e9f))
+
 ## [1.23.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.23.0...v1.23.1) (2026-04-24)
 
 
