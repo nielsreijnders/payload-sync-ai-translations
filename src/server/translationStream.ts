@@ -120,22 +120,8 @@ function collectCollectionIdentifierPaths(data: unknown, translatedPaths: string
   return identifiers
 }
 
-function collectArrayRowIdentifierPaths(
-  value: unknown,
-  currentPath = '',
-  isArrayEntry = false,
-): Set<string> {
+function collectTopLevelArrayRowIdentifierPaths(value: unknown): Set<string> {
   const identifiers = new Set<string>()
-
-  if (Array.isArray(value)) {
-    value.forEach((entry, index) => {
-      const nextPath = currentPath ? `${currentPath}.${index}` : String(index)
-      for (const path of collectArrayRowIdentifierPaths(entry, nextPath, true)) {
-        identifiers.add(path)
-      }
-    })
-    return identifiers
-  }
 
   if (!isPlainObject(value)) {
     return identifiers
@@ -144,17 +130,38 @@ function collectArrayRowIdentifierPaths(
   const record = value as Record<string, unknown>
 
   for (const [key, child] of Object.entries(record)) {
-    const childPath = currentPath ? `${currentPath}.${key}` : key
-
-    if (isArrayEntry && isIdentifierKey(key)) {
-      identifiers.add(childPath)
+    if (!Array.isArray(child)) {
       continue
     }
 
-    if (Array.isArray(child) || isPlainObject(child)) {
-      for (const path of collectArrayRowIdentifierPaths(child, childPath, false)) {
-        identifiers.add(path)
+    child.forEach((entry, index) => {
+      if (!isPlainObject(entry)) {
+        return
       }
+
+      const arrayEntry = entry as Record<string, unknown>
+      for (const identifierKey of ['id', '_id']) {
+        if (arrayEntry[identifierKey] !== undefined) {
+          identifiers.add(`${key}.${index}.${identifierKey}`)
+        }
+      }
+    })
+  }
+
+  return identifiers
+}
+
+function collectTopLevelIdentifierPaths(paths: Set<string>): Set<string> {
+  const identifiers = new Set<string>()
+
+  for (const path of paths) {
+    const segments = path.split('.')
+    if (
+      segments.length === 3 &&
+      /^\d+$/.test(segments[1] ?? '') &&
+      isIdentifierKey(segments[2] ?? '')
+    ) {
+      identifiers.add(path)
     }
   }
 
@@ -801,8 +808,10 @@ export async function* streamTranslations(
       const allowedIdentifiers = isCollectionTarget
         ? collectCollectionIdentifierPaths(localeData, collectTranslatedPaths(localeEntry))
         : new Set([
-            ...collectArrayRowIdentifierPaths(localeData),
-            ...(localeIdentifierPaths.get(locale) ?? new Set<string>()),
+            ...collectTopLevelArrayRowIdentifierPaths(localeData),
+            ...collectTopLevelIdentifierPaths(
+              localeIdentifierPaths.get(locale) ?? new Set<string>(),
+            ),
           ])
       const sanitizedSource = pruneIdentifierFields(localeData, allowedIdentifiers)
       const saveData = (
