@@ -1,3 +1,10 @@
+# [1.25.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.24.2...v1.25.0) (2026-04-25)
+
+
+### Features
+
+* add collapsible field support ([2b631ed](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/2b631edd38f9a73461187af654a67e0cc0305a4a))
+
 ## [1.24.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.24.1...v1.24.2) (2026-04-25)
 
 
