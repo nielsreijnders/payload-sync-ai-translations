@@ -132,7 +132,98 @@ export function collectLocalizedFieldPatterns(
           const tabLocalized = Boolean(tab?.localized) || isLocalized
 
           patterns.push(
-            ...collectLocalizedFieldPatterns(
+            ...collectLocalizedFieldPatterns(tab?.fields, tabPath, tabLocalized, availableBlocks),
+          )
+        }
+        break
+      }
+      default:
+        break
+    }
+  }
+
+  return patterns
+}
+
+export function collectLocalizedContainerPatterns(
+  fields: AnyField[] = [],
+  prefix = '',
+  inheritedLocalized = false,
+  availableBlocks: AnyBlock[] = [],
+): string[] {
+  const patterns: string[] = []
+
+  for (const field of fields) {
+    if (!field) {
+      continue
+    }
+
+    const name = field.name
+    const currentPath = name ? (prefix ? `${prefix}.${name}` : name) : prefix
+    const isLocalized = Boolean(field.localized) || inheritedLocalized
+
+    if (isLocalized && name && ['array', 'blocks'].includes(String(field.type))) {
+      patterns.push(currentPath)
+    }
+
+    switch (field.type) {
+      case 'array': {
+        patterns.push(
+          ...collectLocalizedContainerPatterns(
+            field.fields,
+            `${currentPath}[]`,
+            isLocalized,
+            availableBlocks,
+          ),
+        )
+        break
+      }
+      case 'blocks': {
+        for (const block of resolveBlocksForField(field, availableBlocks)) {
+          patterns.push(
+            ...collectLocalizedContainerPatterns(
+              block.fields,
+              `${currentPath}.${block.slug}`,
+              isLocalized,
+              availableBlocks,
+            ),
+          )
+        }
+        break
+      }
+      case 'collapsible': {
+        patterns.push(
+          ...collectLocalizedContainerPatterns(
+            field.fields,
+            currentPath,
+            isLocalized,
+            availableBlocks,
+          ),
+        )
+        break
+      }
+      case 'group': {
+        patterns.push(
+          ...collectLocalizedContainerPatterns(
+            field.fields,
+            currentPath,
+            isLocalized,
+            availableBlocks,
+          ),
+        )
+        break
+      }
+      case 'tabs': {
+        for (const tab of field.tabs ?? []) {
+          const tabPath = tab?.name
+            ? currentPath
+              ? `${currentPath}.${tab.name}`
+              : tab.name
+            : currentPath
+          const tabLocalized = Boolean(tab?.localized) || isLocalized
+
+          patterns.push(
+            ...collectLocalizedContainerPatterns(
               tab?.fields,
               tabPath,
               tabLocalized,

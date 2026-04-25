@@ -1,12 +1,18 @@
 import type { CollectionConfig, GlobalConfig, LocalizationConfig } from 'payload'
 
-import { type AnyBlock, type AnyField, collectLocalizedFieldPatterns } from '../utils/localizedFields.js'
+import {
+  type AnyBlock,
+  type AnyField,
+  collectLocalizedContainerPatterns,
+  collectLocalizedFieldPatterns,
+} from '../utils/localizedFields.js'
 
 export type StoredEntry = {
   customPrompt?: (data: unknown, locale: string) => string | undefined
   fieldPatterns: string[]
   grammarCheckPrompt?: (data: unknown, locale: string) => string | undefined
   label: string
+  localizedContainerPatterns: string[]
   slug: string
 }
 
@@ -54,7 +60,29 @@ export function extractFieldPatterns(
   } = {},
 ): string[] {
   const fields = (config.fields ?? []) as AnyField[]
-  const allPatterns = collectLocalizedFieldPatterns(fields, '', false, options.availableBlocks ?? [])
+  const allPatterns = collectLocalizedFieldPatterns(
+    fields,
+    '',
+    false,
+    options.availableBlocks ?? [],
+  )
+  return filterPatterns(allPatterns, options.exclude)
+}
+
+export function extractLocalizedContainerPatterns(
+  config: { fields?: unknown[] },
+  options: {
+    availableBlocks?: AnyBlock[]
+    exclude?: string[]
+  } = {},
+): string[] {
+  const fields = (config.fields ?? []) as AnyField[]
+  const allPatterns = collectLocalizedContainerPatterns(
+    fields,
+    '',
+    false,
+    options.availableBlocks ?? [],
+  )
   return filterPatterns(allPatterns, options.exclude)
 }
 
@@ -99,6 +127,10 @@ export function configureTranslationState(
       availableBlocks: options.availableBlocks,
       exclude: excludeFields,
     })
+    const localizedContainerPatterns = extractLocalizedContainerPatterns(config, {
+      availableBlocks: options.availableBlocks,
+      exclude: excludeFields,
+    })
 
     storedCollections[slug] = {
       slug,
@@ -107,6 +139,7 @@ export function configureTranslationState(
       grammarCheckPrompt,
       // @ts-expect-error -- Need to investigate
       label,
+      localizedContainerPatterns,
     }
   }
 
@@ -124,6 +157,10 @@ export function configureTranslationState(
       availableBlocks: options.availableBlocks,
       exclude: excludeFields,
     })
+    const localizedContainerPatterns = extractLocalizedContainerPatterns(config, {
+      availableBlocks: options.availableBlocks,
+      exclude: excludeFields,
+    })
 
     storedGlobals[slug] = {
       slug,
@@ -131,6 +168,7 @@ export function configureTranslationState(
       fieldPatterns,
       // @ts-expect-error -- Need to investigate
       label,
+      localizedContainerPatterns,
     }
   }
 

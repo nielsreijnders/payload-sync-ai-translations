@@ -1,4 +1,8 @@
-import { collectLocalizedFieldPatterns, type AnyField } from '../../src/utils/localizedFields.js'
+import {
+  collectLocalizedContainerPatterns,
+  collectLocalizedFieldPatterns,
+  type AnyField,
+} from '../../src/utils/localizedFields.js'
 import { describe, expect, it } from 'vitest'
 
 describe('collectLocalizedFieldPatterns', () => {
@@ -204,5 +208,94 @@ describe('collectLocalizedFieldPatterns', () => {
     const patterns = collectLocalizedFieldPatterns(fields)
 
     expect(patterns).not.toContain('status')
+  })
+})
+
+describe('collectLocalizedContainerPatterns', () => {
+  it('collects localized array containers through block references', () => {
+    const fields: AnyField[] = [
+      {
+        name: 'components',
+        type: 'blocks',
+        blockReferences: ['Timeline'],
+        blocks: [],
+      },
+    ]
+
+    const patterns = collectLocalizedContainerPatterns(fields, '', false, [
+      {
+        slug: 'Timeline',
+        fields: [
+          {
+            name: 'content',
+            type: 'group',
+            fields: [
+              {
+                name: 'items',
+                type: 'array',
+                localized: true,
+                fields: [
+                  {
+                    name: 'title',
+                    type: 'text',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ])
+
+    expect(patterns).toContain('components.Timeline.content.items')
+  })
+
+  it('does not collect non-localized nested block containers', () => {
+    const fields: AnyField[] = [
+      {
+        name: 'components',
+        type: 'blocks',
+        blockReferences: ['TextBlocks'],
+        blocks: [],
+      },
+    ]
+
+    const patterns = collectLocalizedContainerPatterns(fields, '', false, [
+      {
+        slug: 'TextBlocks',
+        fields: [
+          {
+            name: 'content',
+            type: 'group',
+            fields: [
+              {
+                name: 'flexibleContent',
+                type: 'blocks',
+                blockReferences: ['Text'],
+                blocks: [],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        slug: 'Text',
+        fields: [
+          {
+            name: 'content',
+            type: 'group',
+            fields: [
+              {
+                name: 'content',
+                type: 'richText',
+                localized: true,
+              },
+            ],
+          },
+        ],
+      },
+    ])
+
+    expect(patterns).not.toContain('components.TextBlocks.content.flexibleContent')
   })
 })

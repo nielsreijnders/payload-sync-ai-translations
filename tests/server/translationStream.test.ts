@@ -1038,6 +1038,189 @@ describe('streamTranslations', () => {
     )
   })
 
+  it('strips collection identifiers under localized array containers only', async () => {
+    configureTranslationState(
+      [
+        {
+          config: {
+            fields: [
+              {
+                blockReferences: ['Timeline', 'TextBlocks'],
+                blocks: [],
+                name: 'components',
+                type: 'blocks',
+              },
+            ],
+            slug: 'pages',
+          } as CollectionConfig,
+        },
+      ],
+      [],
+      { defaultLocale: 'en', locales: ['en', 'nl'] },
+      {
+        availableBlocks: [
+          {
+            fields: [
+              {
+                fields: [
+                  {
+                    fields: [
+                      {
+                        name: 'title',
+                        type: 'text',
+                      },
+                    ],
+                    localized: true,
+                    name: 'items',
+                    type: 'array',
+                  },
+                ],
+                name: 'content',
+                type: 'group',
+              },
+            ],
+            slug: 'Timeline',
+          },
+          {
+            fields: [
+              {
+                fields: [
+                  {
+                    blockReferences: ['Text'],
+                    blocks: [],
+                    name: 'flexibleContent',
+                    type: 'blocks',
+                  },
+                ],
+                name: 'content',
+                type: 'group',
+              },
+            ],
+            slug: 'TextBlocks',
+          },
+          {
+            fields: [
+              {
+                fields: [
+                  {
+                    localized: true,
+                    name: 'content',
+                    type: 'richText',
+                  },
+                ],
+                name: 'content',
+                type: 'group',
+              },
+            ],
+            slug: 'Text',
+          },
+        ],
+      },
+    )
+
+    const baseDoc = {
+      components: [
+        {
+          blockType: 'Timeline',
+          content: {
+            items: [{ id: 'item-1', title: 'First item' }],
+          },
+          id: 'timeline-1',
+        },
+        {
+          blockType: 'TextBlocks',
+          content: {
+            flexibleContent: [
+              {
+                blockType: 'Text',
+                content: { content: 'Nested content' },
+                id: 'flexible-1',
+              },
+            ],
+          },
+          id: 'text-blocks-1',
+        },
+      ],
+      id: '88',
+    }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: '88' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Eerste item', 'Geneste content'])
+
+    const request: TranslateRequestPayload = {
+      id: '88',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'components.0.content.items.0.title',
+                text: 'First item',
+              },
+              {
+                lexical: false,
+                path: 'components.1.content.flexibleContent.0.content.content',
+                text: 'Nested content',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    for await (const _event of streamTranslations(payloadMock as Payload, request)) {
+      // exhaust generator
+    }
+
+    expect(payloadMock.update).toHaveBeenCalledTimes(1)
+    expect(payloadMock.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          components: [
+            {
+              blockType: 'Timeline',
+              content: {
+                items: [{ title: 'Eerste item' }],
+              },
+              id: 'timeline-1',
+            },
+            {
+              blockType: 'TextBlocks',
+              content: {
+                flexibleContent: [
+                  {
+                    blockType: 'Text',
+                    content: { content: 'Geneste content' },
+                    id: 'flexible-1',
+                  },
+                ],
+              },
+              id: 'text-blocks-1',
+            },
+          ],
+        },
+      }),
+    )
+  })
+
   it('batches multiple small chunks into a single translation request', async () => {
     const baseDoc = {
       id: '1',

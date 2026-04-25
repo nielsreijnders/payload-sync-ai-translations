@@ -9,7 +9,11 @@ import type {
 } from './translationTypes.js'
 
 import { splitLexicalText, toLexical } from '../utils/lexical.js'
-import { getValueAtPath, MAX_CHARS_PER_CHUNK } from '../utils/localizedFields.js'
+import {
+  expandConcretePathsFromPattern,
+  getValueAtPath,
+  MAX_CHARS_PER_CHUNK,
+} from '../utils/localizedFields.js'
 import { resolveCustomPrompt } from './customPrompt.js'
 import { logDebug } from './debugSettings.js'
 import {
@@ -118,6 +122,56 @@ function collectCollectionIdentifierPaths(data: unknown, translatedPaths: string
   }
 
   return identifiers
+}
+
+function getIdentifierContainerPath(path: string): null | string {
+  const segments = path.split('.')
+  if (!isIdentifierKey(segments.at(-1) ?? '')) {
+    return null
+  }
+
+  for (let index = segments.length - 2; index >= 0; index -= 1) {
+    if (/^\d+$/.test(segments[index] ?? '')) {
+      return segments.slice(0, index).join('.')
+    }
+  }
+
+  return null
+}
+
+function collectConcreteLocalizedContainerPaths(
+  data: unknown,
+  patterns: string[] = [],
+): Set<string> {
+  const containers = new Set<string>()
+
+  for (const pattern of patterns) {
+    for (const path of expandConcretePathsFromPattern(data, pattern)) {
+      containers.add(path)
+    }
+  }
+
+  return containers
+}
+
+function removeLocalizedContainerIdentifiers(
+  identifiers: Set<string>,
+  localizedContainers: Set<string>,
+): Set<string> {
+  if (!localizedContainers.size) {
+    return identifiers
+  }
+
+  const filtered = new Set<string>()
+
+  for (const identifier of identifiers) {
+    const containerPath = getIdentifierContainerPath(identifier)
+    if (!containerPath || !localizedContainers.has(containerPath)) {
+      filtered.add(identifier)
+    }
+  }
+
+  return filtered
 }
 
 function collectTopLevelArrayRowIdentifierPaths(value: unknown): Set<string> {
@@ -806,7 +860,13 @@ export async function* streamTranslations(
     try {
       stripDocumentMetadata(localeData)
       const allowedIdentifiers = isCollectionTarget
-        ? collectCollectionIdentifierPaths(localeData, collectTranslatedPaths(localeEntry))
+        ? removeLocalizedContainerIdentifiers(
+            collectCollectionIdentifierPaths(localeData, collectTranslatedPaths(localeEntry)),
+            collectConcreteLocalizedContainerPaths(
+              localeData,
+              storedEntry?.localizedContainerPatterns,
+            ),
+          )
         : new Set([
             ...collectTopLevelArrayRowIdentifierPaths(localeData),
             ...collectTopLevelIdentifierPaths(
