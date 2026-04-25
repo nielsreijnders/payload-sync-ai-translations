@@ -73,6 +73,94 @@ function collectIdentifierPaths(locales: TranslateLocaleRequestPayload[]): Local
   return identifierMap
 }
 
+function collectTranslatedPaths(localeEntry: TranslateLocaleRequestPayload): string[] {
+  const translatedPaths: string[] = []
+
+  for (const chunk of localeEntry.chunks) {
+    for (const item of chunk) {
+      if (typeof item?.path === 'string' && item.path) {
+        translatedPaths.push(item.path)
+      }
+    }
+  }
+
+  if (Array.isArray(localeEntry.overrides)) {
+    for (const override of localeEntry.overrides) {
+      if (typeof override?.path === 'string' && override.path) {
+        translatedPaths.push(override.path)
+      }
+    }
+  }
+
+  return translatedPaths
+}
+
+function collectCollectionIdentifierPaths(data: unknown, translatedPaths: string[]): Set<string> {
+  const identifiers = new Set<string>()
+
+  for (const path of translatedPaths) {
+    const segments = path.split('.')
+
+    for (let index = 0; index < segments.length; index += 1) {
+      if (!/^\d+$/.test(segments[index] ?? '')) {
+        continue
+      }
+
+      const ancestor = segments.slice(0, index + 1).join('.')
+
+      for (const key of ['id', '_id']) {
+        const identifierPath = `${ancestor}.${key}`
+        if (getValueAtPath(data, identifierPath) !== undefined) {
+          identifiers.add(identifierPath)
+        }
+      }
+    }
+  }
+
+  return identifiers
+}
+
+function collectArrayRowIdentifierPaths(
+  value: unknown,
+  currentPath = '',
+  isArrayEntry = false,
+): Set<string> {
+  const identifiers = new Set<string>()
+
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => {
+      const nextPath = currentPath ? `${currentPath}.${index}` : String(index)
+      for (const path of collectArrayRowIdentifierPaths(entry, nextPath, true)) {
+        identifiers.add(path)
+      }
+    })
+    return identifiers
+  }
+
+  if (!isPlainObject(value)) {
+    return identifiers
+  }
+
+  const record = value as Record<string, unknown>
+
+  for (const [key, child] of Object.entries(record)) {
+    const childPath = currentPath ? `${currentPath}.${key}` : key
+
+    if (isArrayEntry && isIdentifierKey(key)) {
+      identifiers.add(childPath)
+      continue
+    }
+
+    if (Array.isArray(child) || isPlainObject(child)) {
+      for (const path of collectArrayRowIdentifierPaths(child, childPath, false)) {
+        identifiers.add(path)
+      }
+    }
+  }
+
+  return identifiers
+}
+
 function pruneIdentifierFields(value: unknown, allowed: Set<string>, currentPath = ''): unknown {
   if (Array.isArray(value)) {
     return value.map((entry, index) => {
@@ -710,10 +798,13 @@ export async function* streamTranslations(
 
     try {
       stripDocumentMetadata(localeData)
-      const allowedIdentifiers = localeIdentifierPaths.get(locale) ?? new Set<string>()
-      const sanitizedSource = isCollectionTarget
-        ? localeData
-        : pruneIdentifierFields(localeData, allowedIdentifiers)
+      const allowedIdentifiers = isCollectionTarget
+        ? collectCollectionIdentifierPaths(localeData, collectTranslatedPaths(localeEntry))
+        : new Set([
+            ...collectArrayRowIdentifierPaths(localeData),
+            ...(localeIdentifierPaths.get(locale) ?? new Set<string>()),
+          ])
+      const sanitizedSource = pruneIdentifierFields(localeData, allowedIdentifiers)
       const saveData = (
         isCollectionTarget ? sanitizedSource : cloneWithoutDocumentMetadata(sanitizedSource)
       ) as Record<string, unknown>

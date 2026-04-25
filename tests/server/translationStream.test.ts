@@ -17,24 +17,6 @@ vi.mock('../../src/server/openAiTranslationClient.js', () => ({
 
 const translateTextsMock = vi.mocked(openAiTranslateTexts)
 
-function containsMetadataKey(value: unknown): boolean {
-  if (Array.isArray(value)) {
-    return value.some((entry) => containsMetadataKey(entry))
-  }
-
-  if (typeof value === 'object' && value !== null) {
-    return Object.entries(value).some(([key, child]) => {
-      if (key === 'id' || key === '_id') {
-        return true
-      }
-
-      return containsMetadataKey(child)
-    })
-  }
-
-  return false
-}
-
 describe('streamTranslations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -276,11 +258,14 @@ describe('streamTranslations', () => {
     expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
     const savedPayload = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
     expect(savedPayload?.data).toEqual({
-      links: [{ id: 'link-1', link: { label: 'Menukaart' } }, { link: { label: 'About' } }],
+      links: [
+        { id: 'link-1', link: { label: 'Menukaart' } },
+        { id: 'link-2', link: { label: 'About' } },
+      ],
     })
   })
 
-  it('removes identifier metadata that is not part of the translation payload', async () => {
+  it('preserves global row identifiers even when they are not part of the translation payload', async () => {
     configureTranslationState(
       [],
       [
@@ -346,9 +331,13 @@ describe('streamTranslations', () => {
     expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
     const savedPayload = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
     expect(savedPayload?.data).toEqual({
-      links: [{ link: { label: 'Menukaart' } }, { link: { label: 'About' } }],
+      links: [
+        { id: 'link-1', link: { label: 'Menukaart' } },
+        { id: 'link-2', link: { label: 'About' } },
+      ],
     })
-    expect(containsMetadataKey(savedPayload?.data)).toBe(false)
+    expect(savedPayload?.data).not.toHaveProperty('id')
+    expect(savedPayload?.data).not.toHaveProperty('_id')
   })
 
   it('applies custom prompt instructions when configured', async () => {
@@ -841,12 +830,10 @@ describe('streamTranslations', () => {
               blockType: 'HeroHome',
               globeTags: [
                 {
-                  id: 'tag-1',
                   image: 92,
                   label: 'Agri Food',
                 },
                 {
-                  id: 'tag-2',
                   image: 145,
                   label: 'Healthy Food',
                 },
@@ -865,6 +852,95 @@ describe('streamTranslations', () => {
       { type: 'applied', locale: 'nl' },
       { type: 'done' },
     ])
+  })
+
+  it('strips identifiers from untranslated collection branches before saving', async () => {
+    const baseDoc = {
+      components: [
+        {
+          blockType: 'refG',
+          content: {
+            links: [
+              { id: 'link-1', link: { label: null } },
+              { id: 'link-2', link: { label: null } },
+            ],
+          },
+          id: 'component-1',
+        },
+      ],
+      heroes: [
+        {
+          blockType: 'HeroText',
+          heading: 'Hello world',
+          id: 'hero-1',
+        },
+      ],
+      id: '88',
+    }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: '88' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Hallo wereld'])
+
+    const request: TranslateRequestPayload = {
+      id: '88',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'heroes.0.heading',
+                text: 'Hello world',
+              },
+            ],
+          ],
+          code: 'nl',
+        },
+      ],
+    }
+
+    for await (const _event of streamTranslations(payloadMock as Payload, request)) {
+      // exhaust generator
+    }
+
+    expect(payloadMock.update).toHaveBeenCalledTimes(1)
+    expect(payloadMock.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          components: [
+            {
+              blockType: 'refG',
+              content: {
+                links: [{ link: { label: null } }, { link: { label: null } }],
+              },
+            },
+          ],
+          heroes: [
+            {
+              blockType: 'HeroText',
+              heading: 'Hallo wereld',
+              id: 'hero-1',
+            },
+          ],
+        }),
+      }),
+    )
   })
 
   it('batches multiple small chunks into a single translation request', async () => {
