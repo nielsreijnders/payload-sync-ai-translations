@@ -1,3 +1,10 @@
+## [1.25.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.25.1...v1.25.2) (2026-04-26)
+
+
+### Bug Fixes
+
+* not translating if text is the same on other locales ([4ec99d6](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/4ec99d6a45673e4a2fa848ebac24e093821e579f))
+
 ## [1.25.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.25.0...v1.25.1) (2026-04-25)
 
 
