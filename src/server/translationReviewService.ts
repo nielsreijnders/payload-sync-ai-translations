@@ -17,6 +17,7 @@ import {
   type MissingInformationCheckInput,
   openAiDetectMissingInformation,
   openAiTranslateTexts,
+  shouldPreserveOriginalValue,
 } from './openAiTranslationClient.js'
 import { getStoredTarget } from './translationStateStore.js'
 
@@ -60,6 +61,37 @@ function isTranslateItem(value: unknown): value is TranslateReviewRequestPayload
 
 function areTranslateItems(value: unknown): value is TranslateReviewRequestPayload['items'] {
   return Array.isArray(value) && value.every(isTranslateItem)
+}
+
+function normalizeTextForComparison(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function isSameLocale(source: string, target: string): boolean {
+  return (
+    source.trim().toLowerCase().replace(/_/g, '-') ===
+    target.trim().toLowerCase().replace(/_/g, '-')
+  )
+}
+
+function shouldTreatAsUntranslated(
+  sourceText: string,
+  existingText: string,
+  from: string,
+  to: string,
+): boolean {
+  if (isSameLocale(from, to)) {
+    return false
+  }
+
+  const normalizedSource = normalizeTextForComparison(sourceText)
+  const normalizedExisting = normalizeTextForComparison(existingText)
+
+  if (!normalizedSource || normalizedSource !== normalizedExisting) {
+    return false
+  }
+
+  return !shouldPreserveOriginalValue(normalizedSource)
 }
 
 function parseBody(body: unknown): TranslateReviewRequestPayload {
@@ -134,10 +166,6 @@ export async function generateTranslationReview(
   const locales: TranslateReviewLocale[] = []
 
   const isCollectionTarget = 'collection' in request && Boolean(request.collection)
-  const targetLabel = isCollectionTarget
-    ? `${request.collection}#${request.id}`
-    : // @ts-expect-error -- Need to investigate
-      `global:${request.global}`
 
   logDebug(payload, '[AI Translate] Generating translation review.', {
     // @ts-expect-error -- Need to investigate
@@ -251,6 +279,12 @@ export async function generateTranslationReview(
       const existingText = extractPlainText(existingValue) ?? ''
 
       if (!existingText) {
+        translateIndexes.add(index)
+        translateCandidates.push({ index, text: item.text })
+        return
+      }
+
+      if (shouldTreatAsUntranslated(defaultText, existingText, request.from, localeCode)) {
         translateIndexes.add(index)
         translateCandidates.push({ index, text: item.text })
         return

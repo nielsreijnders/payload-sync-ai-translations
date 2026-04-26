@@ -57,7 +57,7 @@ function lexicalMarkersMatch(source: string, translated: string): boolean {
   return sourceMarkers.every((marker, index) => marker === translatedMarkers[index])
 }
 
-function shouldPreserveOriginalValue(value: string): boolean {
+export function shouldPreserveOriginalValue(value: string): boolean {
   const trimmed = value.trim()
   if (!trimmed || containsLexicalMarkers(trimmed)) {
     return false
