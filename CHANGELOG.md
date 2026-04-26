@@ -1,3 +1,10 @@
+## [1.25.1](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.25.0...v1.25.1) (2026-04-25)
+
+
+### Bug Fixes
+
+* invalid nested row IDs when translating localized arrays ([b4ff103](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/b4ff103069d2d3247c57d318651a9e9c2033a57f))
+
 # [1.25.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.24.2...v1.25.0) (2026-04-25)
 
 
