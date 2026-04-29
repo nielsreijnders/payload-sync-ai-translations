@@ -1,3 +1,10 @@
+## [1.25.3](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.25.2...v1.25.3) (2026-04-29)
+
+
+### Bug Fixes
+
+* issues merging locale translations ([fff3cfe](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/fff3cfe1a08e44662f09c7a71492abed68f33c01))
+
 ## [1.25.2](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.25.1...v1.25.2) (2026-04-26)
 
 
