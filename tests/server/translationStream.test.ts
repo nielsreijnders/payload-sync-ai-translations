@@ -831,7 +831,7 @@ describe('streamTranslations', () => {
     ])
   })
 
-  it('restores missing nested required fields from the base locale before saving', async () => {
+  it('does not save unrelated nested fields when translating a top-level field', async () => {
     const baseDoc = {
       id: '37',
       heroes: [
@@ -919,25 +919,16 @@ describe('streamTranslations', () => {
 
     expect(payloadMock.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          heroes: [
-            {
-              blockType: 'HeroHome',
-              globeTags: [
-                {
-                  image: 92,
-                  label: 'Agri Food',
-                },
-                {
-                  image: 145,
-                  label: 'Healthy Food',
-                },
-              ],
-            },
-          ],
+        data: {
           title: 'Startpagina',
-        }),
+        },
         id: '37',
+        locale: 'nl',
+      }),
+    )
+    expect(payloadMock.findByID).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fallbackLocale: false,
         locale: 'nl',
       }),
     )
@@ -949,7 +940,7 @@ describe('streamTranslations', () => {
     ])
   })
 
-  it('strips identifiers from untranslated collection branches before saving', async () => {
+  it('does not save untranslated collection branches', async () => {
     const baseDoc = {
       components: [
         {
@@ -1017,15 +1008,7 @@ describe('streamTranslations', () => {
     expect(payloadMock.update).toHaveBeenCalledTimes(1)
     expect(payloadMock.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
-          components: [
-            {
-              blockType: 'refG',
-              content: {
-                links: [{ link: { label: null } }, { link: { label: null } }],
-              },
-            },
-          ],
+        data: {
           heroes: [
             {
               blockType: 'HeroText',
@@ -1033,7 +1016,7 @@ describe('streamTranslations', () => {
               id: 'hero-1',
             },
           ],
-        }),
+        },
       }),
     )
   })

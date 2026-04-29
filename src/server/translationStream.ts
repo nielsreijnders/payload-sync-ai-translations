@@ -99,6 +99,36 @@ function collectTranslatedPaths(localeEntry: TranslateLocaleRequestPayload): str
   return translatedPaths
 }
 
+function collectTranslatedTopLevelFields(translatedPaths: string[]): Set<string> {
+  const fields = new Set<string>()
+
+  for (const path of translatedPaths) {
+    const [field] = path.split('.')
+    if (field) {
+      fields.add(field)
+    }
+  }
+
+  return fields
+}
+
+function pickTopLevelFields(data: unknown, fields: Set<string>): Record<string, unknown> {
+  if (!isPlainObject(data) || !fields.size) {
+    return {}
+  }
+
+  const source = data as Record<string, unknown>
+  const scoped: Record<string, unknown> = {}
+
+  for (const field of fields) {
+    if (Object.prototype.hasOwnProperty.call(source, field)) {
+      scoped[field] = cloneLocaleData(source[field])
+    }
+  }
+
+  return scoped
+}
+
 function collectCollectionIdentifierPaths(data: unknown, translatedPaths: string[]): Set<string> {
   const identifiers = new Set<string>()
 
@@ -657,11 +687,11 @@ export async function* streamTranslations(
           ? {
               id: documentId as number | string,
               collection: collectionSlug as string,
-              fallbackLocale: true,
+              fallbackLocale: false,
               locale,
             }
           : {
-              fallbackLocale: true,
+              fallbackLocale: false,
               global: globalSlug as string,
               locale,
             },
@@ -859,21 +889,27 @@ export async function* streamTranslations(
 
     try {
       stripDocumentMetadata(localeData)
+      const translatedPaths = collectTranslatedPaths(localeEntry)
+      const scopedLocaleData = pickTopLevelFields(
+        localeData,
+        collectTranslatedTopLevelFields(translatedPaths),
+      )
+      stripDocumentMetadata(scopedLocaleData)
       const allowedIdentifiers = isCollectionTarget
         ? removeLocalizedContainerIdentifiers(
-            collectCollectionIdentifierPaths(localeData, collectTranslatedPaths(localeEntry)),
+            collectCollectionIdentifierPaths(scopedLocaleData, translatedPaths),
             collectConcreteLocalizedContainerPaths(
-              localeData,
+              scopedLocaleData,
               storedEntry?.localizedContainerPatterns,
             ),
           )
         : new Set([
-            ...collectTopLevelArrayRowIdentifierPaths(localeData),
+            ...collectTopLevelArrayRowIdentifierPaths(scopedLocaleData),
             ...collectTopLevelIdentifierPaths(
               localeIdentifierPaths.get(locale) ?? new Set<string>(),
             ),
           ])
-      const sanitizedSource = pruneIdentifierFields(localeData, allowedIdentifiers)
+      const sanitizedSource = pruneIdentifierFields(scopedLocaleData, allowedIdentifiers)
       const saveData = (
         isCollectionTarget ? sanitizedSource : cloneWithoutDocumentMetadata(sanitizedSource)
       ) as Record<string, unknown>
