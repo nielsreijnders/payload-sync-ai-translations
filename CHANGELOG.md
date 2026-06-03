@@ -1,3 +1,10 @@
+# [1.27.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.26.0...v1.27.0) (2026-06-03)
+
+
+### Features
+
+* add better type safety ([cd2484d](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/cd2484d24a56c9539f2261af0e4a4f3c46101015))
+
 # [1.26.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.25.3...v1.26.0) (2026-06-03)
 
 
