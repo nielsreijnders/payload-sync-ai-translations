@@ -44,6 +44,11 @@
   display: grid;
   gap: 0.4rem;
 }
+.options {
+  display: grid;
+  gap: 0.6rem;
+  max-width: 520px;
+}
 .masterLabel {
   display: inline-flex;
   align-items: center;
@@ -93,6 +98,34 @@
   background: var(--theme-elevation-75, var(--theme-elevation-50));
   padding: 0.05rem 0.35rem;
   border-radius: 6px;
+}
+.optionLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+  color: var(--theme-elevation-900);
+  font-size: 0.92rem;
+}
+.fieldControl {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--theme-elevation-900);
+  font-size: 0.9rem;
+}
+.fieldInput {
+  min-height: 58px;
+  resize: vertical;
+  border: 1px solid var(--theme-elevation-200);
+  border-radius: 8px;
+  background: var(--theme-elevation-50);
+  color: var(--theme-elevation-900);
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+  line-height: 1.35;
+}
+.fieldInput::placeholder {
+  color: var(--theme-elevation-500);
 }
 
 /* Actions */
@@ -247,10 +280,10 @@
 }
 
 /* A11y focus */
-:where(.item, .select, summary) {
+:where(.fieldInput, .item, .select, summary) {
   outline: none;
 }
-:where(.item, .select, summary):focus-visible {
+:where(.fieldInput, .item, .select, summary):focus-visible {
   box-shadow:
     0 0 0 2px var(--theme-elevation-300),
     0 0 0 4px var(--theme-elevation-150);
@@ -275,6 +308,9 @@
     border-color: var(--theme-elevation-200);
   }
   .select {
+    background: var(--theme-elevation-75);
+  }
+  .fieldInput {
     background: var(--theme-elevation-75);
   }
 }

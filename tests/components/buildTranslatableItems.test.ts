@@ -47,4 +47,34 @@ describe('buildTranslatableItems', () => {
 
     expect(identifiers).toEqual(['sections.0._id', 'sections.0.links.0.id', 'sections.0.links.0._id'])
   })
+
+  it('skips arbitrary field names without hardcoding them', () => {
+    const nestedPatterns = ['title', 'slug', 'sections[].slug', 'sections[].singularSlug']
+    const nestedData = {
+      sections: [{ singularSlug: 'feature', slug: 'nested-feature' }],
+      singularSlug: 'page',
+      slug: 'home',
+      title: 'Homepage',
+    }
+
+    const items = buildTranslatableItems(nestedData, nestedPatterns, {
+      skipFields: ['slug', 'singularSlug'],
+    })
+
+    expect(items.map((item) => item.path)).toEqual(['title'])
+  })
+
+  it('skips arbitrary field paths across array indexes', () => {
+    const nestedPatterns = ['seo.title', 'sections[].seo.title', 'sections[].title']
+    const nestedData = {
+      sections: [{ seo: { title: 'Nested SEO title' }, title: 'Section title' }],
+      seo: { title: 'SEO title' },
+    }
+
+    const items = buildTranslatableItems(nestedData, nestedPatterns, {
+      skipFields: ['sections.seo'],
+    })
+
+    expect(items.map((item) => item.path)).toEqual(['seo.title', 'sections.0.title'])
+  })
 })

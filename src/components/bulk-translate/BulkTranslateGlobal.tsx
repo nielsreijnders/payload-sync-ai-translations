@@ -35,6 +35,8 @@ export function BulkTranslateGlobal({
   const [logs, setLogs] = React.useState<LogEntry[]>([])
   const [currentTask, setCurrentTask] = React.useState('Idle')
   const [logFilter, setLogFilter] = React.useState<'all' | LogStatus>('all')
+  const [overwrite, setOverwrite] = React.useState(false)
+  const [skipFieldsText, setSkipFieldsText] = React.useState('')
   const logCounter = React.useRef(0)
 
   React.useEffect(() => {
@@ -56,16 +58,10 @@ export function BulkTranslateGlobal({
       : 'No target locales configured.'
   }, [defaultLocale, targets])
 
+  const skipFields = React.useMemo(() => parseSkipFields(skipFieldsText), [skipFieldsText])
+
   const toggleCollection = (slug: string) =>
     setSelected((prev) => (prev.includes(slug) ? prev.filter((v) => v !== slug) : [...prev, slug]))
-
-  const toggleAll = () => {
-    if (selected.length === collections.length) {
-      setSelected([])
-    } else {
-      setSelected(collections.map((c) => c.slug))
-    }
-  }
 
   const addLog = (message: string, status: LogStatus = 'info') => {
     setLogs((prev) => {
@@ -176,9 +172,14 @@ export function BulkTranslateGlobal({
     if (!canStart) {
       return
     }
-    const ok = window.confirm(
-      `Start bulk translation for ${selected.length} collection(s)?\n${localeSummary}`,
-    )
+    const confirmLines = [
+      `Start bulk translation for ${selected.length} collection(s)?`,
+      localeSummary,
+      overwrite ? 'Overwrite existing translations: yes' : 'Overwrite existing translations: no',
+      skipFields.length ? `Skip fields: ${skipFields.join(', ')}` : '',
+    ].filter(Boolean)
+
+    const ok = window.confirm(confirmLines.join('\n'))
     if (!ok) {
       return
     }
@@ -190,7 +191,14 @@ export function BulkTranslateGlobal({
     setCurrentTask('Initializing…')
 
     try {
-      await runBulkTranslation(selected, { onEvent: handleEvent })
+      if (overwrite) {
+        addLog('Overwrite enabled: existing translations will be replaced.')
+      }
+      if (skipFields.length) {
+        addLog(`Skipping fields: ${skipFields.join(', ')}.`)
+      }
+
+      await runBulkTranslation(selected, { onEvent: handleEvent, overwrite, skipFields })
     } catch (error) {
       addLog(error instanceof Error ? error.message : 'Bulk translation failed.', 'error')
       setCurrentTask('Failed.')
@@ -242,19 +250,6 @@ export function BulkTranslateGlobal({
 
         <div className={styles.controls}>
           <div className={styles.collections}>
-            {/* <label className={styles.masterLabel}>
-              <input
-                aria-label="Select all collections"
-                checked={selected.length === collections.length && collections.length > 0}
-                onChange={toggleAll}
-                type="checkbox"
-              />
-              All collections
-              <span className={styles.collectionMeta}>
-                ({selected.length}/{collections.length})
-              </span>
-            </label> */}
-
             <ul aria-label="Collections" className={styles.list} role="group">
               {collections.map((c) => {
                 const checked = selected.includes(c.slug)
@@ -275,6 +270,32 @@ export function BulkTranslateGlobal({
                 )
               })}
             </ul>
+          </div>
+
+          <div className={styles.options}>
+            <label className={styles.optionLabel}>
+              <input
+                aria-label="Overwrite existing translations"
+                checked={overwrite}
+                disabled={running}
+                onChange={(event) => setOverwrite(event.target.checked)}
+                type="checkbox"
+              />
+              Overwrite existing translations
+            </label>
+
+            <label className={styles.fieldControl}>
+              <span>Skip fields</span>
+              <textarea
+                aria-label="Skip fields"
+                className={styles.fieldInput}
+                disabled={running}
+                onChange={(event) => setSkipFieldsText(event.target.value)}
+                placeholder="slug, singularSlug, seo.title"
+                rows={2}
+                value={skipFieldsText}
+              />
+            </label>
           </div>
 
           <div className={styles.actions}>
@@ -315,8 +336,9 @@ export function BulkTranslateGlobal({
             <label className={styles.selectWrap}>
               <span className="sr-only">Filter</span>
               <select
+                aria-label="Filter logs"
                 className={styles.select}
-                onChange={(e) => setLogFilter(e.target.value as any)}
+                onChange={(e) => setLogFilter(e.target.value as 'all' | LogStatus)}
                 value={logFilter}
               >
                 <option value="all">All</option>
@@ -361,4 +383,14 @@ function formatTime(ts: number) {
 }
 function pad(n: number) {
   return String(n).padStart(2, '0')
+}
+function parseSkipFields(value: string): string[] {
+  return Array.from(
+    new Set(
+      value
+        .split(/[,\n;]/)
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    ),
+  )
 }

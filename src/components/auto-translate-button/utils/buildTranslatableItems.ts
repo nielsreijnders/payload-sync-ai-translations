@@ -7,6 +7,10 @@ import {
 
 const IDENTIFIER_KEYS = new Set(['_id', 'id'])
 
+export type BuildTranslatableItemsOptions = {
+  skipFields?: string[]
+}
+
 function isIdentifierPath(path: string): boolean {
   if (!path) {
     return false
@@ -19,14 +23,54 @@ function isIdentifierPath(path: string): boolean {
 
 export type TranslatableItem = { lexical: boolean; path: string; text: string }
 
-export function buildTranslatableItems(data: unknown, fieldPatterns: string[]): TranslatableItem[] {
+function normalizePathSegments(path: string): string[] {
+  return path
+    .split('.')
+    .map((segment) => segment.trim().replace(/\[\]$/, ''))
+    .filter((segment) => segment && !/^\d+$/.test(segment))
+}
+
+function normalizeSkipFields(skipFields: string[] = []): string[][] {
+  return skipFields
+    .map((field) => normalizePathSegments(field))
+    .filter((segments) => segments.length > 0)
+}
+
+function shouldSkipPath(path: string, skipFields: string[][]): boolean {
+  if (!skipFields.length) {
+    return false
+  }
+
+  const pathSegments = normalizePathSegments(path)
+  const compactPath = pathSegments.join('.')
+
+  return skipFields.some((skipSegments) => {
+    if (skipSegments.length === 1) {
+      return pathSegments.includes(skipSegments[0] ?? '')
+    }
+
+    const skipPath = skipSegments.join('.')
+    return compactPath === skipPath || compactPath.startsWith(`${skipPath}.`)
+  })
+}
+
+export function buildTranslatableItems(
+  data: unknown,
+  fieldPatterns: string[],
+  options: BuildTranslatableItemsOptions = {},
+): TranslatableItem[] {
   const items: TranslatableItem[] = []
+  const skipFields = normalizeSkipFields(options.skipFields)
 
   for (const pattern of fieldPatterns) {
     const concretePaths = expandConcretePathsFromPattern(data, pattern)
 
     for (const path of concretePaths) {
       if (isIdentifierPath(path)) {
+        continue
+      }
+
+      if (shouldSkipPath(path, skipFields)) {
         continue
       }
 
@@ -52,6 +96,35 @@ export function buildTranslatableItems(data: unknown, fieldPatterns: string[]): 
   }
 
   return items
+}
+
+export function collectSkippedTranslatablePaths(
+  data: unknown,
+  fieldPatterns: string[],
+  skipFields: string[] = [],
+): string[] {
+  const normalizedSkipFields = normalizeSkipFields(skipFields)
+  if (!normalizedSkipFields.length) {
+    return []
+  }
+
+  const paths = new Set<string>()
+
+  for (const pattern of fieldPatterns) {
+    const concretePaths = expandConcretePathsFromPattern(data, pattern)
+
+    for (const path of concretePaths) {
+      if (isIdentifierPath(path)) {
+        continue
+      }
+
+      if (shouldSkipPath(path, normalizedSkipFields)) {
+        paths.add(path)
+      }
+    }
+  }
+
+  return Array.from(paths)
 }
 
 export function collectIdentifierPaths(data: unknown, fieldPatterns: string[]): string[] {

@@ -13,6 +13,7 @@ export type TranslateLocaleRequestPayload = {
   code: string
   identifierPaths?: string[]
   overrides?: TranslateOverride[]
+  preservePaths?: string[]
 }
 
 export type TranslationTargetCollection = {
@@ -65,6 +66,8 @@ export type TranslateReviewResponse = {
 
 export type BulkTranslateRequestPayload = {
   collections: string[]
+  overwrite?: boolean
+  skipFields?: string[]
 }
 
 export type BulkGrammarCheckRequestPayload = {

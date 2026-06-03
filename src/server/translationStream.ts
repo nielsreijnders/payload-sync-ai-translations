@@ -585,6 +585,78 @@ function applyTranslatedValues(
   return nextLocaleData
 }
 
+function removeValueAtPath(source: unknown, path: string): unknown {
+  const segments = path.split('.')
+
+  const remove = (current: unknown, index: number): unknown => {
+    if (current === undefined || current === null) {
+      return current
+    }
+
+    const segment = segments[index]
+    const isLast = index === segments.length - 1
+
+    if (/^\d+$/.test(segment ?? '')) {
+      if (!Array.isArray(current)) {
+        return current
+      }
+
+      const position = Number(segment)
+      const next = [...current]
+      if (position >= next.length) {
+        return next
+      }
+
+      if (isLast) {
+        next.splice(position, 1)
+      } else {
+        next[position] = remove(next[position], index + 1)
+      }
+
+      return next
+    }
+
+    if (!isPlainObject(current) || !segment) {
+      return current
+    }
+
+    const next: Record<string, unknown> = { ...(current as Record<string, unknown>) }
+    if (isLast) {
+      delete next[segment]
+    } else {
+      next[segment] = remove(next[segment], index + 1)
+    }
+
+    return next
+  }
+
+  return remove(source, 0)
+}
+
+function preserveValuesAtPaths(
+  baseDoc: null | Record<string, unknown>,
+  localeData: unknown,
+  existingLocaleDoc: null | Record<string, unknown>,
+  paths: string[] = [],
+): unknown {
+  let nextLocaleData = localeData
+
+  for (const path of Array.from(new Set(paths))) {
+    const existingValue = existingLocaleDoc
+      ? getValueAtPath(existingLocaleDoc, path, baseDoc ? { base: baseDoc } : undefined)
+      : undefined
+
+    if (existingValue === undefined) {
+      nextLocaleData = removeValueAtPath(nextLocaleData, path)
+      continue
+    }
+
+    nextLocaleData = setValueAtPath(baseDoc, nextLocaleData, path, cloneLocaleData(existingValue))
+  }
+
+  return nextLocaleData
+}
+
 export async function* streamTranslations(
   payload: Payload,
   input: TranslateRequestPayload,
@@ -881,6 +953,13 @@ export async function* streamTranslations(
         yield { type: 'progress', completed, locale, total: localeTotalItems }
       }
     }
+
+    localeData = preserveValuesAtPaths(
+      baseDoc,
+      localeData,
+      existingLocaleDoc,
+      localeEntry.preservePaths,
+    )
 
     if (typeof localeData !== 'object' || localeData === null || Array.isArray(localeData)) {
       yield { type: 'error', message: 'Translated data has unexpected shape.' }

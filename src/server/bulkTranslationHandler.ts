@@ -10,6 +10,7 @@ import type {
 import {
   buildTranslatableItems,
   collectIdentifierPaths,
+  collectSkippedTranslatablePaths,
 } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
 import { chunkItems } from '../utils/localizedFields.js'
 import { logDebug } from './debugSettings.js'
@@ -23,6 +24,22 @@ function serializeEvent(event: BulkStreamEvent): Uint8Array {
   return encoder.encode(`${JSON.stringify(event)}\n`)
 }
 
+function normalizeSkipFields(value: unknown): string[] {
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(/[,\n;]/)
+      : []
+
+  return Array.from(
+    new Set(
+      raw
+        .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+        .filter((entry): entry is string => Boolean(entry)),
+    ),
+  )
+}
+
 function parseBulkBody(body: unknown): BulkTranslateRequestPayload {
   if (typeof body !== 'object' || body === null) {
     throw new Error('Invalid JSON body')
@@ -30,6 +47,8 @@ function parseBulkBody(body: unknown): BulkTranslateRequestPayload {
 
   const candidate = body as Record<string, unknown>
   const collections = candidate.collections
+  const overwrite = candidate.overwrite === true
+  const skipFields = normalizeSkipFields(candidate.skipFields)
 
   if (!Array.isArray(collections)) {
     throw new Error('Expected "collections" to be an array of collection slugs')
@@ -47,7 +66,7 @@ function parseBulkBody(body: unknown): BulkTranslateRequestPayload {
     throw new Error('No collections selected for bulk translation')
   }
 
-  return { collections: sanitized }
+  return { collections: sanitized, overwrite, skipFields }
 }
 
 function toIdentifier(value: unknown): null | number | string {
@@ -72,6 +91,7 @@ function buildLocaleRequests(
   items: ReturnType<typeof buildTranslatableItems>,
   locales: TranslateReviewLocale[],
   identifierPaths: ReturnType<typeof collectIdentifierPaths>,
+  preservePaths: string[],
 ): TranslateLocaleRequestPayload[] {
   return locales
     .map((locale) => {
@@ -113,9 +133,30 @@ function buildLocaleRequests(
         code: locale.code,
         identifierPaths,
         overrides,
+        preservePaths,
       }
     })
     .filter((locale) => locale.chunks.length || (locale.overrides?.length ?? 0) > 0)
+}
+
+function buildOverwriteLocaleRequests(
+  items: ReturnType<typeof buildTranslatableItems>,
+  locales: string[],
+  identifierPaths: ReturnType<typeof collectIdentifierPaths>,
+  preservePaths: string[],
+): TranslateLocaleRequestPayload[] {
+  if (!items.length) {
+    return []
+  }
+
+  const chunks = chunkItems(items)
+
+  return locales.map((code) => ({
+    chunks,
+    code,
+    identifierPaths,
+    preservePaths,
+  }))
 }
 
 async function* runBulkTranslations(
@@ -125,6 +166,7 @@ async function* runBulkTranslations(
   const state = getTranslationState()
   const defaultLocale = state.defaultLocale
   const targetLocales = state.locales.filter((code) => code && code !== defaultLocale)
+  const skipFields = request.skipFields ?? []
 
   if (!defaultLocale) {
     yield { type: 'error', message: 'Default locale is not configured for translations.' }
@@ -147,12 +189,14 @@ async function* runBulkTranslations(
 
   logDebug(payload, '[AI Translate] Bulk translation collections resolved.', {
     defaultLocale,
+    overwrite: Boolean(request.overwrite),
     requestedCollections: request.collections,
     resolvedCollections: selected.map((entry) => ({
       slug: entry.slug,
       fieldPatterns: entry.fieldPatterns,
       label: entry.label,
     })),
+    skipFields,
     targetLocales,
   })
 
@@ -283,12 +327,15 @@ async function* runBulkTranslations(
         yield { id: docLabel, type: 'document-start', collection: entry.slug }
 
         const identifierPaths = collectIdentifierPaths(doc, entry.fieldPatterns)
-        const items = buildTranslatableItems(doc, entry.fieldPatterns)
+        const preservePaths = collectSkippedTranslatablePaths(doc, entry.fieldPatterns, skipFields)
+        const items = buildTranslatableItems(doc, entry.fieldPatterns, { skipFields })
 
         logDebug(payload, '[AI Translate] Built translatable items for bulk document.', {
           collection: entry.slug,
           documentId: docIdentifier,
           itemCount: items.length,
+          preservePathCount: preservePaths.length,
+          skippedFields: skipFields,
         })
 
         if (!items.length) {
@@ -306,37 +353,56 @@ async function* runBulkTranslations(
           continue
         }
 
-        let review
-        try {
-          review = await generateTranslationReview(payload, {
-            id: docIdentifier,
-            collection: entry.slug,
-            from: defaultLocale,
+        let localeRequests: TranslateLocaleRequestPayload[]
+
+        if (request.overwrite) {
+          localeRequests = buildOverwriteLocaleRequests(
             items,
-            locales: targetLocales,
-          })
-          logDebug(payload, '[AI Translate] Generated translation review for bulk document.', {
+            targetLocales,
+            identifierPaths,
+            preservePaths,
+          )
+          logDebug(payload, '[AI Translate] Prepared overwrite locale requests for bulk document.', {
             collection: entry.slug,
             documentId: docIdentifier,
-            locales: review.locales.map((locale) => ({
+            locales: localeRequests.map((locale) => ({
+              chunkCount: locale.chunks.length,
               code: locale.code,
-              suggestions: locale.suggestions?.length ?? 0,
-              translateIndexes: locale.translateIndexes,
             })),
           })
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : 'Translation review failed for document.'
-          collectionFailed += 1
-          overallFailed += 1
-          payload.logger?.error?.(
-            `[AI Translate] Review failed for ${entry.slug}#${docLabel}: ${message}`,
-          )
-          yield { id: docLabel, type: 'document-error', collection: entry.slug, message }
-          continue
-        }
+        } else {
+          let review
+          try {
+            review = await generateTranslationReview(payload, {
+              id: docIdentifier,
+              collection: entry.slug,
+              from: defaultLocale,
+              items,
+              locales: targetLocales,
+            })
+            logDebug(payload, '[AI Translate] Generated translation review for bulk document.', {
+              collection: entry.slug,
+              documentId: docIdentifier,
+              locales: review.locales.map((locale) => ({
+                code: locale.code,
+                suggestions: locale.suggestions?.length ?? 0,
+                translateIndexes: locale.translateIndexes,
+              })),
+            })
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : 'Translation review failed for document.'
+            collectionFailed += 1
+            overallFailed += 1
+            payload.logger?.error?.(
+              `[AI Translate] Review failed for ${entry.slug}#${docLabel}: ${message}`,
+            )
+            yield { id: docLabel, type: 'document-error', collection: entry.slug, message }
+            continue
+          }
 
-        const localeRequests = buildLocaleRequests(items, review.locales, identifierPaths)
+          localeRequests = buildLocaleRequests(items, review.locales, identifierPaths, preservePaths)
+        }
 
         logDebug(payload, '[AI Translate] Prepared locale requests for bulk document.', {
           collection: entry.slug,
@@ -481,6 +547,8 @@ export function createAiBulkTranslateHandler(): PayloadHandler {
 
       logDebug(payload, '[AI Translate] Parsed bulk translation request.', {
         collections: parsed.collections,
+        overwrite: parsed.overwrite,
+        skipFields: parsed.skipFields,
       })
 
       const stream = new ReadableStream<Uint8Array>({

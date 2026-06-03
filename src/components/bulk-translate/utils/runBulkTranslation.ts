@@ -1,15 +1,21 @@
 import type { BulkStreamEvent } from '../../../server/translationTypes.js'
 
-export type BulkTranslationCallbacks = {
+export type BulkTranslationOptions = {
   onEvent(event: BulkStreamEvent): void
+  overwrite?: boolean
+  skipFields?: string[]
 }
 
 export async function runBulkTranslation(
   collections: string[],
-  callbacks: BulkTranslationCallbacks,
+  options: BulkTranslationOptions,
 ): Promise<void> {
   const response = await fetch('/api/ai-translate/bulk', {
-    body: JSON.stringify({ collections }),
+    body: JSON.stringify({
+      collections,
+      overwrite: Boolean(options.overwrite),
+      skipFields: options.skipFields ?? [],
+    }),
     headers: { 'Content-Type': 'application/json' },
     method: 'POST',
   })
@@ -44,7 +50,7 @@ export async function runBulkTranslation(
       if (line) {
         try {
           const event = JSON.parse(line) as BulkStreamEvent
-          callbacks.onEvent(event)
+          options.onEvent(event)
           if (event.type === 'bulk-complete' || event.type === 'error') {
             stop = true
             break
