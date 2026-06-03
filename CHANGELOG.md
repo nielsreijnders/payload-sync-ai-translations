@@ -1,3 +1,10 @@
+# [1.26.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.25.3...v1.26.0) (2026-06-03)
+
+
+### Features
+
+* add overwrite setting in AI bulk translation ([8444d76](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/8444d7613fe0cb68eaed7a484905977b13e2e363))
+
 ## [1.25.3](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.25.2...v1.25.3) (2026-04-29)
 
 
