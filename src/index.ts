@@ -1,4 +1,8 @@
-export type { AiLocalizationCollectionOptions, AiLocalizationConfig } from './plugin.js'
+export type {
+  AiLocalizationCollectionOptions,
+  AiLocalizationConfig,
+  PayloadSyncAiTranslationsPlugin,
+} from './plugin.js'
 export { payloadSyncAiTranslations } from './plugin.js'
 
 export { streamTranslations } from './server/translationStream.js'

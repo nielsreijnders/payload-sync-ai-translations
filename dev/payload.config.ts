@@ -69,8 +69,7 @@ const buildConfigWithMemoryDB = async () => {
       payloadSyncAiTranslations({
         collections: {
           posts: {
-            // This should return the collection type of course...
-            customPrompt: (data: any) => {
+            customPrompt: (data) => {
               return `Keep the following productNames in English ${data.title}`
             },
             excludeFields: ['slug'],

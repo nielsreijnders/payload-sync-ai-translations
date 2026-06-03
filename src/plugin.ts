@@ -1,4 +1,4 @@
-import type { CollectionConfig, Config, GlobalConfig } from 'payload'
+import type { CollectionConfig, Config, GlobalConfig, PayloadTypes } from 'payload'
 
 import { createAiBulkTranslateHandler } from './server/bulkTranslationHandler.js'
 import { setDebugEnabled } from './server/debugSettings.js'
@@ -14,12 +14,38 @@ import {
   listStoredGlobals,
 } from './server/translationStateStore.js'
 
-export type AiLocalePromptResolver = (data: unknown, locale: string) => string | undefined
-export type AiLocalePromptSetting = AiLocalePromptResolver | Record<string, string> | string
+type DefaultPayloadTypes = PayloadTypes
+type NoInferPayloadTypes<T> = [T][T extends unknown ? 0 : never]
+type SlugKey<T> = Extract<keyof T, string>
+type CollectionDataBySlug<TPayloadConfig> = TPayloadConfig extends {
+  collections: infer TCollections
+}
+  ? TCollections
+  : Record<string, unknown>
+type GlobalDataBySlug<TPayloadConfig> = TPayloadConfig extends { globals: infer TGlobals }
+  ? TGlobals
+  : Record<string, unknown>
 
-export type AiLocalizationCollectionOptions = {
-  clientProps?: Record<string, unknown> // add this
-  customPrompt?: (data: unknown, locale: string) => string | undefined
+type OptionsBySlug<TDataBySlug> = [SlugKey<TDataBySlug>] extends [never]
+  ? Record<string, AiLocalizationCollectionOptions>
+  : string extends SlugKey<TDataBySlug>
+    ? Record<string, AiLocalizationCollectionOptions>
+    : Partial<{
+        [TSlug in SlugKey<TDataBySlug>]: AiLocalizationCollectionOptions<TDataBySlug[TSlug]>
+      }>
+
+export type AiLocalePromptResolver<TData = unknown> = (
+  data: TData,
+  locale: string,
+) => string | undefined
+export type AiLocalePromptSetting<TData = unknown> =
+  | AiLocalePromptResolver<TData>
+  | Record<string, string>
+  | string
+
+export type AiLocalizationCollectionOptions<TData = unknown> = {
+  clientProps?: Record<string, unknown>
+  customPrompt?: AiLocalePromptResolver<TData>
   excludeFields?: string[]
   /**
    * Optional locale-aware prompt for grammar checks only (not used in translation flows).
@@ -28,13 +54,13 @@ export type AiLocalizationCollectionOptions = {
    * - object map: { 'en-us': '...', 'en-gb': '...', default: '...' }
    * - single string: applied to all locales
    */
-  grammarCheckPrompt?: AiLocalePromptSetting
+  grammarCheckPrompt?: AiLocalePromptSetting<TData>
 }
 
-export type AiLocalizationConfig = {
-  collections?: Record<string, AiLocalizationCollectionOptions>
+export type AiLocalizationConfig<TPayloadConfig = DefaultPayloadTypes> = {
+  collections?: OptionsBySlug<CollectionDataBySlug<TPayloadConfig>>
   debug?: boolean
-  globals?: Record<string, AiLocalizationCollectionOptions>
+  globals?: OptionsBySlug<GlobalDataBySlug<TPayloadConfig>>
   openai: {
     apiKey: string
     baseURL?: string
@@ -47,6 +73,10 @@ export type AiLocalizationConfig = {
   serverURL?: string
 }
 
+export type PayloadSyncAiTranslationsPlugin = <TPayloadConfig = DefaultPayloadTypes>(
+  options: AiLocalizationConfig<NoInferPayloadTypes<TPayloadConfig>>,
+) => (config: Config) => Config
+
 const CLIENT_EXPORT = 'payload-sync-ai-translations/client#AutoTranslateButton'
 const BULK_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#BulkTranslateGlobal'
 const GRAMMAR_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#GrammarCheckGlobal'
@@ -57,9 +87,9 @@ const LINK_GLOBAL_SLUG = 'sync-links'
 const DEBUG_CLIENT_EXPORT = 'payload-sync-ai-translations/client#DebugDocumentCopyButton'
 const SYNC_LINKS_CLIENT_EXPORT = 'payload-sync-ai-translations/client#DocumentSyncLinksButton'
 
-function normalizeLocalePromptSetting(
-  input?: AiLocalePromptSetting,
-): AiLocalePromptResolver | undefined {
+function normalizeLocalePromptSetting<TData = unknown>(
+  input?: AiLocalePromptSetting<TData>,
+): AiLocalePromptResolver<TData> | undefined {
   if (!input) {
     return undefined
   }
@@ -110,11 +140,17 @@ function normalizeLocalePromptSetting(
   }
 }
 
-export const payloadSyncAiTranslations =
-  (options: AiLocalizationConfig) =>
+export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
+  (options) =>
   (config: Config): Config => {
-    const collectionSlugs = Object.keys(options.collections ?? {})
-    const globalSlugs = Object.keys(options.globals ?? {})
+    const collectionOptions = options.collections as
+      | Record<string, AiLocalizationCollectionOptions>
+      | undefined
+    const globalOptions = options.globals as
+      | Record<string, AiLocalizationCollectionOptions>
+      | undefined
+    const collectionSlugs = Object.keys(collectionOptions ?? {})
+    const globalSlugs = Object.keys(globalOptions ?? {})
 
     if (!collectionSlugs.length && !globalSlugs.length) {
       throw new Error('AI Localization: configure at least one collection or global.')
@@ -150,7 +186,7 @@ export const payloadSyncAiTranslations =
     }> = []
 
     const collections = (config.collections ?? []).map((collection) => {
-      const perColl = options.collections?.[collection.slug]
+      const perColl = collectionOptions?.[collection.slug]
       if (!perColl) {
         return collection
       }
@@ -213,7 +249,7 @@ export const payloadSyncAiTranslations =
     })
 
     const globals = (config.globals ?? []).map((global) => {
-      const perGlobal = options.globals?.[global.slug]
+      const perGlobal = globalOptions?.[global.slug]
       if (!perGlobal) {
         return global
       }
