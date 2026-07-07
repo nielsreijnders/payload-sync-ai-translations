@@ -20,6 +20,7 @@ import {
   shouldPreserveOriginalValue,
 } from './openAiTranslationClient.js'
 import { rejectUnauthenticated } from './requireUser.js'
+import { buildSyncSnapshot, buildTargetKey, recordSyncSnapshot } from './syncStatusStore.js'
 import { getStoredTarget } from './translationStateStore.js'
 
 type TranslateSuggestionInput = {
@@ -66,6 +67,51 @@ function areTranslateItems(value: unknown): value is TranslateReviewRequestPaylo
 
 function normalizeTextForComparison(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Removes review entries whose AI suggestion is identical to the existing
+ * translation. Applying such a suggestion would be a no-op, so the same
+ * "missing information" flag would resurface on every sync — an endless
+ * review loop for the editor.
+ */
+export function dropNoopReviewEntries(input: {
+  mismatches: TranslateReviewMismatch[]
+  suggestions: TranslateReviewSuggestion[]
+  translateIndexes: number[]
+}): {
+  mismatches: TranslateReviewMismatch[]
+  suggestions: TranslateReviewSuggestion[]
+  translateIndexes: number[]
+} {
+  const suggestionByIndex = new Map(
+    input.suggestions.map((suggestion) => [suggestion.index, suggestion.text]),
+  )
+  const noopIndexes = new Set<number>()
+
+  for (const mismatch of input.mismatches) {
+    const suggested = suggestionByIndex.get(mismatch.index)
+    if (typeof suggested !== 'string') {
+      continue
+    }
+
+    const normalizedSuggested = normalizeTextForComparison(stripLexicalMarkers(suggested))
+    const normalizedExisting = normalizeTextForComparison(stripLexicalMarkers(mismatch.existingText))
+
+    if (normalizedSuggested && normalizedSuggested === normalizedExisting) {
+      noopIndexes.add(mismatch.index)
+    }
+  }
+
+  if (!noopIndexes.size) {
+    return input
+  }
+
+  return {
+    mismatches: input.mismatches.filter((mismatch) => !noopIndexes.has(mismatch.index)),
+    suggestions: input.suggestions.filter((suggestion) => !noopIndexes.has(suggestion.index)),
+    translateIndexes: input.translateIndexes.filter((index) => !noopIndexes.has(index)),
+  }
 }
 
 function isSameLocale(source: string, target: string): boolean {
@@ -426,12 +472,40 @@ export async function generateTranslationReview(
       }
     }
 
+    const cleaned = dropNoopReviewEntries({
+      mismatches,
+      suggestions,
+      translateIndexes: sortedIndexes,
+    })
+
+    if (cleaned.mismatches.length < mismatches.length) {
+      logDebug(payload, '[AI Translate] Dropped no-op review entries.', {
+        dropped: mismatches.length - cleaned.mismatches.length,
+        locale: localeCode,
+      })
+    }
+
+    // The review confirmed this locale fully covers the current content;
+    // refresh the sync snapshot so the out-of-sync indicator and the
+    // Translation Status overview stop flagging the document.
+    if (!cleaned.translateIndexes.length && !cleaned.mismatches.length && request.items.length) {
+      await recordSyncSnapshot(payload, {
+        locale: localeCode,
+        snapshot: buildSyncSnapshot(request.items),
+        target: buildTargetKey({
+          collection: 'collection' in request ? request.collection : undefined,
+          documentId: 'id' in request ? request.id : undefined,
+          global: 'global' in request ? request.global : undefined,
+        }),
+      })
+    }
+
     locales.push({
       code: localeCode,
       existingCount,
-      mismatches,
-      suggestions: suggestions.length ? suggestions : undefined,
-      translateIndexes: sortedIndexes,
+      mismatches: cleaned.mismatches,
+      suggestions: cleaned.suggestions.length ? cleaned.suggestions : undefined,
+      translateIndexes: cleaned.translateIndexes,
     })
   }
 

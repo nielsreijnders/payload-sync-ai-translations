@@ -1,13 +1,15 @@
-// AutoTranslateReviewModal.tsx
 'use client'
 
 import { Button, Modal } from '@payloadcms/ui'
+import { Info } from 'lucide-react'
 import * as React from 'react'
 
 import type { TranslateReviewLocale } from '../server/translationTypes.js'
+import type { DiffSegment } from './shared/wordDiff.js'
 
 import { stripLexicalMarkers } from '../utils/lexical.js'
 import styles from './Modal.module.css'
+import { diffWords } from './shared/wordDiff.js'
 
 type PendingReviewLocale = {
   overrides: Record<number, string>
@@ -19,6 +21,7 @@ type PendingReview = { locales: PendingReviewLocale[] }
 type AutoTranslateReviewModalProps = {
   cancelReview: () => void
   confirmReview: () => void
+  defaultLocale?: string
   modalBusy: boolean
   pendingReview: null | PendingReview
   slug: string
@@ -26,23 +29,89 @@ type AutoTranslateReviewModalProps = {
   updateLocaleSkip: (locale: string, index: number, skip: boolean) => void
 }
 
-function DiffBlock({
-  defaultText,
-  existingText,
-  reason,
+function SegmentedText({
+  segments,
+  tone,
 }: {
-  defaultText: string
-  existingText?: string
-  reason?: string
+  segments: DiffSegment[]
+  tone: 'added' | 'removed'
 }) {
-  const formattedDefault = stripLexicalMarkers(defaultText)
-  const formattedExisting = existingText ? stripLexicalMarkers(existingText) : existingText
+  const highlightClass = tone === 'added' ? styles.highlightAdded : styles.highlightRemoved
 
   return (
-    <div className={styles.diff}>
-      <pre className={`${styles.diffLine} ${styles.diffDel}`}>- {formattedDefault || '—'}</pre>
-      <pre className={`${styles.diffLine} ${styles.diffAdd}`}>+ {formattedExisting || '—'}</pre>
-      {reason ? <p className={styles.diffReason}>{reason}</p> : null}
+    <>
+      {segments.map((segment, index) =>
+        segment.changed ? (
+          <mark className={highlightClass} key={index}>
+            {segment.text}
+          </mark>
+        ) : (
+          <React.Fragment key={index}>{segment.text}</React.Fragment>
+        ),
+      )}
+    </>
+  )
+}
+
+/**
+ * Labeled source/current/suggestion comparison. The current translation and
+ * the suggestion get a word-level diff so the actual change is visible at a
+ * glance instead of asking editors to spot it themselves.
+ */
+function ComparisonBlock({
+  currentText,
+  defaultLocale,
+  localeCode,
+  sourceText,
+  suggestionText,
+}: {
+  currentText?: string
+  defaultLocale?: string
+  localeCode: string
+  sourceText: string
+  suggestionText?: string
+}) {
+  const source = stripLexicalMarkers(sourceText)
+  const current = currentText ? stripLexicalMarkers(currentText) : ''
+  const suggestion = suggestionText ? stripLexicalMarkers(suggestionText) : ''
+  const showCurrent = Boolean(current) && current !== suggestion
+
+  const diff = React.useMemo(
+    () => (showCurrent && suggestion ? diffWords(current, suggestion) : null),
+    [current, showCurrent, suggestion],
+  )
+
+  const sourceLabel = defaultLocale ? defaultLocale.toUpperCase() : 'SOURCE'
+  const targetLabel = localeCode.toUpperCase()
+
+  return (
+    <div className={styles.comparison}>
+      <div className={styles.comparisonRow}>
+        <span className={styles.rowLabel}>
+          Source <span className={styles.rowLocale}>{sourceLabel}</span>
+        </span>
+        <p className={styles.rowText}>{source || '—'}</p>
+      </div>
+
+      {showCurrent ? (
+        <div className={`${styles.comparisonRow} ${styles.rowCurrent}`}>
+          <span className={styles.rowLabel}>
+            Current <span className={styles.rowLocale}>{targetLabel}</span>
+          </span>
+          <p className={styles.rowText}>
+            {diff ? <SegmentedText segments={diff.before} tone="removed" /> : current}
+          </p>
+        </div>
+      ) : null}
+
+      <div className={`${styles.comparisonRow} ${styles.rowSuggestion}`}>
+        <span className={styles.rowLabel}>
+          Suggestion <span className={styles.rowLocale}>{targetLabel}</span>
+        </span>
+        <p className={styles.rowText}>
+          {diff ? <SegmentedText segments={diff.after} tone="added" /> : suggestion || '—'}
+        </p>
+      </div>
     </div>
   )
 }
@@ -52,6 +121,7 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
     slug,
     cancelReview,
     confirmReview,
+    defaultLocale,
     modalBusy,
     pendingReview,
     updateLocaleOverride,
@@ -68,9 +138,11 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
     <Modal slug={slug}>
       <div className={styles.modalContent}>
         <header className={styles.introMinimal}>
-          <h2 className={styles.introTitle}>Review missing information</h2>
+          <h2 className={styles.introTitle}>Review translation updates</h2>
           <p className={styles.introDescription}>
-            Fields below need attention compared to the default language.
+            The default language contains changes that are missing from the translations below.
+            Compare each current translation with the suggestion, edit or skip where needed, then
+            apply.
           </p>
         </header>
 
@@ -92,11 +164,6 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
                   const overrideValue = locale.overrides[item.index] ?? ''
                   const isSkipped = locale.skipped.includes(item.index)
                   const showEditor = !!expanded[id]
-
-                  const effectiveTarget = overrideValue || item.existingText || ''
-                  const previewText = effectiveTarget
-                    ? stripLexicalMarkers(effectiveTarget)
-                    : effectiveTarget
 
                   return (
                     <li
@@ -127,15 +194,25 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
                         </div>
                       </div>
 
-                      <DiffBlock
-                        defaultText={item.defaultText}
-                        existingText={overrideValue || item.existingText}
-                        reason={item.reason}
+                      {item.reason ? (
+                        <p className={styles.reasonNote}>
+                          <Info aria-hidden="true" className={styles.reasonIcon} size={14} />
+                          {item.reason}
+                        </p>
+                      ) : null}
+
+                      <ComparisonBlock
+                        currentText={item.existingText}
+                        defaultLocale={defaultLocale}
+                        localeCode={locale.code}
+                        sourceText={item.defaultText}
+                        suggestionText={overrideValue || item.existingText}
                       />
 
                       {showEditor && !isSkipped ? (
                         <div className={styles.editorWrap}>
                           <textarea
+                            aria-label={`Custom translation for ${item.path}`}
                             className={styles.textarea}
                             onChange={(e) =>
                               updateLocaleOverride(locale.code, item.index, e.target.value)
@@ -144,14 +221,9 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
                             rows={3}
                             value={overrideValue}
                           />
-                          {effectiveTarget ? (
-                            <div className={styles.previewBox}>
-                              <div className={styles.previewLabel}>Preview</div>
-                              <pre className={`${styles.diffLine} ${styles.diffAdd}`}>
-                                + {previewText}
-                              </pre>
-                            </div>
-                          ) : null}
+                          <p className={styles.editorHint}>
+                            The suggestion above updates live while you type.
+                          </p>
                         </div>
                       ) : null}
                     </li>
@@ -163,7 +235,7 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
         ))}
 
         <footer className={styles.actionsMinimal}>
-          <Button disabled={modalBusy} onClick={cancelReview} type="button">
+          <Button buttonStyle="secondary" disabled={modalBusy} onClick={cancelReview} type="button">
             Cancel
           </Button>
           <Button disabled={modalBusy} onClick={confirmReview} type="button">

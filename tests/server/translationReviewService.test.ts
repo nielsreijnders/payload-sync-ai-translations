@@ -8,7 +8,10 @@ import {
   openAiDetectMissingInformation,
   openAiTranslateTexts,
 } from '../../src/server/openAiTranslationClient.js'
-import { generateTranslationReview } from '../../src/server/translationReviewService.js'
+import {
+  dropNoopReviewEntries,
+  generateTranslationReview,
+} from '../../src/server/translationReviewService.js'
 
 vi.mock('../../src/server/openAiTranslationClient.js', () => ({
   openAiDetectMissingInformation: vi.fn().mockResolvedValue([]),
@@ -170,5 +173,161 @@ describe('generateTranslationReview', () => {
       'nl',
       { customPrompt: undefined },
     )
+  })
+
+  it('drops mismatches whose suggestion equals the existing translation', async () => {
+    const baseDoc = {
+      id: 'page-2',
+      title: 'Level up your AI-assisted translation workflow.',
+    }
+
+    const payloadMock = {
+      create: vi.fn(),
+      find: vi.fn().mockResolvedValue({ docs: [] }),
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return {
+          id: 'page-2',
+          title: 'Verbeter uw AI-ondersteunde vertaalworkflow.',
+        }
+      }),
+      logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+      update: vi.fn(),
+    } satisfies Partial<Payload>
+
+    // The AI flags the field, but its own suggestion is identical to the
+    // existing translation — applying it would change nothing.
+    vi.mocked(openAiDetectMissingInformation).mockResolvedValue([
+      { index: 0, missing: true, reason: "Translation omits 'Level up your' phrase." },
+    ])
+    vi.mocked(openAiTranslateTexts).mockResolvedValue([
+      'Verbeter uw AI-ondersteunde vertaalworkflow.',
+    ])
+
+    const request: TranslateReviewRequestPayload = {
+      id: 'page-2',
+      collection: 'pages',
+      from: 'en',
+      locales: ['nl'],
+      items: [
+        {
+          lexical: false,
+          path: 'title',
+          text: 'Level up your AI-assisted translation workflow.',
+        },
+      ],
+    }
+
+    const review = await generateTranslationReview(payloadMock as unknown as Payload, request)
+
+    const [locale] = review.locales
+    expect(locale.mismatches).toHaveLength(0)
+    expect(locale.translateIndexes).toHaveLength(0)
+    expect(locale.suggestions).toBeUndefined()
+    // The locale is confirmed in sync, so a fresh snapshot must be recorded.
+    expect(payloadMock.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'ai-translation-sync',
+        data: expect.objectContaining({ locale: 'nl', target: 'pages:page-2' }),
+      }),
+    )
+  })
+
+  it('keeps mismatches whose suggestion actually changes the translation', async () => {
+    const baseDoc = {
+      id: 'page-3',
+      title: 'Order now!',
+    }
+
+    const payloadMock = {
+      create: vi.fn(),
+      find: vi.fn().mockResolvedValue({ docs: [] }),
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return {
+          id: 'page-3',
+          title: 'Bestel nu',
+        }
+      }),
+      logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+      update: vi.fn(),
+    } satisfies Partial<Payload>
+
+    vi.mocked(openAiDetectMissingInformation).mockResolvedValue([
+      { index: 0, missing: true, reason: 'Translation is missing the exclamation emphasis.' },
+    ])
+    vi.mocked(openAiTranslateTexts).mockResolvedValue(['Bestel nu!'])
+
+    const request: TranslateReviewRequestPayload = {
+      id: 'page-3',
+      collection: 'pages',
+      from: 'en',
+      locales: ['nl'],
+      items: [
+        {
+          lexical: false,
+          path: 'title',
+          text: 'Order now!',
+        },
+      ],
+    }
+
+    const review = await generateTranslationReview(payloadMock as unknown as Payload, request)
+
+    const [locale] = review.locales
+    expect(locale.mismatches).toHaveLength(1)
+    expect(locale.suggestions).toEqual([{ index: 0, text: 'Bestel nu!' }])
+    // Locale still has work, so no snapshot refresh yet.
+    expect(payloadMock.create).not.toHaveBeenCalled()
+  })
+})
+
+describe('dropNoopReviewEntries', () => {
+  const mismatch = {
+    defaultText: 'Source',
+    existingText: 'Bestaande vertaling',
+    index: 3,
+    path: 'title',
+    reason: 'Something missing.',
+  }
+
+  it('removes entries whose suggestion equals the existing translation', () => {
+    const result = dropNoopReviewEntries({
+      mismatches: [mismatch],
+      suggestions: [{ index: 3, text: 'Bestaande  vertaling ' }],
+      translateIndexes: [3],
+    })
+
+    expect(result.mismatches).toHaveLength(0)
+    expect(result.suggestions).toHaveLength(0)
+    expect(result.translateIndexes).toHaveLength(0)
+  })
+
+  it('keeps entries whose suggestion differs', () => {
+    const result = dropNoopReviewEntries({
+      mismatches: [mismatch],
+      suggestions: [{ index: 3, text: 'Nieuwe vertaling' }],
+      translateIndexes: [3],
+    })
+
+    expect(result.mismatches).toHaveLength(1)
+    expect(result.translateIndexes).toEqual([3])
+  })
+
+  it('keeps entries without a suggestion and untouched indexes', () => {
+    const result = dropNoopReviewEntries({
+      mismatches: [mismatch],
+      suggestions: [],
+      translateIndexes: [1, 3],
+    })
+
+    expect(result.mismatches).toHaveLength(1)
+    expect(result.translateIndexes).toEqual([1, 3])
   })
 })

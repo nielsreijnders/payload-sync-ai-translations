@@ -24,6 +24,11 @@ export type LinkSyncResult = {
 
 export type BulkLinkSyncRequestPayload = {
   collections: string[]
+  /**
+   * Optional per-collection document filter. When present for a collection,
+   * only these documents are link-synced instead of the whole collection.
+   */
+  documents?: Record<string, Array<number | string>>
 }
 
 export type BulkLinkSyncDocumentReport = {

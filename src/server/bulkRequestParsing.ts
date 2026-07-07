@@ -20,6 +20,39 @@ export function sanitizeSlugArray(value: unknown): string[] {
   )
 }
 
+/**
+ * Parses an optional per-collection document filter
+ * (`{ [collectionSlug]: ids[] }`) used by bulk endpoints to operate on a
+ * specific set of documents instead of whole collections.
+ */
+export function parseDocumentsFilter(
+  value: unknown,
+): Record<string, Array<number | string>> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return undefined
+  }
+
+  const parsed: Record<string, Array<number | string>> = {}
+
+  for (const [slug, rawIds] of Object.entries(value as Record<string, unknown>)) {
+    if (!slug.trim() || !Array.isArray(rawIds)) {
+      continue
+    }
+
+    const ids = rawIds.filter(
+      (id): id is number | string =>
+        (typeof id === 'string' && Boolean(id.trim())) ||
+        (typeof id === 'number' && Number.isFinite(id)),
+    )
+
+    if (ids.length) {
+      parsed[slug.trim()] = ids
+    }
+  }
+
+  return Object.keys(parsed).length ? parsed : undefined
+}
+
 export function toIdentifier(value: unknown): null | number | string {
   if (typeof value === 'string') {
     const trimmed = value.trim()

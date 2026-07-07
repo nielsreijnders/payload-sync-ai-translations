@@ -2,6 +2,7 @@ import type { Payload, PayloadHandler } from 'payload'
 
 import type { BulkLinkSyncRequestPayload, BulkLinkSyncResponse } from './linkSyncTypes.js'
 
+import { parseDocumentsFilter } from './bulkRequestParsing.js'
 import { synchronizeLinksForDocument } from './linkSyncService.js'
 import { rejectUnauthenticated } from './requireUser.js'
 import {
@@ -109,7 +110,7 @@ function parseBulkBody(body: unknown): BulkLinkSyncRequestPayload {
     throw new Error('No collections selected for bulk link sync')
   }
 
-  return { collections: sanitized }
+  return { collections: sanitized, documents: parseDocumentsFilter(candidate.documents) }
 }
 
 export function createSyncLinksHandler(configuredBaseUrl?: string): PayloadHandler {
@@ -204,6 +205,7 @@ export function createBulkSyncLinksHandler(configuredBaseUrl?: string): PayloadH
         let page = 1
         let hasMore = true
         const limit = 50
+        const documentIds = request.documents?.[slug]
 
         while (hasMore) {
           const result = await payload.find({
@@ -213,6 +215,7 @@ export function createBulkSyncLinksHandler(configuredBaseUrl?: string): PayloadH
             limit,
             locale: state.defaultLocale,
             page,
+            ...(documentIds ? { where: { id: { in: documentIds } } } : {}),
           })
 
           const docs = Array.isArray(result.docs) ? result.docs : []

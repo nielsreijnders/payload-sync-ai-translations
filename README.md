@@ -151,6 +151,16 @@ For collections with `seo` enabled, the plugin adds **Plugins → SEO Overview**
 - sorts weak documents first and lists actionable issues;
 - edits localized SEO titles and descriptions inline, then immediately recalculates the score.
 
+Metadata can also be edited in bulk via CSV:
+
+- **Export CSV** downloads the scan results (`collection`, `id`, `locale`,
+  `label`, `slug`, `seo_title`, `seo_description`, `score`, `status`,
+  `issues`) — ready for a spreadsheet.
+- **Import CSV** reads the same format back (only `collection`, `id`,
+  `locale`, and a `seo_title`/`seo_description` column are required), skips
+  unchanged and incomplete rows, applies the rest through the regular
+  update flow (permissions respected), and rescores each document.
+
 ### Find & replace
 
 The plugin adds **Plugins → Find & Replace** for all configured collections and globals:
@@ -174,10 +184,19 @@ fingerprint per document and locale, and surfaces the drift in two places:
   (with the number of changed fields in its tooltip) whenever the document
   changed after its last sync or was never synced at all. The indicator
   refreshes right after every save.
-- **Plugins → Translation Status** — scans the configured collections and
-  globals and lists, per locale, which documents are `never synced`,
-  `out of sync` (with the exact number of changed fields), or `up to date`.
-  Select the stale documents and sync them straight from the overview.
+- **Plugins → Translation Status** — the central hub for keeping translations
+  in sync, built around one flow: **scan → select → sync**. A scan lists, per
+  locale, which documents are `never synced`, `out of sync` (with the exact
+  number of changed fields), or `up to date`. Check the documents you want to
+  act on (the header checkbox selects everything) and a selection bar appears
+  with the available actions:
+  - **Translate** — sync the selected documents, with an optional overwrite
+    of existing translations;
+  - **Sync links** — rewrite internal links in the selected documents to
+    their localized equivalents;
+  - **Skip fields** — tick translatable field roots (e.g. `slug`, `title`) to
+    leave them untouched; the options follow the collections of the selected
+    documents, plus a free-form input for deeper paths such as `seo.title`.
 
 Tracking is content-based (a hash per translatable field), so edits to other
 locales or non-translatable fields never cause false positives.

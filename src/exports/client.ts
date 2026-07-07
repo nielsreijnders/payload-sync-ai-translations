@@ -1,4 +1,3 @@
-export { BulkTranslateGlobal } from '../components/bulk-translate/BulkTranslateGlobal.js'
 export { AutoTranslateButton } from '../components/Button.js'
 export { AutoTranslateButton as AutoTranslateAllButton } from '../components/Button.js'
 export { DebugDocumentCopyButton } from '../components/DebugDocumentCopyButton.js'
@@ -7,5 +6,4 @@ export { GrammarCheckGlobal } from '../components/grammar-check/GrammarCheckGlob
 export { HiddenSaveButton } from '../components/HiddenSaveButton.js'
 export { SeoOverviewGlobal } from '../components/seo/SeoOverviewGlobal.js'
 export { DocumentSyncLinksButton } from '../components/sync-links/DocumentSyncLinksButton.js'
-export { SyncLinksGlobal } from '../components/sync-links/SyncLinksGlobal.js'
 export { TranslationStatusGlobal } from '../components/sync-status/TranslationStatusGlobal.js'

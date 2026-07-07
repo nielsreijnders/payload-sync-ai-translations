@@ -13,6 +13,7 @@ import {
   collectSkippedTranslatablePaths,
 } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
 import { chunkItems } from '../utils/localizedFields.js'
+import { parseDocumentsFilter } from './bulkRequestParsing.js'
 import { logDebug } from './debugSettings.js'
 import { rejectUnauthenticated } from './requireUser.js'
 import { generateTranslationReview } from './translationReviewService.js'
@@ -39,34 +40,6 @@ function normalizeSkipFields(value: unknown): string[] {
         .filter((entry): entry is string => Boolean(entry)),
     ),
   )
-}
-
-function parseDocumentsFilter(
-  value: unknown,
-): BulkTranslateRequestPayload['documents'] | undefined {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return undefined
-  }
-
-  const parsed: Record<string, Array<number | string>> = {}
-
-  for (const [slug, rawIds] of Object.entries(value as Record<string, unknown>)) {
-    if (!slug.trim() || !Array.isArray(rawIds)) {
-      continue
-    }
-
-    const ids = rawIds.filter(
-      (id): id is number | string =>
-        (typeof id === 'string' && Boolean(id.trim())) ||
-        (typeof id === 'number' && Number.isFinite(id)),
-    )
-
-    if (ids.length) {
-      parsed[slug.trim()] = ids
-    }
-  }
-
-  return Object.keys(parsed).length ? parsed : undefined
 }
 
 function parseBulkBody(body: unknown): BulkTranslateRequestPayload {

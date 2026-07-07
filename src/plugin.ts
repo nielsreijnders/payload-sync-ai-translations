@@ -18,6 +18,7 @@ import { createAiTranslateReviewHandler } from './server/translationReviewServic
 import {
   configureTranslationState,
   extractFieldPatterns,
+  fieldPatternRoots,
   listStoredCollections,
   listStoredGlobals,
 } from './server/translationStateStore.js'
@@ -104,16 +105,12 @@ export type PayloadSyncAiTranslationsPlugin = <TPayloadConfig = DefaultPayloadTy
 
 const CLIENT_EXPORT = 'payload-sync-ai-translations/client#AutoTranslateButton'
 const HIDDEN_SAVE_BUTTON = 'payload-sync-ai-translations/client#HiddenSaveButton'
-const BULK_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#BulkTranslateGlobal'
 const FIND_REPLACE_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#FindReplaceGlobal'
 const GRAMMAR_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#GrammarCheckGlobal'
-const LINK_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#SyncLinksGlobal'
 const SEO_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#SeoOverviewGlobal'
 const SYNC_STATUS_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#TranslationStatusGlobal'
-const BULK_GLOBAL_SLUG = 'ai-bulk-translation'
 const FIND_REPLACE_GLOBAL_SLUG = 'find-replace'
 const GRAMMAR_GLOBAL_SLUG = 'grammar-check'
-const LINK_GLOBAL_SLUG = 'sync-links'
 const SEO_GLOBAL_SLUG = 'seo-overview'
 const SYNC_STATUS_GLOBAL_SLUG = 'translation-status'
 const DEBUG_CLIENT_EXPORT = 'payload-sync-ai-translations/client#DebugDocumentCopyButton'
@@ -385,26 +382,6 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
       hideAPIURL: true,
     }
 
-    const bulkGlobal: GlobalConfig = {
-      slug: BULK_GLOBAL_SLUG,
-      admin: toolGlobalAdmin,
-      fields: [
-        {
-          name: 'bulkTranslate',
-          type: 'ui',
-          admin: {
-            components: {
-              Field: {
-                clientProps: bulkClientProps,
-                path: BULK_GLOBAL_COMPONENT,
-              },
-            },
-          },
-        },
-      ],
-      label: 'AI Bulk Translation',
-    }
-
     const grammarGlobal: GlobalConfig = {
       slug: GRAMMAR_GLOBAL_SLUG,
       admin: toolGlobalAdmin,
@@ -460,28 +437,6 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
       label: 'Find & Replace',
     }
 
-    const linkGlobal: GlobalConfig = {
-      slug: LINK_GLOBAL_SLUG,
-      admin: toolGlobalAdmin,
-      fields: [
-        {
-          name: 'syncLinks',
-          type: 'ui',
-          admin: {
-            components: {
-              Field: {
-                clientProps: {
-                  collections: bulkClientProps.collections,
-                },
-                path: LINK_GLOBAL_COMPONENT,
-              },
-            },
-          },
-        },
-      ],
-      label: 'Sync Links',
-    }
-
     const seoGlobal: GlobalConfig = {
       slug: SEO_GLOBAL_SLUG,
       admin: toolGlobalAdmin,
@@ -520,7 +475,11 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
             components: {
               Field: {
                 clientProps: {
-                  collections: bulkClientProps.collections,
+                  collections: storedCollections.map((entry) => ({
+                    slug: entry.slug,
+                    fields: fieldPatternRoots(entry.fieldPatterns),
+                    label: entry.label,
+                  })),
                   defaultLocale,
                   globals: storedGlobals.map((entry) => ({
                     slug: entry.slug,
@@ -540,7 +499,7 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
     const enhancedGlobals = [
       ...globals,
       ...(storedCollections.length || storedGlobals.length
-        ? [bulkGlobal, grammarGlobal, findReplaceGlobal, linkGlobal, syncStatusGlobal]
+        ? [syncStatusGlobal, grammarGlobal, findReplaceGlobal]
         : []),
       ...(storedSeoCollections.length ? [seoGlobal] : []),
     ]

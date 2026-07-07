@@ -65,3 +65,37 @@
 .fieldCount {
   white-space: nowrap;
 }
+
+.selectionBar {
+  background: var(--theme-elevation-50);
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 0.5rem;
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.selectionHeader {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.selectionCount {
+  font-weight: 600;
+}
+
+.selectionOptions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.extraSkipInput {
+  flex: 1;
+  max-width: 360px;
+  min-width: 220px;
+}

@@ -16,6 +16,9 @@ const SYSTEM_PROMPT = [
 
 const REVIEW_SYSTEM_PROMPT = [
   'You are a translation quality assistant.',
+  'Flag a translation only when it is missing actual information from the source text: facts, names, numbers, claims, whole sentences, or calls to action.',
+  'Do not flag stylistic or idiomatic differences, alternative word choices, reordered phrasing, tone differences, or punctuation and formatting differences.',
+  'A translation that conveys the same meaning in different words is correct and must not be flagged.',
   'Reply using strict JSON that matches {"issues":[{"index":0,"missing":false,"reason":""}]}.',
   'Do not include any additional text outside of the JSON.',
 ].join(' ')
@@ -515,7 +518,8 @@ export async function openAiDetectMissingInformation(
 
   const userPrompt = [
     `Base locale: ${from}. Target locale: ${to}.`,
-    'Analyse the JSON array. For each entry, decide if translatedText lacks important information present in defaultText.',
+    'Analyse the JSON array. For each entry, decide if translatedText lacks important information (facts, names, numbers, claims, whole sentences, or calls to action) present in defaultText.',
+    'Stylistic, idiomatic, word-choice, or punctuation differences are not missing information.',
     'Respond with JSON {"issues":[{"index":number,"missing":boolean,"reason":string}]} including one entry per input item.',
     'Reason must be empty when missing is false and limited to 20 words otherwise.',
     `Input: ${payload}`,

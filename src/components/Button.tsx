@@ -141,6 +141,7 @@ export function AutoTranslateButton(props: AutoTranslateButtonProps) {
       <AutoTranslateReviewModal
         cancelReview={cancelReview}
         confirmReview={confirmReview}
+        defaultLocale={props.defaultLocale ?? undefined}
         modalBusy={modalBusy}
         pendingReview={pendingReview}
         slug={REVIEW_MODAL_SLUG}

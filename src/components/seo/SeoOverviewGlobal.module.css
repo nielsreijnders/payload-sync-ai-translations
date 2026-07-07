@@ -28,6 +28,12 @@
   min-width: 220px;
 }
 
+.toolbarActions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
 .tableWrap {
   overflow-x: auto;
 }

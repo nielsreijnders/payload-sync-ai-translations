@@ -214,3 +214,21 @@ export function listStoredCollections(): StoredEntry[] {
 export function listStoredGlobals(): StoredEntry[] {
   return Object.values(translationState.globals)
 }
+
+/**
+ * Unique top-level roots of a set of translatable field patterns
+ * (e.g. `title`, `slug`, `components`). Used by the admin UI to offer
+ * skip-field checkboxes per collection.
+ */
+export function fieldPatternRoots(patterns: string[]): string[] {
+  const roots = new Set<string>()
+
+  for (const pattern of patterns) {
+    const root = normalizeRoot(pattern)
+    if (root) {
+      roots.add(root)
+    }
+  }
+
+  return Array.from(roots).sort()
+}

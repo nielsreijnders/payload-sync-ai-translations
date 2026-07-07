@@ -3,6 +3,7 @@
 import { Button, useConfig } from '@payloadcms/ui'
 import * as React from 'react'
 
+import type { BulkLinkSyncResponse } from '../../server/linkSyncTypes.js'
 import type {
   LocaleSyncStatus,
   SyncStatusDocument,
@@ -10,6 +11,7 @@ import type {
 } from '../../server/syncStatusTypes.js'
 import type { BulkStreamEvent } from '../../server/translationTypes.js'
 
+import { runBulkSyncLinks } from '../sync-links/utils/runBulkSyncLinks.js'
 import { postBulkStream } from '../shared/streamBulkEvents.js'
 import {
   Badge,
@@ -26,10 +28,20 @@ import toolStyles from '../shared/ToolUI.module.css'
 import styles from './TranslationStatusGlobal.module.css'
 import { runSyncStatusScan } from './utils/runSyncStatusScan.js'
 
+type CollectionOption = {
+  /**
+   * Top-level translatable field roots of this collection; offered as
+   * skip-field checkboxes once documents of this collection are selected.
+   */
+  fields?: string[]
+  label: string
+  slug: string
+}
+
 type TargetOption = { label: string; slug: string }
 
 type TranslationStatusGlobalProps = {
-  collections: TargetOption[]
+  collections: CollectionOption[]
   defaultLocale: string
   globals?: TargetOption[]
   locales: string[]
@@ -80,6 +92,17 @@ function formatSyncedAt(value?: string): string {
   return date.toLocaleString()
 }
 
+function parseExtraSkipFields(value: string): string[] {
+  return Array.from(
+    new Set(
+      value
+        .split(/[,\n;]/)
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    ),
+  )
+}
+
 export function TranslationStatusGlobal({
   collections,
   defaultLocale,
@@ -108,11 +131,17 @@ export function TranslationStatusGlobal({
     [collections, globals],
   )
 
+  const fieldsByCollection = React.useMemo(
+    () => new Map(collections.map((entry) => [entry.slug, entry.fields ?? []])),
+    [collections],
+  )
+
   const [selectedKeys, setSelectedKeys] = React.useState<string[]>(() =>
     allTargets.map((entry) => entry.key),
   )
   const [scanning, setScanning] = React.useState(false)
   const [syncing, setSyncing] = React.useState(false)
+  const [linkSyncing, setLinkSyncing] = React.useState(false)
   const [hasScanned, setHasScanned] = React.useState(false)
   const [documents, setDocuments] = React.useState<SyncStatusDocument[]>([])
   const [progress, setProgress] = React.useState({ completed: 0, total: 0 })
@@ -120,6 +149,9 @@ export function TranslationStatusGlobal({
   const [filter, setFilter] = React.useState<StatusFilter>('needs-sync')
   const [search, setSearch] = React.useState('')
   const [selectedDocKeys, setSelectedDocKeys] = React.useState<string[]>([])
+  const [overwrite, setOverwrite] = React.useState(false)
+  const [skipFieldKeys, setSkipFieldKeys] = React.useState<string[]>([])
+  const [extraSkipText, setExtraSkipText] = React.useState('')
   const log = useToolLogs()
 
   React.useEffect(() => {
@@ -130,7 +162,60 @@ export function TranslationStatusGlobal({
     })
   }, [allTargets])
 
-  const busy = scanning || syncing
+  const busy = scanning || syncing || linkSyncing
+  const targetLocales = React.useMemo(
+    () => locales.filter((code) => code !== defaultLocale),
+    [defaultLocale, locales],
+  )
+
+  const documentByKey = React.useMemo(() => {
+    const map = new Map<string, SyncStatusDocument>()
+    for (const document of documents) {
+      map.set(documentKey(document), document)
+    }
+    return map
+  }, [documents])
+
+  const selectedDocuments = React.useMemo(
+    () =>
+      selectedDocKeys
+        .map((key) => documentByKey.get(key))
+        .filter(
+          (document): document is SyncStatusDocument =>
+            Boolean(document?.collection) && document?.id != null,
+        ),
+    [documentByKey, selectedDocKeys],
+  )
+
+  /**
+   * Skip-field options follow the selection: the union of translatable field
+   * roots of the collections the selected documents belong to.
+   */
+  const availableSkipFields = React.useMemo(() => {
+    const slugs = new Set(
+      selectedDocuments
+        .map((document) => document.collection)
+        .filter((slug): slug is string => Boolean(slug)),
+    )
+    const fields = new Set<string>()
+    for (const slug of slugs) {
+      for (const field of fieldsByCollection.get(slug) ?? []) {
+        fields.add(field)
+      }
+    }
+    return Array.from(fields).sort()
+  }, [fieldsByCollection, selectedDocuments])
+
+  const skipFields = React.useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...skipFieldKeys.filter((field) => availableSkipFields.includes(field)),
+          ...parseExtraSkipFields(extraSkipText),
+        ]),
+      ),
+    [availableSkipFields, extraSkipText, skipFieldKeys],
+  )
 
   const toggleTarget = (key: string) =>
     setSelectedKeys((previous) =>
@@ -140,6 +225,13 @@ export function TranslationStatusGlobal({
   const toggleAllTargets = () =>
     setSelectedKeys((previous) =>
       previous.length === allTargets.length ? [] : allTargets.map((entry) => entry.key),
+    )
+
+  const toggleSkipField = (field: string) =>
+    setSkipFieldKeys((previous) =>
+      previous.includes(field)
+        ? previous.filter((entry) => entry !== field)
+        : [...previous, field],
     )
 
   const handleScanEvent = (event: SyncStatusScanEvent) => {
@@ -218,18 +310,32 @@ export function TranslationStatusGlobal({
     switch (event.type) {
       case 'bulk-complete':
         log.addLog(
-          `Sync finished. Processed ${event.processed}, skipped ${event.skipped}, failed ${event.failed}.`,
+          `Translation finished. Processed ${event.processed}, skipped ${event.skipped}, failed ${event.failed}.`,
           event.failed ? 'error' : 'success',
         )
-        setCurrentTask('Sync complete — refreshing overview…')
+        setCurrentTask('Translation complete — refreshing overview…')
         setSyncing(false)
         // Refresh the overview so the new sync state is visible right away.
         void startScan()
         break
       case 'bulk-start':
         setProgress({ completed: 0, total: event.totalDocuments })
-        log.addLog(`Syncing ${event.totalDocuments} document(s).`)
-        setCurrentTask('Preparing sync…')
+        log.addLog(`Translating ${event.totalDocuments} document(s).`)
+        setCurrentTask('Preparing translation…')
+        break
+      case 'collection-complete':
+        log.addLog(
+          `Finished ${event.collection}: ${event.processed} processed, ${event.skipped} skipped, ${event.failed} failed.`,
+        )
+        break
+      case 'collection-start':
+        setCurrentTask(`Collection ${event.collection}…`)
+        break
+      case 'document-applied':
+        log.addLog(
+          `Saved translations for ${event.collection}#${event.id} (${event.locale}).`,
+          'success',
+        )
         break
       case 'document-error':
         log.addLog(`Failed ${event.collection}#${event.id}: ${event.message}.`, 'error')
@@ -237,6 +343,11 @@ export function TranslationStatusGlobal({
           completed: Math.min(previous.total, previous.completed + 1),
           total: previous.total,
         }))
+        break
+      case 'document-progress':
+        setCurrentTask(
+          `Translating ${event.collection}#${event.id} (${event.locale}) ${event.completed}/${event.total}.`,
+        )
         break
       case 'document-skipped':
         log.addLog(
@@ -249,18 +360,18 @@ export function TranslationStatusGlobal({
         }))
         break
       case 'document-start':
-        setCurrentTask(`Syncing ${event.collection}#${event.id}…`)
+        setCurrentTask(`Translating ${event.collection}#${event.id}…`)
         break
       case 'document-success':
-        log.addLog(`Synced ${event.collection}#${event.id}.`, 'success')
+        log.addLog(`Completed ${event.collection}#${event.id}.`, 'success')
         setProgress((previous) => ({
           completed: Math.min(previous.total, previous.completed + 1),
           total: previous.total,
         }))
         break
       case 'error':
-        log.addLog(event.message || 'Sync failed.', 'error')
-        setCurrentTask('Sync failed.')
+        log.addLog(event.message || 'Translation failed.', 'error')
+        setCurrentTask('Translation failed.')
         setSyncing(false)
         break
       default:
@@ -268,32 +379,9 @@ export function TranslationStatusGlobal({
     }
   }
 
-  const documentByKey = React.useMemo(() => {
-    const map = new Map<string, SyncStatusDocument>()
-    for (const document of documents) {
-      map.set(documentKey(document), document)
-    }
-    return map
-  }, [documents])
-
-  const syncableSelection = React.useMemo(
-    () =>
-      selectedDocKeys
-        .map((key) => documentByKey.get(key))
-        .filter(
-          (document): document is SyncStatusDocument =>
-            Boolean(document?.collection) && document?.id != null && documentNeedsSync(document!),
-        ),
-    [documentByKey, selectedDocKeys],
-  )
-
-  const startSync = async () => {
-    if (busy || !syncableSelection.length) {
-      return
-    }
-
+  const groupSelectedByCollection = (): Map<string, Array<number | string>> => {
     const grouped = new Map<string, Array<number | string>>()
-    for (const document of syncableSelection) {
+    for (const document of selectedDocuments) {
       if (!document.collection || document.id == null) {
         continue
       }
@@ -302,10 +390,24 @@ export function TranslationStatusGlobal({
       }
       grouped.get(document.collection)?.push(document.id)
     }
+    return grouped
+  }
 
-    const targetLocales = locales.filter((code) => code !== defaultLocale)
+  const startTranslate = async () => {
+    if (busy || !targetLocales.length || !selectedDocuments.length) {
+      return
+    }
+
+    const grouped = groupSelectedByCollection()
     const ok = window.confirm(
-      `Sync ${syncableSelection.length} document(s) from ${defaultLocale} to ${targetLocales.join(', ')}?`,
+      [
+        `Translate ${selectedDocuments.length} selected document(s)?`,
+        `Translating ${defaultLocale} → ${targetLocales.join(', ')}`,
+        overwrite ? 'Overwrite existing translations: yes' : '',
+        skipFields.length ? `Skip fields: ${skipFields.join(', ')}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
     )
     if (!ok) {
       return
@@ -313,7 +415,13 @@ export function TranslationStatusGlobal({
 
     setSyncing(true)
     setProgress({ completed: 0, total: 0 })
-    setCurrentTask('Starting sync…')
+    setCurrentTask('Starting translation…')
+    if (overwrite) {
+      log.addLog('Overwrite enabled: existing translations will be replaced.')
+    }
+    if (skipFields.length) {
+      log.addLog(`Skipping fields: ${skipFields.join(', ')}.`)
+    }
 
     try {
       await postBulkStream(
@@ -321,14 +429,73 @@ export function TranslationStatusGlobal({
         {
           collections: Array.from(grouped.keys()),
           documents: Object.fromEntries(grouped.entries()),
+          overwrite,
+          skipFields,
         },
         handleBulkEvent,
         'Bulk translation request failed.',
       )
     } catch (error) {
-      log.addLog(error instanceof Error ? error.message : 'Sync failed.', 'error')
-      setCurrentTask('Sync failed.')
+      log.addLog(error instanceof Error ? error.message : 'Translation failed.', 'error')
+      setCurrentTask('Translation failed.')
       setSyncing(false)
+    }
+  }
+
+  const logLinkSyncResult = (result: BulkLinkSyncResponse) => {
+    const { summary } = result
+    log.addLog(
+      `Link sync finished: ${summary.documentsUpdated} of ${summary.documentsProcessed} document(s) updated, ${summary.replacements} link(s) rewritten.`,
+      summary.errors.length ? 'error' : 'success',
+    )
+
+    for (const detail of result.details) {
+      if (detail.updatedLocales.length) {
+        log.addLog(
+          `Links updated for ${detail.collection ?? detail.global}#${detail.label} (${detail.updatedLocales.join(', ')}).`,
+          'success',
+        )
+      }
+    }
+
+    for (const warning of summary.warnings.slice(0, 10)) {
+      log.addLog(warning, 'skip')
+    }
+    for (const message of summary.errors.slice(0, 10)) {
+      log.addLog(message, 'error')
+    }
+    for (const missing of summary.missingAlternates) {
+      log.addLog(
+        `No alternate links found for ${missing.locale} (${missing.count} document(s)).`,
+        'skip',
+      )
+    }
+  }
+
+  const startLinkSync = async () => {
+    if (busy || !selectedDocuments.length) {
+      return
+    }
+
+    const grouped = groupSelectedByCollection()
+    if (!window.confirm(`Sync links for ${selectedDocuments.length} selected document(s)?`)) {
+      return
+    }
+
+    setLinkSyncing(true)
+    setCurrentTask('Syncing links…')
+
+    try {
+      const result = await runBulkSyncLinks(Array.from(grouped.keys()), {
+        documents: Object.fromEntries(grouped.entries()),
+      })
+      logLinkSyncResult(result)
+      setCurrentTask('Link sync complete.')
+    } catch (error) {
+      log.addLog(error instanceof Error ? error.message : 'Bulk link sync failed.', 'error')
+      setCurrentTask('Link sync failed.')
+    } finally {
+      setLinkSyncing(false)
     }
   }
 
@@ -377,9 +544,7 @@ export function TranslationStatusGlobal({
 
   const selectableVisible = React.useMemo(
     () =>
-      visibleDocuments.filter(
-        (document) => Boolean(document.collection) && document.id != null && documentNeedsSync(document),
-      ),
+      visibleDocuments.filter((document) => Boolean(document.collection) && document.id != null),
     [visibleDocuments],
   )
 
@@ -406,16 +571,14 @@ export function TranslationStatusGlobal({
   return (
     <ToolPage running={busy}>
       <ToolPanel
-        description="See which documents changed in the default locale after their last translation sync — or were never synced at all. Select the documents that need attention and sync them straight from this overview."
+        description="Scan the selected collections and globals to see which documents changed after their last translation sync. Then select the documents below — everything or just a few — and translate them or sync their internal links."
         eyebrow="AI translations"
         headerExtra={
           <div className={toolStyles.badgeRow}>
             <Badge>Source: {defaultLocale}</Badge>
-            {locales
-              .filter((code) => code !== defaultLocale)
-              .map((code) => (
-                <Badge key={code}>→ {code}</Badge>
-              ))}
+            {targetLocales.map((code) => (
+              <Badge key={code}>→ {code}</Badge>
+            ))}
           </div>
         }
         title="Translation status"
@@ -434,18 +597,12 @@ export function TranslationStatusGlobal({
         />
 
         <div className={toolStyles.actions}>
-          <Button disabled={busy || !selectedKeys.length} onClick={() => void startScan()} type="button">
-            {scanning ? 'Scanning…' : 'Scan translation status'}
-          </Button>
           <Button
-            buttonStyle="secondary"
-            disabled={busy || !syncableSelection.length}
-            onClick={() => void startSync()}
+            disabled={busy || !selectedKeys.length}
+            onClick={() => void startScan()}
             type="button"
           >
-            {syncing
-              ? 'Syncing…'
-              : `Sync ${syncableSelection.length} document${syncableSelection.length === 1 ? '' : 's'}`}
+            {scanning ? 'Scanning…' : 'Scan translation status'}
           </Button>
         </div>
       </ToolPanel>
@@ -520,7 +677,7 @@ export function TranslationStatusGlobal({
                 <tr>
                   <th className={styles.selectCell}>
                     <input
-                      aria-label="Select all documents that need a sync"
+                      aria-label="Select all visible documents"
                       checked={allVisibleSelected}
                       disabled={busy || !selectableVisible.length}
                       onChange={toggleAllVisible}
@@ -536,8 +693,7 @@ export function TranslationStatusGlobal({
               <tbody>
                 {visibleDocuments.map((document) => {
                   const key = documentKey(document)
-                  const selectable =
-                    Boolean(document.collection) && document.id != null && documentNeedsSync(document)
+                  const selectable = Boolean(document.collection) && document.id != null
                   const href = document.global
                     ? `${routes.admin}/globals/${encodeURIComponent(document.global)}`
                     : `${routes.admin}/collections/${encodeURIComponent(
@@ -608,6 +764,92 @@ export function TranslationStatusGlobal({
             </table>
           </div>
         )}
+
+        {selectedDocuments.length ? (
+          <div className={styles.selectionBar}>
+            <div className={styles.selectionHeader}>
+              <span className={styles.selectionCount}>
+                {selectedDocuments.length} document{selectedDocuments.length === 1 ? '' : 's'}{' '}
+                selected
+              </span>
+              <button
+                className={toolStyles.chip}
+                disabled={busy}
+                onClick={() => setSelectedDocKeys([])}
+                type="button"
+              >
+                Clear selection
+              </button>
+            </div>
+
+            {availableSkipFields.length ? (
+              <div className={toolStyles.field}>
+                <span className={toolStyles.fieldLabel}>Skip fields</span>
+                <div className={toolStyles.chipRow} role="group">
+                  {availableSkipFields.map((field) => (
+                    <button
+                      aria-pressed={skipFieldKeys.includes(field)}
+                      className={`${toolStyles.chip} ${skipFieldKeys.includes(field) ? toolStyles.chipActive : ''}`}
+                      disabled={busy}
+                      key={field}
+                      onClick={() => toggleSkipField(field)}
+                      type="button"
+                    >
+                      {field}
+                    </button>
+                  ))}
+                </div>
+                <p className={toolStyles.fieldHint}>
+                  Fields of the selected documents — checked fields are left untouched when
+                  translating.
+                </p>
+              </div>
+            ) : null}
+
+            <div className={styles.selectionOptions}>
+              <label className={toolStyles.checkboxRow}>
+                <input
+                  aria-label="Overwrite existing translations"
+                  checked={overwrite}
+                  disabled={busy}
+                  onChange={(event) => setOverwrite(event.target.checked)}
+                  type="checkbox"
+                />
+                Overwrite existing translations
+              </label>
+
+              <input
+                aria-label="Additional field paths to skip"
+                className={`${toolStyles.input} ${styles.extraSkipInput}`}
+                disabled={busy}
+                onChange={(event) => setExtraSkipText(event.target.value)}
+                placeholder="Additional paths to skip, e.g. seo.title"
+                type="text"
+                value={extraSkipText}
+              />
+            </div>
+
+            <div className={toolStyles.actions}>
+              <Button
+                disabled={busy || !targetLocales.length}
+                onClick={() => void startTranslate()}
+                type="button"
+              >
+                {syncing
+                  ? 'Translating…'
+                  : `Translate ${selectedDocuments.length} document${selectedDocuments.length === 1 ? '' : 's'}`}
+              </Button>
+              <Button
+                buttonStyle="secondary"
+                disabled={busy}
+                onClick={() => void startLinkSync()}
+                type="button"
+              >
+                {linkSyncing ? 'Syncing links…' : `Sync links (${selectedDocuments.length})`}
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </ToolPanel>
 
       <LogViewer emptyText="Run a scan to see activity here." log={log} />

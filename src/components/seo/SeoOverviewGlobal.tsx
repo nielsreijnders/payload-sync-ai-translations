@@ -5,6 +5,7 @@ import * as React from 'react'
 
 import type { SeoScanDocument, SeoScanEvent, SeoScoreStatus } from '../../server/seoTypes.js'
 
+import { downloadCsv, parseCsv, serializeCsv } from '../shared/csv.js'
 import {
   CheckboxCardGroup,
   ProgressSection,
@@ -50,6 +51,95 @@ function documentKey(document: SeoScanDocument): string {
   return `${document.collection}:${String(document.id)}:${document.locale}`
 }
 
+const CSV_HEADER = [
+  'collection',
+  'id',
+  'locale',
+  'label',
+  'slug',
+  'seo_title',
+  'seo_description',
+  'score',
+  'status',
+  'issues',
+]
+
+type CsvImportRow = {
+  collection: string
+  description?: string
+  id: number | string
+  key: string
+  locale: string
+  title?: string
+}
+
+function normalizeHeaderName(value: string): string {
+  return value.toLocaleLowerCase().replace(/[^a-z]/g, '')
+}
+
+function normalizeText(value: string): string {
+  return value.replace(/\r\n/g, '\n')
+}
+
+/**
+ * Maps parsed CSV rows onto import entries. Column order is free; headers are
+ * matched by name so hand-made sheets work too (`title`/`seo_title`,
+ * `description`/`seo_description`).
+ */
+function readImportRows(rows: string[][]): { invalid: number; parsed: CsvImportRow[] } {
+  const [header, ...body] = rows
+  if (!header) {
+    throw new Error('The CSV file is empty.')
+  }
+
+  const columns = new Map<string, number>()
+  header.forEach((name, index) => {
+    columns.set(normalizeHeaderName(name), index)
+  })
+
+  const collectionIndex = columns.get('collection')
+  const idIndex = columns.get('id')
+  const localeIndex = columns.get('locale')
+  const titleIndex = columns.get('seotitle') ?? columns.get('title')
+  const descriptionIndex = columns.get('seodescription') ?? columns.get('description')
+
+  if (collectionIndex === undefined || idIndex === undefined || localeIndex === undefined) {
+    throw new Error('The CSV file must contain "collection", "id", and "locale" columns.')
+  }
+
+  if (titleIndex === undefined && descriptionIndex === undefined) {
+    throw new Error('The CSV file must contain a "seo_title" or "seo_description" column.')
+  }
+
+  const parsed: CsvImportRow[] = []
+  let invalid = 0
+
+  for (const row of body) {
+    const collection = row[collectionIndex]?.trim() ?? ''
+    const rawId = row[idIndex]?.trim() ?? ''
+    const locale = row[localeIndex]?.trim() ?? ''
+
+    if (!collection || !rawId || !locale) {
+      invalid += 1
+      continue
+    }
+
+    const id = /^\d+$/.test(rawId) ? Number(rawId) : rawId
+
+    parsed.push({
+      id,
+      collection,
+      description:
+        descriptionIndex === undefined ? undefined : normalizeText(row[descriptionIndex] ?? ''),
+      key: `${collection}:${rawId}:${locale}`,
+      locale,
+      title: titleIndex === undefined ? undefined : normalizeText(row[titleIndex] ?? ''),
+    })
+  }
+
+  return { invalid, parsed }
+}
+
 export function SeoOverviewGlobal({ collections, defaultLocale, locales }: SeoOverviewGlobalProps) {
   const { permissions } = useAuth()
   const {
@@ -68,6 +158,8 @@ export function SeoOverviewGlobal({ collections, defaultLocale, locales }: SeoOv
   const [draftTitle, setDraftTitle] = React.useState('')
   const [draftDescription, setDraftDescription] = React.useState('')
   const [saving, setSaving] = React.useState(false)
+  const [importing, setImporting] = React.useState(false)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
     const allowed = new Set(collections.map((entry) => entry.slug))
@@ -171,6 +263,142 @@ export function SeoOverviewGlobal({ collections, defaultLocale, locales }: SeoOv
     }
   }
 
+  const exportCsv = () => {
+    if (!documents.length) {
+      return
+    }
+
+    const rows = [
+      CSV_HEADER,
+      ...documents.map((document) => [
+        document.collection,
+        String(document.id),
+        document.locale,
+        document.label,
+        document.slug ?? '',
+        document.title,
+        document.description,
+        String(document.score),
+        document.status,
+        document.issues.join(' | '),
+      ]),
+    ]
+
+    const date = new Date().toISOString().slice(0, 10)
+    downloadCsv(`seo-export-${locale}-${date}.csv`, serializeCsv(rows))
+    toast.success(`Exported ${documents.length} document(s) to CSV.`)
+  }
+
+  const importCsv = async (file: File) => {
+    setImporting(true)
+
+    try {
+      const { invalid, parsed } = readImportRows(parseCsv(await file.text()))
+      const documentsByKey = new Map(documents.map((entry) => [documentKey(entry), entry]))
+
+      const updates: Array<{ description: string; row: CsvImportRow; title: string }> = []
+      let skippedUnchanged = 0
+      let skippedIncomplete = invalid
+
+      for (const row of parsed) {
+        const existing = documentsByKey.get(row.key)
+
+        // The update endpoint writes both fields, so a missing column can
+        // only be backfilled from a scanned row — never with an empty value.
+        const title = row.title ?? existing?.title
+        const description = row.description ?? existing?.description
+        if (title === undefined || description === undefined) {
+          skippedIncomplete += 1
+          continue
+        }
+
+        if (
+          existing &&
+          normalizeText(existing.title) === title &&
+          normalizeText(existing.description) === description
+        ) {
+          skippedUnchanged += 1
+          continue
+        }
+
+        updates.push({ description, row, title })
+      }
+
+      if (!updates.length) {
+        toast.info(
+          `Nothing to import: ${skippedUnchanged} row(s) unchanged, ${skippedIncomplete} row(s) incomplete.`,
+        )
+        return
+      }
+
+      const ok = window.confirm(
+        [
+          `Apply SEO metadata from CSV to ${updates.length} document(s)?`,
+          skippedUnchanged ? `${skippedUnchanged} unchanged row(s) will be skipped.` : '',
+          skippedIncomplete ? `${skippedIncomplete} incomplete row(s) will be skipped.` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      )
+      if (!ok) {
+        return
+      }
+
+      setProgress({ completed: 0, total: updates.length })
+      let applied = 0
+      let failedRows = 0
+
+      for (const update of updates) {
+        setCurrentTask(`Importing ${update.row.collection}#${String(update.row.id)}…`)
+
+        try {
+          const updated = await updateSeoMetadata({
+            id: update.row.id,
+            collection: update.row.collection,
+            description: update.description,
+            locale: update.row.locale,
+            title: update.title,
+          })
+
+          setDocuments((previous) => {
+            const key = documentKey(updated)
+            const exists = previous.some((entry) => documentKey(entry) === key)
+            return exists
+              ? previous.map((entry) => (documentKey(entry) === key ? updated : entry))
+              : [...previous, updated]
+          })
+          applied += 1
+        } catch (error) {
+          failedRows += 1
+          toast.error(
+            `${update.row.collection}#${String(update.row.id)}: ${
+              error instanceof Error ? error.message : 'Import failed.'
+            }`,
+          )
+        }
+
+        setProgress((previous) => ({
+          completed: Math.min(previous.total, previous.completed + 1),
+          total: previous.total,
+        }))
+      }
+
+      setCurrentTask('CSV import complete')
+      if (failedRows) {
+        toast.warning(`CSV import finished: ${applied} updated, ${failedRows} failed.`)
+      } else {
+        toast.success(`CSV import finished: ${applied} document(s) updated and rescored.`)
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to import CSV file.')
+    } finally {
+      setImporting(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
   const stats = React.useMemo(() => {
     const totalScore = documents.reduce((sum, document) => sum + document.score, 0)
     return {
@@ -204,9 +432,9 @@ export function SeoOverviewGlobal({ collections, defaultLocale, locales }: SeoOv
   ]
 
   return (
-    <ToolPage running={running}>
+    <ToolPage running={running || importing}>
       <ToolPanel
-        description="Scan all configured documents, prioritize weak pages, and edit the Payload SEO title and description without leaving this overview."
+        description="Scan all configured documents, prioritize weak pages, and edit the Payload SEO title and description without leaving this overview — inline, or in bulk via CSV export and import."
         eyebrow="Content audit"
         title="SEO overview"
       >
@@ -244,13 +472,17 @@ export function SeoOverviewGlobal({ collections, defaultLocale, locales }: SeoOv
               </select>
             </div>
 
-            <Button disabled={running || !selected.length} onClick={() => void startScan()} type="button">
+            <Button
+              disabled={running || importing || !selected.length}
+              onClick={() => void startScan()}
+              type="button"
+            >
               {running ? 'Scanning…' : 'Run full scan'}
             </Button>
           </div>
         </ToolSection>
 
-        {running || progress.total > 0 ? (
+        {running || importing || progress.total > 0 ? (
           <ToolSection>
             <ProgressSection
               completed={progress.completed}
@@ -300,6 +532,39 @@ export function SeoOverviewGlobal({ collections, defaultLocale, locales }: SeoOv
                 {option.label}
               </button>
             ))}
+          </div>
+          <div className={styles.toolbarActions}>
+            <Button
+              buttonStyle="secondary"
+              disabled={running || importing || !documents.length}
+              onClick={exportCsv}
+              size="small"
+              type="button"
+            >
+              Export CSV
+            </Button>
+            <Button
+              buttonStyle="secondary"
+              disabled={running || importing}
+              onClick={() => fileInputRef.current?.click()}
+              size="small"
+              type="button"
+            >
+              {importing ? 'Importing…' : 'Import CSV'}
+            </Button>
+            <input
+              accept=".csv,text/csv"
+              aria-label="Import SEO metadata from CSV"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file) {
+                  void importCsv(file)
+                }
+              }}
+              ref={fileInputRef}
+              type="file"
+            />
           </div>
         </div>
 
@@ -386,7 +651,7 @@ export function SeoOverviewGlobal({ collections, defaultLocale, locales }: SeoOv
                         <td>
                           <Button
                             buttonStyle="secondary"
-                            disabled={!canUpdate || saving}
+                            disabled={!canUpdate || saving || importing}
                             onClick={() =>
                               editingKey === key ? setEditingKey(null) : startEdit(document)
                             }

@@ -1,8 +1,17 @@
 import type { BulkLinkSyncResponse } from '../../../server/linkSyncTypes.js'
 
-export async function runBulkSyncLinks(collections: string[]): Promise<BulkLinkSyncResponse> {
+export async function runBulkSyncLinks(
+  collections: string[],
+  options: {
+    /**
+     * Optional per-collection document filter; when set, only these documents
+     * are link-synced.
+     */
+    documents?: Record<string, Array<number | string>>
+  } = {},
+): Promise<BulkLinkSyncResponse> {
   const response = await fetch('/api/ai-links/bulk', {
-    body: JSON.stringify({ collections }),
+    body: JSON.stringify({ collections, documents: options.documents }),
     headers: { 'Content-Type': 'application/json' },
     method: 'POST',
   })
