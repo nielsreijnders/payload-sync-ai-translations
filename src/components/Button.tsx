@@ -1,14 +1,14 @@
 'use client'
 
-import { Button, useModal } from '@payloadcms/ui'
+import { useModal } from '@payloadcms/ui'
 import { Sparkles } from 'lucide-react'
 import * as React from 'react'
 
 import type { AutoTranslateButtonProps } from './auto-translate-button/hooks/types.js'
 
 import { useAutoTranslateButton } from './auto-translate-button/hooks/useAutoTranslateButton.js'
-import styles from './AutoTranslateButton.module.css'
 import { AutoTranslateReviewModal, REVIEW_MODAL_SLUG } from './Modal.js'
+import { IconTooltipButton } from './shared/IconTooltipButton.js'
 
 export function AutoTranslateButton(props: AutoTranslateButtonProps) {
   const {
@@ -39,12 +39,12 @@ export function AutoTranslateButton(props: AutoTranslateButtonProps) {
 
   return (
     <>
-      <Button disabled={disabled} onClick={handleClick} type="button">
-        <span className={styles.buttonContent}>
-          <Sparkles className={styles.icon} size={14} />
-          Sync translations
-        </span>
-      </Button>
+      <IconTooltipButton
+        disabled={disabled}
+        icon={<Sparkles size={18} strokeWidth={1.5} />}
+        label="Sync translations"
+        onClick={handleClick}
+      />
       <AutoTranslateReviewModal
         cancelReview={cancelReview}
         confirmReview={confirmReview}

@@ -2,11 +2,13 @@
 
 import type { LocalizationConfig, TypedLocale } from 'payload'
 
-import { Button, toast, useDocumentInfo, useLocale } from '@payloadcms/ui'
+import { toast, useDocumentInfo, useLocale } from '@payloadcms/ui'
 import { Link2 } from 'lucide-react'
 import * as React from 'react'
 
 import type { LinkSyncResult } from '../../server/linkSyncTypes.js'
+
+import { IconTooltipButton } from '../shared/IconTooltipButton.js'
 
 type SyncLinksButtonProps = {
   defaultLocale: { code: string } | TypedLocale
@@ -135,11 +137,11 @@ export function DocumentSyncLinksButton(props: SyncLinksButtonProps) {
   }
 
   return (
-    <Button disabled={busy} onClick={handleClick} type="button">
-      <span style={{ alignItems: 'center', display: 'inline-flex', gap: '0.35rem' }}>
-        <Link2 size={14} />
-        Sync links
-      </span>
-    </Button>
+    <IconTooltipButton
+      disabled={busy}
+      icon={<Link2 size={18} strokeWidth={1.5} />}
+      label="Sync links"
+      onClick={handleClick}
+    />
   )
 }

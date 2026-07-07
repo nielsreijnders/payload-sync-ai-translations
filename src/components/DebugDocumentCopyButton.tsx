@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, toast, useDocumentForm, useDocumentInfo, useForm } from '@payloadcms/ui'
+import { toast, useDocumentForm, useDocumentInfo, useForm } from '@payloadcms/ui'
 import { Clipboard } from 'lucide-react'
 import * as React from 'react'
 
@@ -13,7 +13,7 @@ import type {
 import { chunkItems } from '../utils/localizedFields.js'
 import { useLocalizedFieldPatterns } from './auto-translate-button/hooks/useLocalizedFieldPatterns.js'
 import { buildTranslatableItems } from './auto-translate-button/utils/buildTranslatableItems.js'
-import styles from './AutoTranslateButton.module.css'
+import { IconTooltipButton } from './shared/IconTooltipButton.js'
 
 export function DebugDocumentCopyButton(props: AutoTranslateButtonProps) {
   const { id, collectionSlug, docConfig, globalSlug } = useDocumentInfo()
@@ -82,11 +82,11 @@ export function DebugDocumentCopyButton(props: AutoTranslateButtonProps) {
   }, [collectionSlug, fieldPatterns, formApi, globalSlug, id, props.defaultLocale, props.locales])
 
   return (
-    <Button disabled={busy} onClick={handleCopy} type="button">
-      <span className={styles.buttonContent}>
-        <Clipboard size={14} />
-        Copy translation debug info
-      </span>
-    </Button>
+    <IconTooltipButton
+      disabled={busy}
+      icon={<Clipboard size={18} strokeWidth={1.5} />}
+      label="Copy translation debug info"
+      onClick={handleCopy}
+    />
   )
 }

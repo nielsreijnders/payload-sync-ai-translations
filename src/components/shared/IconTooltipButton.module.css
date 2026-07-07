@@ -1,0 +1,46 @@
+.anchor {
+  display: inline-flex;
+}
+
+.tooltip {
+  --tooltip-bg: var(--theme-elevation-800);
+
+  animation: tooltip-in 130ms cubic-bezier(0.16, 1, 0.3, 1);
+  background: var(--tooltip-bg);
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 25%);
+  color: var(--theme-elevation-0);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  left: 0;
+  line-height: 1;
+  padding: 0.45rem 0.65rem;
+  pointer-events: none;
+  position: fixed;
+  top: 0;
+  transform: translate(-50%, 9px);
+  white-space: nowrap;
+  z-index: 200;
+}
+
+.tooltip::before {
+  border: 5px solid transparent;
+  border-bottom-color: var(--tooltip-bg);
+  bottom: 100%;
+  content: '';
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 9px);
+  }
+}
