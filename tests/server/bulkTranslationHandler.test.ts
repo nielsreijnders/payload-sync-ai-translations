@@ -103,6 +103,7 @@ describe('createAiBulkTranslateHandler', () => {
         skipFields: 'slug, singularSlug',
       }),
       payload: payloadMock,
+      user: { id: 'user-1' },
     } as any)
 
     expect(response.status).toBe(200)

@@ -292,6 +292,26 @@ export function stripLexicalMarkers(text: string): string {
   return text.replace(PLACEHOLDER_PATTERN, '$2')
 }
 
+/**
+ * Applies `replacer` to the text content of every `[[LEX-n]]…[[/LEX-n]]`
+ * segment while leaving the marker tokens untouched, so the result can still
+ * be mapped back onto the original lexical tree.
+ */
+export function replaceLexicalSegments(
+  text: string,
+  replacer: (segment: string) => string,
+): string {
+  if (!text) {
+    return text
+  }
+
+  return text.replace(
+    PLACEHOLDER_PATTERN,
+    (_match, index: string, content: string) =>
+      `${START_TOKEN_PREFIX}${index}${TOKEN_SUFFIX}${replacer(content)}${END_TOKEN_PREFIX}${index}${TOKEN_SUFFIX}`,
+  )
+}
+
 export function splitLexicalText(text: string, maxLength: number): string[] {
   if (!text) {
     return []

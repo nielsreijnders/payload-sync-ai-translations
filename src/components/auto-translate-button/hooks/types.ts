@@ -32,13 +32,13 @@ export type PendingReviewLocale = {
 
 export type PendingReview = {
   /**
-   * Flat list of all translatable items detected in the document
-   */
-  items: ReturnType<typeof buildTranslatableItems>
-  /**
    * Identifier paths that should be preserved for each locale
    */
   identifierPaths: ReturnType<typeof collectIdentifierPaths>
+  /**
+   * Flat list of all translatable items detected in the document
+   */
+  items: ReturnType<typeof buildTranslatableItems>
   /**
    * Per-locale review state (overrides, skips, selection)
    */

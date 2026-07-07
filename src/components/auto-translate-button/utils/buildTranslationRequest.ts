@@ -14,8 +14,8 @@ export function buildTranslationRequest(
   locales: LocaleTranslationSelection[],
   opts: {
     collectionSlug?: string
-    globalSlug?: string
     defaultLocale: string
+    globalSlug?: string
     id?: number | string
   },
 ) {

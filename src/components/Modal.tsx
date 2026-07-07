@@ -78,7 +78,7 @@ export function AutoTranslateReviewModal(props: AutoTranslateReviewModalProps) {
           <section className={styles.localeSection} key={locale.code}>
             <header className={styles.localeHeader}>
               <span className={styles.localeBadge}>{locale.code}</span>
-              <span className={styles.localeStats}>{locale.mismatches.length} veld(en)</span>
+              <span className={styles.localeStats}>{locale.mismatches.length} field(s)</span>
             </header>
 
             {locale.mismatches.length === 0 ? (

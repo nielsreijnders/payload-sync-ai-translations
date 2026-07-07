@@ -3,9 +3,21 @@
 import { Button, toast } from '@payloadcms/ui'
 import * as React from 'react'
 
-import type { BulkLinkSyncResponse } from '../../server/linkSyncTypes.js'
+import type {
+  BulkLinkSyncDocumentReport,
+  BulkLinkSyncResponse,
+} from '../../server/linkSyncTypes.js'
 
-import styles from './SyncLinksGlobal.module.css'
+import {
+  Badge,
+  CheckboxCardGroup,
+  ProgressSection,
+  StatGrid,
+  ToolPage,
+  ToolPanel,
+  ToolSection,
+} from '../shared/ToolUI.js'
+import styles from '../shared/ToolUI.module.css'
 import { runBulkSyncLinks } from './utils/runBulkSyncLinks.js'
 
 type BulkCollectionOption = { label: string; slug: string }
@@ -14,9 +26,10 @@ type SyncLinksGlobalProps = {
   collections: BulkCollectionOption[]
 }
 
-function formatSummary(summary: BulkLinkSyncResponse['summary']): string {
-  const { documentsProcessed, documentsUpdated, replacements, updatedLocales } = summary
-  return `Documenten: ${documentsUpdated}/${documentsProcessed} bijgewerkt · Talen: ${updatedLocales} · Links aangepast: ${replacements}`
+function detailKey(detail: BulkLinkSyncDocumentReport, index: number): string {
+  const scope = detail.collection ?? detail.global ?? 'document'
+  const id = detail.documentId != null ? String(detail.documentId) : String(index)
+  return `${scope}:${id}`
 }
 
 export function SyncLinksGlobal({ collections }: SyncLinksGlobalProps) {
@@ -24,7 +37,6 @@ export function SyncLinksGlobal({ collections }: SyncLinksGlobalProps) {
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<null | string>(null)
   const [result, setResult] = React.useState<BulkLinkSyncResponse | null>(null)
-  const masterId = React.useId()
 
   React.useEffect(() => {
     setSelected((prev) => {
@@ -35,7 +47,9 @@ export function SyncLinksGlobal({ collections }: SyncLinksGlobalProps) {
   }, [collections])
 
   const toggle = React.useCallback((slug: string) => {
-    setSelected((prev) => (prev.includes(slug) ? prev.filter((entry) => entry !== slug) : [...prev, slug]))
+    setSelected((prev) =>
+      prev.includes(slug) ? prev.filter((entry) => entry !== slug) : [...prev, slug],
+    )
   }, [])
 
   const toggleAll = React.useCallback(() => {
@@ -43,8 +57,8 @@ export function SyncLinksGlobal({ collections }: SyncLinksGlobalProps) {
   }, [collections])
 
   const handleRun = React.useCallback(async () => {
-    if (!selected.length) {
-      return toast.info('Selecteer minimaal één collectie.')
+    if (!selected.length || busy) {
+      return
     }
 
     try {
@@ -52,118 +66,145 @@ export function SyncLinksGlobal({ collections }: SyncLinksGlobalProps) {
       setError(null)
       const response = await runBulkSyncLinks(selected)
       setResult(response)
-      const summary = formatSummary(response.summary)
-      toast.success(`Bulk link synchronisatie voltooid. ${summary}`)
+      toast.success(
+        `Link sync complete: ${response.summary.documentsUpdated} of ${response.summary.documentsProcessed} document(s) updated, ${response.summary.replacements} link(s) rewritten.`,
+      )
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Bulk synchronisatie mislukt.'
+      const message = error instanceof Error ? error.message : 'Bulk link sync failed.'
       setError(message)
+      setResult(null)
       toast.error(message)
     } finally {
       setBusy(false)
     }
-  }, [selected])
+  }, [busy, selected])
+
+  const summary = result?.summary
 
   return (
-    <div className={styles.wrapper}>
-      <div className={styles.controls}>
+    <ToolPage running={busy}>
+      <ToolPanel
+        description="Rewrite internal links inside translated documents so each locale points to its own translated URLs. Uses the link alternates collected for every document."
+        eyebrow="AI translations"
+        title="Link sync"
+      >
+        <CheckboxCardGroup
+          disabled={busy}
+          label="Collections"
+          onToggle={toggle}
+          onToggleAll={toggleAll}
+          options={collections.map((c) => ({ key: c.slug, meta: c.slug, title: c.label }))}
+          selectedKeys={selected}
+        />
+
         <div className={styles.actions}>
-          <label className={styles.masterLabel} htmlFor={masterId}>
-            <input
-              aria-label="Selecteer alle collecties"
-              checked={selected.length === collections.length}
-              id={masterId}
-              onChange={toggleAll}
-              type="checkbox"
-            />
-            <span>Alle collecties</span>
-          </label>
-          <Button disabled={busy} onClick={handleRun} type="button">
-            {busy ? 'Synchroniseren…' : 'Synchroniseer links'}
+          <Button disabled={busy || !selected.length} onClick={() => void handleRun()} type="button">
+            {busy ? 'Syncing…' : 'Sync links'}
           </Button>
         </div>
-        <ul className={styles.list}>
-          {collections.map((collection) => {
-            const inputId = `sync-links-${collection.slug}`
-            return (
-              <li className={styles.item} key={collection.slug}>
-                <label htmlFor={inputId}>
-                  <input
-                    aria-label={collection.label}
-                    checked={selected.includes(collection.slug)}
-                    id={inputId}
-                    onChange={() => toggle(collection.slug)}
-                    type="checkbox"
-                  />
-                  <span>
-                    {collection.label}
-                    <span className={styles.slug}> ({collection.slug})</span>
-                  </span>
-                </label>
-              </li>
-            )
-          })}
-        </ul>
-        {busy ? <span className={styles.status}>Synchronisatie bezig…</span> : null}
-        {error ? <span className={styles.error}>{error}</span> : null}
-      </div>
 
-      {result ? (
-        <div className={styles.summary}>
-          <strong>{formatSummary(result.summary)}</strong>
-          {result.summary.missingAlternates.length ? (
-            <div>
-              <strong>Ontbrekende alternatieven:</strong>{' '}
-              {result.summary.missingAlternates
-                .map((entry) => `${entry.locale} (${entry.count})`)
-                .join(', ')}
+        {busy ? (
+          <ToolSection>
+            <ProgressSection completed={0} status="Synchronising links…" total={0} />
+          </ToolSection>
+        ) : null}
+
+        {error ? (
+          <ToolSection>
+            <div className={styles.badgeRow}>
+              <Badge tone="error">{error}</Badge>
             </div>
-          ) : null}
-          {result.summary.warnings.length ? (
-            <div>
-              <strong>Waarschuwingen:</strong>
-              <ul>
-                {result.summary.warnings.map((warning, index) => (
+          </ToolSection>
+        ) : null}
+      </ToolPanel>
+
+      {summary ? (
+        <ToolPanel
+          headerExtra={
+            summary.missingAlternates.length ? (
+              <div className={styles.badgeRow}>
+                {summary.missingAlternates.map((entry) => (
+                  <Badge key={entry.locale} tone="warning">
+                    {entry.locale}: {entry.count} missing alternate(s)
+                  </Badge>
+                ))}
+              </div>
+            ) : undefined
+          }
+          title="Result"
+        >
+          <ToolSection>
+            <StatGrid
+              stats={[
+                {
+                  label: 'Documents updated',
+                  tone: summary.documentsUpdated ? 'success' : 'default',
+                  value: `${summary.documentsUpdated}/${summary.documentsProcessed}`,
+                },
+                { label: 'Locales updated', value: summary.updatedLocales },
+                { label: 'Links rewritten', value: summary.replacements },
+              ]}
+            />
+          </ToolSection>
+
+          {summary.warnings.length ? (
+            <ToolSection label="Warnings">
+              <ul className={styles.plainList}>
+                {summary.warnings.map((warning, index) => (
                   <li key={`warn-${index}`}>{warning}</li>
                 ))}
               </ul>
-            </div>
+            </ToolSection>
           ) : null}
-          {result.summary.errors.length ? (
-            <div>
-              <strong>Fouten:</strong>
-              <ul>
-                {result.summary.errors.map((message, index) => (
+
+          {summary.errors.length ? (
+            <ToolSection label="Errors">
+              <ul className={styles.plainList}>
+                {summary.errors.map((message, index) => (
                   <li key={`err-${index}`}>{message}</li>
                 ))}
               </ul>
-            </div>
+            </ToolSection>
           ) : null}
-          <ul className={styles.details}>
-            {result.details.map((detail) => (
-              <li className={styles.detailItem} key={`${detail.collection}-${detail.label}`}>
-                <div>
-                  <strong>
-                    {detail.collection}#{detail.label}
-                  </strong>
-                </div>
-                <div className={styles.detailMeta}>
-                  <span className={styles.badge}>
-                    {detail.updatedLocales.length ? `Bijgewerkt (${detail.updatedLocales.length})` : 'Geen wijzigingen'}
-                  </span>
-                  {detail.missingAlternateLocales.length ? (
-                    <span className={styles.badge}>
-                      Geen alternatieve links: {detail.missingAlternateLocales.join(', ')}
-                    </span>
-                  ) : null}
-                  {detail.errors.length ? (
-                    <span className={styles.badge}>Fouten: {detail.errors.length}</span>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
+
+          {result && result.details.length ? (
+            <ToolSection label="Documents">
+              <ul className={styles.resultList}>
+                {result.details.map((detail, index) => (
+                  <li className={styles.resultItem} key={detailKey(detail, index)}>
+                    <div className={styles.resultRow}>
+                      <span className={styles.resultTitle}>{detail.label}</span>
+                      <span className={styles.cardMeta}>
+                        {detail.collection ?? detail.global}
+                        {detail.documentId != null ? `#${detail.documentId}` : ''}
+                      </span>
+                      <span className={styles.badgeRow}>
+                        {detail.updatedLocales.length ? (
+                          <Badge tone="success">
+                            Updated: {detail.updatedLocales.join(', ')}
+                          </Badge>
+                        ) : (
+                          <Badge>No changes</Badge>
+                        )}
+                        {detail.missingAlternateLocales.length ? (
+                          <Badge tone="warning">
+                            Missing alternates: {detail.missingAlternateLocales.join(', ')}
+                          </Badge>
+                        ) : null}
+                        {detail.errors.length ? (
+                          <Badge tone="error">
+                            {detail.errors.length} error{detail.errors.length === 1 ? '' : 's'}
+                          </Badge>
+                        ) : null}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </ToolSection>
+          ) : null}
+        </ToolPanel>
       ) : null}
-    </div>
+    </ToolPage>
   )
 }

@@ -1,4 +1,5 @@
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
+import { seoPlugin } from '@payloadcms/plugin-seo'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { MongoMemoryReplSet } from 'mongodb-memory-server'
 import path from 'path'
@@ -66,6 +67,11 @@ const buildConfigWithMemoryDB = async () => {
       await seed(payload)
     },
     plugins: [
+      seoPlugin({
+        collections: ['posts'],
+        generateTitle: ({ doc }) => (typeof doc?.title === 'string' ? doc.title : ''),
+        uploadsCollection: 'media',
+      }),
       payloadSyncAiTranslations({
         collections: {
           posts: {
@@ -73,6 +79,9 @@ const buildConfigWithMemoryDB = async () => {
               return `Keep the following productNames in English ${data.title}`
             },
             excludeFields: ['slug'],
+            seo: {
+              contentFields: ['title', 'content', 'components'],
+            },
           },
         },
         debug: true,

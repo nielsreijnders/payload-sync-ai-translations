@@ -9,9 +9,9 @@ export type LinkSyncLocaleReport = {
 
 export type LinkSyncResult = {
   collection?: string
-  documentId?: string | number
-  global?: string
+  documentId?: number | string
   errors: string[]
+  global?: string
   missingAlternateLocales: string[]
   processedLocales: string[]
   processedUrls: number
@@ -26,15 +26,15 @@ export type BulkLinkSyncRequestPayload = {
   collections: string[]
 }
 
-export type BulkLinkSyncDocumentReport = LinkSyncResult & {
+export type BulkLinkSyncDocumentReport = {
   label: string
-}
+} & LinkSyncResult
 
 export type BulkLinkSyncSummary = {
   documentsProcessed: number
   documentsUpdated: number
   errors: string[]
-  missingAlternates: Array<{ locale: string; count: number }>
+  missingAlternates: Array<{ count: number; locale: string }>
   replacements: number
   updatedLocales: number
   warnings: string[]

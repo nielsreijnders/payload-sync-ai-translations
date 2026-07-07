@@ -3,6 +3,7 @@ import type { Payload, PayloadHandler } from 'payload'
 import type { BulkLinkSyncRequestPayload, BulkLinkSyncResponse } from './linkSyncTypes.js'
 
 import { synchronizeLinksForDocument } from './linkSyncService.js'
+import { rejectUnauthenticated } from './requireUser.js'
 import {
   getStoredCollection,
   getStoredTarget,
@@ -113,6 +114,11 @@ function parseBulkBody(body: unknown): BulkLinkSyncRequestPayload {
 
 export function createSyncLinksHandler(configuredBaseUrl?: string): PayloadHandler {
   return async (req) => {
+    const unauthorized = rejectUnauthenticated(req)
+    if (unauthorized) {
+      return unauthorized
+    }
+
     try {
       const payload = req.payload
       if (!payload) {
@@ -157,6 +163,11 @@ export function createSyncLinksHandler(configuredBaseUrl?: string): PayloadHandl
 
 export function createBulkSyncLinksHandler(configuredBaseUrl?: string): PayloadHandler {
   return async (req) => {
+    const unauthorized = rejectUnauthenticated(req)
+    if (unauthorized) {
+      return unauthorized
+    }
+
     try {
       const payload = req.payload
       if (!payload) {

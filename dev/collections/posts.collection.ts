@@ -33,22 +33,6 @@ export const posts: CollectionConfig = {
       type: 'tabs',
       tabs: [
         {
-          name: 'seo',
-          fields: [
-            {
-              name: 'metaTitle',
-              type: 'text',
-              localized: true,
-            },
-            {
-              name: 'metaDescription',
-              type: 'textarea',
-              localized: true,
-            },
-          ],
-          label: 'SEO',
-        },
-        {
           name: 'settings',
           fields: [
             {

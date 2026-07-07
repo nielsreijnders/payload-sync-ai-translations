@@ -1,0 +1,142 @@
+/* SEO-overview specific styles; layout primitives come from ToolUI.module.css */
+
+.controlsRow {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.localeField {
+  display: grid;
+  gap: 6px;
+  width: 160px;
+}
+
+.toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.search {
+  flex: 1;
+  max-width: 360px;
+  min-width: 220px;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  min-width: 940px;
+  width: 100%;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--theme-elevation-150);
+  padding: 13px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  color: var(--theme-elevation-600);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.documentLink {
+  color: var(--theme-text);
+  font-weight: 600;
+}
+
+.documentMeta,
+.length,
+.muted {
+  color: var(--theme-elevation-600);
+  font-size: 12px;
+}
+
+.metaText {
+  display: block;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.score {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-weight: 700;
+  justify-content: center;
+  min-width: 48px;
+  padding: 6px 10px;
+}
+
+.good {
+  background: color-mix(in srgb, var(--theme-success-500) 15%, transparent);
+  color: var(--theme-success-600);
+}
+
+.needsWork {
+  background: color-mix(in srgb, var(--theme-warning-500) 18%, transparent);
+  color: var(--theme-warning-650);
+}
+
+.poor {
+  background: color-mix(in srgb, var(--theme-error-500) 15%, transparent);
+  color: var(--theme-error-600);
+}
+
+.issues {
+  margin: 0;
+  max-width: 330px;
+  padding-left: 17px;
+}
+
+.issues li + li {
+  margin-top: 4px;
+}
+
+.editorRow td {
+  background: var(--theme-elevation-50);
+  padding: 18px;
+}
+
+.editor {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(240px, 1fr) minmax(320px, 2fr);
+}
+
+.editorActions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 900px) {
+  .editor {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .search {
+    max-width: none;
+  }
+}

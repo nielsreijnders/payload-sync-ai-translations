@@ -2,14 +2,15 @@ import type { Payload } from 'payload'
 
 import type { LinkSyncLocaleReport, LinkSyncResult } from './linkSyncTypes.js'
 
+import { logDebug } from './debugSettings.js'
 import {
   cloneWithoutDocumentMetadata,
   loadLocalizedDocument,
   stripDocumentMetadata,
 } from './documentUtils.js'
 import { fetchAlternateLinks, selectAlternateForLocale } from './linkAlternate.js'
-import { collectLinkOccurrences } from './linkCollector.js'
-import { cloneLocaleData, setValueAtPath } from './localeStructure.js'
+import { applyLinkOccurrence, collectLinkOccurrences } from './linkCollector.js'
+import { cloneLocaleData } from './localeStructure.js'
 
 type CollectionLinkOptions = {
   collection: string
@@ -119,7 +120,6 @@ export async function synchronizeLinksForDocument(
   })
 
   const localeDocs = new Map<string, unknown>()
-  const localeLinksByLocale = new Map<string, ReturnType<typeof collectLinkOccurrences>>()
 
   for (const locale of processedLocales) {
     const existingLocaleDoc = await loadLocalizedDocument(
@@ -140,14 +140,12 @@ export async function synchronizeLinksForDocument(
 
     if (!existingLocaleDoc) {
       localeDocs.set(locale, null)
-      localeLinksByLocale.set(locale, [])
       continue
     }
 
     localeDocs.set(locale, existingLocaleDoc)
 
     const localeLinks = collectLinkOccurrences(existingLocaleDoc, fieldPatterns)
-    localeLinksByLocale.set(locale, localeLinks)
     localeLinks.forEach((entry) => {
       allUrls.add(entry.value)
     })
@@ -175,12 +173,12 @@ export async function synchronizeLinksForDocument(
   for (const url of allUrls) {
     let alternates = cache.get(url)
 
-    console.log('URL:', url)
+    logDebug(payload, `Resolving alternates for ${url}`)
 
     if (!alternates) {
       try {
         alternates = await fetchAlternateLinks(url, { baseUrl: serverURL })
-        console.log('Alternates map:', Array.from(alternates.entries()))
+        logDebug(payload, `Alternates for ${url}`, Array.from(alternates.entries()))
         cache.set(url, alternates)
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to fetch alternates'
@@ -233,22 +231,34 @@ export async function synchronizeLinksForDocument(
     let localeData: unknown = cloneLocaleData(existingLocaleDoc ?? defaultDoc)
     stripDocumentMetadata(localeData)
 
-    const localeLinks = collectLinkOccurrences(localeData, fieldPatterns)
-
     let changed = false
 
-    for (const occurrence of localeLinks) {
-      const currentValue = occurrence.value
-      const replacement = replacementsForLocale.get(currentValue)
+    // Walk the default document's link occurrences so replacements follow the
+    // current default URLs and land on the id-normalized path in the locale
+    // data, even when array items were reordered or the locale still holds an
+    // outdated localized URL.
+    for (const occurrence of defaultLinks) {
+      const replacement = replacementsForLocale.get(occurrence.value)
 
-      if (!replacement || replacement === currentValue) {
+      if (!replacement || replacement === occurrence.value) {
         continue
       }
 
-      localeData = setValueAtPath(defaultDoc, localeData, occurrence.path, replacement)
+      const applied = applyLinkOccurrence(occurrence, defaultDoc, localeData, replacement)
 
+      if (!applied.changed) {
+        continue
+      }
+
+      localeData = applied.data
       localeReport.replacements += 1
       changed = true
+    }
+
+    if (!changed) {
+      unchangedLocales.push(locale)
+      reports.push(localeReport)
+      continue
     }
 
     stripDocumentMetadata(localeData)

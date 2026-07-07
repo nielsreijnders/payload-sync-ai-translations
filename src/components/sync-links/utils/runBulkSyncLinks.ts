@@ -10,13 +10,13 @@ export async function runBulkSyncLinks(collections: string[]): Promise<BulkLinkS
   const json = await response.json().catch(() => ({}))
 
   if (!response.ok || json?.type !== 'success') {
-    const message = typeof json?.message === 'string' ? json.message : 'Bulk synchronisatie mislukt.'
+    const message = typeof json?.message === 'string' ? json.message : 'Bulk link sync failed.'
     throw new Error(message)
   }
 
   const payload = json?.data as BulkLinkSyncResponse | undefined
   if (!payload) {
-    throw new Error('Ongeldige serverrespons ontvangen.')
+    throw new Error('Received an invalid server response.')
   }
 
   return payload

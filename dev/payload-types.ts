@@ -94,12 +94,14 @@ export interface Config {
     'ai-bulk-translation': AiBulkTranslation;
     'grammar-check': GrammarCheck;
     'sync-links': SyncLink;
+    'seo-overview': SeoOverview;
   };
   globalsSelect: {
     menu: MenuSelect<false> | MenuSelect<true>;
     'ai-bulk-translation': AiBulkTranslationSelect<false> | AiBulkTranslationSelect<true>;
     'grammar-check': GrammarCheckSelect<false> | GrammarCheckSelect<true>;
     'sync-links': SyncLinksSelect<false> | SyncLinksSelect<true>;
+    'seo-overview': SeoOverviewSelect<false> | SeoOverviewSelect<true>;
   };
   locale: 'en' | 'nl';
   widgets: {
@@ -151,10 +153,6 @@ export interface Post {
       version: number;
     };
     [k: string]: unknown;
-  };
-  seo?: {
-    metaTitle?: string | null;
-    metaDescription?: string | null;
   };
   settings?: {
     isFeatured?: boolean | null;
@@ -232,6 +230,14 @@ export interface Post {
           }
       )[]
     | null;
+  meta?: {
+    title?: string | null;
+    description?: string | null;
+    /**
+     * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
+     */
+    image?: (string | null) | Media;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -364,12 +370,6 @@ export interface PostsSelect<T extends boolean = true> {
   title?: T;
   slug?: T;
   content?: T;
-  seo?:
-    | T
-    | {
-        metaTitle?: T;
-        metaDescription?: T;
-      };
   settings?:
     | T
     | {
@@ -419,6 +419,13 @@ export interface PostsSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+      };
+  meta?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        image?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -582,6 +589,15 @@ export interface SyncLink {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "seo-overview".
+ */
+export interface SeoOverview {
+  id: string;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "menu_select".
  */
 export interface MenuSelect<T extends boolean = true> {
@@ -648,6 +664,15 @@ export interface GrammarCheckSelect<T extends boolean = true> {
  * via the `definition` "sync-links_select".
  */
 export interface SyncLinksSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "seo-overview_select".
+ */
+export interface SeoOverviewSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

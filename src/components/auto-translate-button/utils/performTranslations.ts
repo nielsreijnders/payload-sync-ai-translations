@@ -36,8 +36,8 @@ export async function performTranslations(
     body: JSON.stringify({
       id: request.id,
       collection: request.collection,
-      global: request.global,
       from: request.defaultLocale,
+      global: request.global,
       locales: request.locales.map((locale) => ({
         chunks: locale.chunks,
         code: locale.code,

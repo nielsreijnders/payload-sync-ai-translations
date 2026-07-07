@@ -2,9 +2,12 @@ import type { CollectionConfig, Config, GlobalConfig, PayloadTypes } from 'paylo
 
 import { createAiBulkTranslateHandler } from './server/bulkTranslationHandler.js'
 import { setDebugEnabled } from './server/debugSettings.js'
+import { createFindReplaceHandler } from './server/findReplaceHandler.js'
 import { createAiGrammarCheckHandler } from './server/grammarCheckHandler.js'
 import { createBulkSyncLinksHandler, createSyncLinksHandler } from './server/linkSyncHandler.js'
 import { setOpenAISettings } from './server/openAiSettings.js'
+import { createSeoScanHandler, createSeoUpdateHandler } from './server/seoHandler.js'
+import { configureSeoState, listSeoCollections } from './server/seoState.js'
 import { createAiTranslateHandler } from './server/translationRequestHandler.js'
 import { createAiTranslateReviewHandler } from './server/translationReviewService.js'
 import {
@@ -55,6 +58,23 @@ export type AiLocalizationCollectionOptions<TData = unknown> = {
    * - single string: applied to all locales
    */
   grammarCheckPrompt?: AiLocalePromptSetting<TData>
+  /**
+   * Enable the SEO overview for this collection. Defaults target the official
+   * Payload SEO plugin fields at `meta.title` and `meta.description`.
+   */
+  seo?: AiSeoCollectionOptions | boolean
+}
+
+export type AiSeoCollectionOptions = {
+  /**
+   * Optional document field paths used to calculate content quality.
+   * If omitted, textual document content is detected automatically.
+   */
+  contentFields?: string[]
+  descriptionPath?: string
+  labelPath?: string
+  slugPath?: string
+  titlePath?: string
 }
 
 export type AiLocalizationConfig<TPayloadConfig = DefaultPayloadTypes> = {
@@ -78,12 +98,17 @@ export type PayloadSyncAiTranslationsPlugin = <TPayloadConfig = DefaultPayloadTy
 ) => (config: Config) => Config
 
 const CLIENT_EXPORT = 'payload-sync-ai-translations/client#AutoTranslateButton'
+const HIDDEN_SAVE_BUTTON = 'payload-sync-ai-translations/client#HiddenSaveButton'
 const BULK_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#BulkTranslateGlobal'
+const FIND_REPLACE_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#FindReplaceGlobal'
 const GRAMMAR_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#GrammarCheckGlobal'
 const LINK_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#SyncLinksGlobal'
+const SEO_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#SeoOverviewGlobal'
 const BULK_GLOBAL_SLUG = 'ai-bulk-translation'
+const FIND_REPLACE_GLOBAL_SLUG = 'find-replace'
 const GRAMMAR_GLOBAL_SLUG = 'grammar-check'
 const LINK_GLOBAL_SLUG = 'sync-links'
+const SEO_GLOBAL_SLUG = 'seo-overview'
 const DEBUG_CLIENT_EXPORT = 'payload-sync-ai-translations/client#DebugDocumentCopyButton'
 const SYNC_LINKS_CLIENT_EXPORT = 'payload-sync-ai-translations/client#DocumentSyncLinksButton'
 
@@ -184,6 +209,10 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
       customPrompt?: AiLocalizationCollectionOptions['customPrompt']
       excludeFields?: string[]
     }> = []
+    const seoCollections: Array<{
+      config: CollectionConfig
+      options: AiSeoCollectionOptions | boolean
+    }> = []
 
     const collections = (config.collections ?? []).map((collection) => {
       const perColl = collectionOptions?.[collection.slug]
@@ -197,6 +226,13 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
         excludeFields: perColl.excludeFields,
         grammarCheckPrompt: normalizeLocalePromptSetting(perColl.grammarCheckPrompt),
       })
+
+      if (perColl.seo) {
+        seoCollections.push({
+          config: collection,
+          options: perColl.seo,
+        })
+      }
 
       // Merge any user-supplied clientProps with helpful defaults
       const fieldPatterns = extractFieldPatterns(collection, {
@@ -289,7 +325,6 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
           ...global.admin,
           components: {
             ...global.admin?.components,
-            // Try elements???
             elements: {
               ...global.admin?.components?.elements,
               beforeDocumentControls: [
@@ -316,9 +351,11 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
       { defaultLocale, locales },
       { availableBlocks },
     )
+    configureSeoState(seoCollections, { defaultLocale, locales })
 
     const storedCollections = listStoredCollections()
     const storedGlobals = listStoredGlobals()
+    const storedSeoCollections = listSeoCollections()
 
     const bulkClientProps = {
       collections: storedCollections.map((entry) => ({
@@ -329,11 +366,21 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
       locales: localeCodes,
     }
 
+    // The tool globals never save data through the document form, so the
+    // default Save button and API tab would only distract.
+    const toolGlobalAdmin: GlobalConfig['admin'] = {
+      components: {
+        elements: {
+          SaveButton: HIDDEN_SAVE_BUTTON,
+        },
+      },
+      group: 'Plugins',
+      hideAPIURL: true,
+    }
+
     const bulkGlobal: GlobalConfig = {
       slug: BULK_GLOBAL_SLUG,
-      admin: {
-        group: 'Plugins',
-      },
+      admin: toolGlobalAdmin,
       fields: [
         {
           name: 'bulkTranslate',
@@ -348,17 +395,12 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
           },
         },
       ],
-      label: {
-        plural: 'AI Bulk Translations',
-        singular: 'AI Bulk Translation',
-      },
+      label: 'AI Bulk Translation',
     }
 
     const grammarGlobal: GlobalConfig = {
       slug: GRAMMAR_GLOBAL_SLUG,
-      admin: {
-        group: 'Plugins',
-      },
+      admin: toolGlobalAdmin,
       fields: [
         {
           name: 'grammarCheck',
@@ -380,17 +422,40 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
           },
         },
       ],
-      label: {
-        plural: 'Grammar Checks',
-        singular: 'Grammar Check',
-      },
+      label: 'Grammar Check',
+    }
+
+    const findReplaceGlobal: GlobalConfig = {
+      slug: FIND_REPLACE_GLOBAL_SLUG,
+      admin: toolGlobalAdmin,
+      fields: [
+        {
+          name: 'findReplace',
+          type: 'ui',
+          admin: {
+            components: {
+              Field: {
+                clientProps: {
+                  collections: bulkClientProps.collections,
+                  defaultLocale,
+                  globals: storedGlobals.map((entry) => ({
+                    slug: entry.slug,
+                    label: entry.label,
+                  })),
+                  locales: localeCodes,
+                },
+                path: FIND_REPLACE_GLOBAL_COMPONENT,
+              },
+            },
+          },
+        },
+      ],
+      label: 'Find & Replace',
     }
 
     const linkGlobal: GlobalConfig = {
       slug: LINK_GLOBAL_SLUG,
-      admin: {
-        group: 'Plugins',
-      },
+      admin: toolGlobalAdmin,
       fields: [
         {
           name: 'syncLinks',
@@ -407,16 +472,43 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
           },
         },
       ],
-      label: {
-        plural: 'Sync Links',
-        singular: 'Sync Links',
-      },
+      label: 'Sync Links',
     }
 
-    const existingGlobals = globals ?? config.globals ?? []
-    const enhancedGlobals = storedCollections.length
-      ? [...existingGlobals, bulkGlobal, grammarGlobal, linkGlobal]
-      : existingGlobals
+    const seoGlobal: GlobalConfig = {
+      slug: SEO_GLOBAL_SLUG,
+      admin: toolGlobalAdmin,
+      fields: [
+        {
+          name: 'seoOverview',
+          type: 'ui',
+          admin: {
+            components: {
+              Field: {
+                clientProps: {
+                  collections: storedSeoCollections.map((entry) => ({
+                    slug: entry.slug,
+                    label: entry.label,
+                  })),
+                  defaultLocale,
+                  locales: localeCodes,
+                },
+                path: SEO_GLOBAL_COMPONENT,
+              },
+            },
+          },
+        },
+      ],
+      label: 'SEO Overview',
+    }
+
+    const enhancedGlobals = [
+      ...globals,
+      ...(storedCollections.length || storedGlobals.length
+        ? [bulkGlobal, grammarGlobal, findReplaceGlobal, linkGlobal]
+        : []),
+      ...(storedSeoCollections.length ? [seoGlobal] : []),
+    ]
 
     return {
       ...config,
@@ -425,6 +517,7 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
         ...(config.endpoints ?? []),
         { handler: createAiBulkTranslateHandler(), method: 'post', path: '/ai-translate/bulk' },
         { handler: createAiGrammarCheckHandler(), method: 'post', path: '/ai-grammar/bulk' },
+        { handler: createFindReplaceHandler(), method: 'post', path: '/ai-text/find-replace' },
         { handler: createAiTranslateHandler(), method: 'post', path: '/ai-translate' },
         { handler: createAiTranslateReviewHandler(), method: 'post', path: '/ai-translate/review' },
         {
@@ -437,6 +530,16 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
           method: 'post',
           path: '/ai-links/bulk',
         },
+        ...(storedSeoCollections.length
+          ? [
+              { handler: createSeoScanHandler(), method: 'post' as const, path: '/ai-seo/scan' },
+              {
+                handler: createSeoUpdateHandler(),
+                method: 'post' as const,
+                path: '/ai-seo/update',
+              },
+            ]
+          : []),
       ],
       globals: enhancedGlobals,
     }

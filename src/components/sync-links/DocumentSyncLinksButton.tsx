@@ -9,12 +9,16 @@ import * as React from 'react'
 import type { LinkSyncResult } from '../../server/linkSyncTypes.js'
 
 type SyncLinksButtonProps = {
-  defaultLocale: TypedLocale
+  defaultLocale: { code: string } | TypedLocale
   locales: LocalizationConfig['locales']
 }
 
-function getLocaleCode(locale: TypedLocale): string {
-  return typeof locale === 'string' ? locale : (locale as any).code
+function getLocaleCode(locale: SyncLinksButtonProps['defaultLocale']): string {
+  if (typeof locale === 'string') {
+    return locale
+  }
+
+  return locale?.code ?? ''
 }
 
 function getLocaleCodes(locales: LocalizationConfig['locales']): string[] {
@@ -29,19 +33,19 @@ function formatList(values: string[]): string {
   }
 
   const [last, ...rest] = values.slice().reverse()
-  return `${rest.reverse().join(', ')} en ${last}`
+  return `${rest.reverse().join(', ')} and ${last}`
 }
 
 function buildSummary(result: LinkSyncResult): string {
   const localeCount = result.updatedLocales.length
   const replacementCount = result.replacements
   if (!localeCount) {
-    return 'Geen wijzigingen nodig; alle links zijn al up-to-date.'
+    return 'No changes needed; all links are already up to date.'
   }
 
-  const localeLabel = localeCount === 1 ? 'taal' : 'talen'
-  const replacementLabel = replacementCount === 1 ? 'vervanging' : 'vervangingen'
-  return `Links gesynchroniseerd voor ${localeCount} ${localeLabel} (${replacementCount} ${replacementLabel}).`
+  const localeLabel = localeCount === 1 ? 'locale' : 'locales'
+  const replacementLabel = replacementCount === 1 ? 'replacement' : 'replacements'
+  return `Links synced for ${localeCount} ${localeLabel} (${replacementCount} ${replacementLabel}).`
 }
 
 export function DocumentSyncLinksButton(props: SyncLinksButtonProps) {
@@ -71,20 +75,20 @@ export function DocumentSyncLinksButton(props: SyncLinksButtonProps) {
 
   const handleClick = React.useCallback(async () => {
     if (!collectionSlug && !globalSlug) {
-      return toast.error('Documentgegevens ontbreken.')
+      return toast.error('Document details are missing.')
     }
 
     if (collectionSlug && !id) {
-      return toast.error('Documentgegevens ontbreken.')
+      return toast.error('Document details are missing.')
     }
 
     try {
       setBusy(true)
       const response = await fetch('/api/ai-links/sync', {
         body: JSON.stringify({
+          id,
           collection: collectionSlug,
           global: globalSlug,
-          id,
         }),
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
@@ -92,21 +96,21 @@ export function DocumentSyncLinksButton(props: SyncLinksButtonProps) {
 
       const json = await response.json().catch(() => ({}))
       if (!response.ok) {
-        const message = typeof json?.message === 'string' ? json.message : 'Synchronisatie mislukt.'
+        const message = typeof json?.message === 'string' ? json.message : 'Link sync failed.'
         throw new Error(message)
       }
 
       const result = json?.result as LinkSyncResult | undefined
       if (!result) {
-        throw new Error('Ongeldige serverrespons ontvangen.')
+        throw new Error('Received an invalid server response.')
       }
 
       if (result.warnings.length) {
-        toast.info(`Waarschuwingen: ${result.warnings.join(' | ')}`)
+        toast.info(`Warnings: ${result.warnings.join(' | ')}`)
       }
 
       if (result.errors.length) {
-        toast.error(result.errors[0] ?? 'Er trad een fout op tijdens het bijwerken van een taal.')
+        toast.error(result.errors[0] ?? 'An error occurred while updating a locale.')
       }
 
       if (result.updatedLocales.length) {
@@ -116,12 +120,10 @@ export function DocumentSyncLinksButton(props: SyncLinksButtonProps) {
       }
 
       if (result.missingAlternateLocales.length) {
-        toast.info(
-          `Geen alternatieve links gevonden voor: ${formatList(result.missingAlternateLocales)}.`,
-        )
+        toast.info(`No alternate links found for: ${formatList(result.missingAlternateLocales)}.`)
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Synchronisatie mislukt.'
+      const message = error instanceof Error ? error.message : 'Link sync failed.'
       toast.error(message)
     } finally {
       setBusy(false)
@@ -136,7 +138,7 @@ export function DocumentSyncLinksButton(props: SyncLinksButtonProps) {
     <Button disabled={busy} onClick={handleClick} type="button">
       <span style={{ alignItems: 'center', display: 'inline-flex', gap: '0.35rem' }}>
         <Link2 size={14} />
-        Synchroniseer links
+        Sync links
       </span>
     </Button>
   )

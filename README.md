@@ -17,6 +17,11 @@ Built using the official [Payload Plugin Template](https://payloadcms.com/docs/p
 - 🚀 **Auto-sync updates:** Apply all confirmed translations across all languages.
 - 📝 **Manual override:** Preserve manually edited content automatically.
 - ⚙️ **Exclude specific fields:** Easily exclude fields from being translated.
+- 🔎 **SEO overview:** Full-scan configured collections, score every document, and edit
+  Payload SEO titles/descriptions inline.
+- 🔁 **Find & replace:** Search all configured collections and globals for a text (per locale,
+  optionally case-sensitive or whole-word), review the matches, and replace them in bulk.
+- 🔒 **Authenticated endpoints:** All plugin endpoints require a logged-in user.
 
 ---
 
@@ -37,15 +42,25 @@ npm install payload-sync-ai-translations
 Add the plugin to your Payload config:
 
 ```ts
+import { seoPlugin } from '@payloadcms/plugin-seo'
 import { buildConfig } from 'payload/config'
 import { payloadSyncAiTranslations } from 'payload-sync-ai-translations'
 
 export default buildConfig({
   plugins: [
+    seoPlugin({
+      collections: ['posts'],
+      uploadsCollection: 'media',
+    }),
     payloadSyncAiTranslations({
       collections: {
         posts: {
           excludeFields: ['slug'],
+          seo: {
+            // Defaults integrate with @payloadcms/plugin-seo:
+            // meta.title and meta.description
+            contentFields: ['title', 'content', 'layout'],
+          },
         },
       },
       openai: {
@@ -69,6 +84,15 @@ export interface PayloadSyncAiTranslationsOptions {
   collections: {
     [collectionSlug: string]: {
       excludeFields?: string[]
+      seo?:
+        | boolean
+        | {
+            contentFields?: string[]
+            descriptionPath?: string // default: meta.description
+            labelPath?: string // default: collection admin.useAsTitle
+            slugPath?: string // default: slug
+            titlePath?: string // default: meta.title
+          }
     }
   }
 
@@ -95,6 +119,10 @@ export interface PayloadSyncAiTranslationsOptions {
 }
 ```
 
+The SEO overview is compatible with the official `@payloadcms/plugin-seo` fields by default. Set
+`seo: true` for automatic content detection, or provide `contentFields` for a more precise score.
+Custom SEO schemas can use `titlePath` and `descriptionPath`.
+
 ---
 
 ## 🧩 How It Works
@@ -113,6 +141,28 @@ When enabled, the plugin adds a **Translate** button to your Payload admin panel
 
 4. **Apply Updates**  
    Confirmed translations are synced across all language versions automatically.
+
+### SEO overview
+
+For collections with `seo` enabled, the plugin adds **Plugins → SEO Overview**. A full scan:
+
+- audits every accessible document in the selected locale;
+- scores metadata length, content depth, heading structure, and title/content alignment;
+- sorts weak documents first and lists actionable issues;
+- edits localized SEO titles and descriptions inline, then immediately recalculates the score.
+
+### Find & replace
+
+The plugin adds **Plugins → Find & Replace** for all configured collections and globals:
+
+1. Enter the text to find, an optional replacement, and pick a locale.
+2. Toggle **Match case** or **Whole word only** when needed.
+3. **Scan for matches** — read-only, lists every field with a before/after preview.
+4. Review the matches, then **Replace** to write them in one go.
+
+Replacements run through the same safe override pipeline as the grammar check
+(lexical rich text stays intact); replacements that would blank a field entirely
+are skipped.
 
 ---
 

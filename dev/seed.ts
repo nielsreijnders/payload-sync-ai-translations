@@ -64,6 +64,11 @@ const seededPosts = [
     content: createLexicalParagraph(
       'An overview of how Payload can streamline authoring content across multiple locales.',
     ),
+    meta: {
+      description:
+        'Learn how Payload CMS supports scalable localization workflows, translated content, and efficient multilingual publishing.',
+      title: 'Payload CMS Localization Workflows and Best Practices',
+    },
     title: 'Exploring Localization Workflows',
   },
   {
@@ -80,6 +85,10 @@ const seededPosts = [
     content: createLexicalParagraph(
       'Practical advice for reviewing and polishing AI assisted translations within your workflow.',
     ),
+    meta: {
+      description: 'Short description.',
+      title: 'AI Translation Tips',
+    },
     title: 'AI Translation Tips',
   },
   {
@@ -96,18 +105,23 @@ const seededPosts = [
     content: createLexicalParagraph(
       'Learn strategies for organizing localized content inside complex block-based layouts.',
     ),
+    meta: {
+      description: '',
+      title: '',
+    },
     title: 'Managing Rich Text Components',
   },
 ]
 
 let hasRun = false
+const seedState = globalThis as { __seeded?: boolean } & typeof globalThis
 
 export const seed = async (payload: Payload) => {
-  if (hasRun || (globalThis as any).__seeded) {
+  if (hasRun || seedState.__seeded) {
     return
   }
   hasRun = true
-  ;(globalThis as any).__seeded = true
+  seedState.__seeded = true
 
   const { totalDocs: userCount } = await payload.count({
     collection: 'users',

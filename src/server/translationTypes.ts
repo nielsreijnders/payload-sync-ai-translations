@@ -77,6 +77,18 @@ export type BulkGrammarCheckRequestPayload = {
   globals?: string[]
 }
 
+export type BulkFindReplaceRequestPayload = {
+  apply: boolean
+  applyTargets?: BulkGrammarApplyTarget[]
+  caseSensitive: boolean
+  collections: string[]
+  find: string
+  globals?: string[]
+  locale?: string
+  replace: string
+  wholeWord: boolean
+}
+
 export type BulkGrammarApplyTarget =
   | {
       collection: string

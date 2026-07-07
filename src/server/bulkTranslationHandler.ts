@@ -14,6 +14,7 @@ import {
 } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
 import { chunkItems } from '../utils/localizedFields.js'
 import { logDebug } from './debugSettings.js'
+import { rejectUnauthenticated } from './requireUser.js'
 import { generateTranslationReview } from './translationReviewService.js'
 import { getStoredCollection, getTranslationState } from './translationStateStore.js'
 import { streamTranslations } from './translationStream.js'
@@ -536,6 +537,11 @@ async function* runBulkTranslations(
 
 export function createAiBulkTranslateHandler(): PayloadHandler {
   return async (req) => {
+    const unauthorized = rejectUnauthenticated(req)
+    if (unauthorized) {
+      return unauthorized
+    }
+
     try {
       const payload = req.payload
       if (!payload) {

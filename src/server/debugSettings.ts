@@ -11,11 +11,11 @@ export function isDebugEnabled(): boolean {
 }
 
 type LoggerSource =
-  | Payload
   | {
       logger?: Payload['logger']
     }
   | null
+  | Payload
   | undefined
 
 export function logDebug(source: LoggerSource, message: string, details?: unknown): void {

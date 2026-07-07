@@ -1,4 +1,3 @@
-// BulkTranslateGlobal.tsx
 'use client'
 
 import { Button } from '@payloadcms/ui'
@@ -6,7 +5,18 @@ import * as React from 'react'
 
 import type { BulkStreamEvent } from '../../server/translationTypes.js'
 
-import styles from './BulkTranslate.module.css'
+import {
+  Badge,
+  CheckboxCardGroup,
+  LogViewer,
+  ProgressSection,
+  StatGrid,
+  ToolPage,
+  ToolPanel,
+  ToolSection,
+  useToolLogs,
+} from '../shared/ToolUI.js'
+import styles from '../shared/ToolUI.module.css'
 import { runBulkTranslation } from './utils/runBulkTranslation.js'
 
 type BulkCollectionOption = { label: string; slug: string }
@@ -16,12 +26,19 @@ type BulkTranslateGlobalProps = {
   locales: string[]
 }
 
-type LogStatus = 'error' | 'info' | 'skip' | 'success'
-type LogEntry = { id: number; message: string; status: LogStatus; timestamp: number }
 type ProgressState = { completed: number; total: number }
 type StatState = { failed: number; processed: number; skipped: number }
 
-const MAX_LOGS = 500
+function parseSkipFields(value: string): string[] {
+  return Array.from(
+    new Set(
+      value
+        .split(/[,\n;]/)
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    ),
+  )
+}
 
 export function BulkTranslateGlobal({
   collections,
@@ -32,12 +49,11 @@ export function BulkTranslateGlobal({
   const [running, setRunning] = React.useState(false)
   const [progress, setProgress] = React.useState<ProgressState>({ completed: 0, total: 0 })
   const [stats, setStats] = React.useState<StatState>({ failed: 0, processed: 0, skipped: 0 })
-  const [logs, setLogs] = React.useState<LogEntry[]>([])
-  const [currentTask, setCurrentTask] = React.useState('Idle')
-  const [logFilter, setLogFilter] = React.useState<'all' | LogStatus>('all')
+  const [currentTask, setCurrentTask] = React.useState('Waiting to start…')
+  const [hasRun, setHasRun] = React.useState(false)
   const [overwrite, setOverwrite] = React.useState(false)
   const [skipFieldsText, setSkipFieldsText] = React.useState('')
-  const logCounter = React.useRef(0)
+  const log = useToolLogs()
 
   React.useEffect(() => {
     setSelected((prev) => {
@@ -52,38 +68,15 @@ export function BulkTranslateGlobal({
     [locales, defaultLocale],
   )
 
-  const localeSummary = React.useMemo(() => {
-    return targets.length
-      ? `Translating ${defaultLocale} → ${targets.join(', ')}`
-      : 'No target locales configured.'
-  }, [defaultLocale, targets])
-
   const skipFields = React.useMemo(() => parseSkipFields(skipFieldsText), [skipFieldsText])
 
   const toggleCollection = (slug: string) =>
     setSelected((prev) => (prev.includes(slug) ? prev.filter((v) => v !== slug) : [...prev, slug]))
 
-  const addLog = (message: string, status: LogStatus = 'info') => {
-    setLogs((prev) => {
-      logCounter.current += 1
-      const entry: LogEntry = { id: logCounter.current, message, status, timestamp: Date.now() }
-      const next = [...prev, entry]
-      return next.length > MAX_LOGS ? next.slice(-MAX_LOGS) : next
-    })
-  }
-
-  const clearLogs = () => setLogs([])
-
-  const copyLogs = async () => {
-    const text = visibleLogs(logs, logFilter)
-      .map((l) => `[${formatTime(l.timestamp)}] ${l.status.toUpperCase()}: ${l.message}`)
-      .join('\n')
-    try {
-      await navigator.clipboard.writeText(text || 'No log entries.')
-    } catch {
-      /* noop */
-    }
-  }
+  const toggleAll = () =>
+    setSelected((prev) =>
+      prev.length === collections.length ? [] : collections.map((c) => c.slug),
+    )
 
   const incrementProgress = () =>
     setProgress((prev) => ({
@@ -94,7 +87,7 @@ export function BulkTranslateGlobal({
   const handleEvent = (event: BulkStreamEvent) => {
     switch (event.type) {
       case 'bulk-complete':
-        addLog(
+        log.addLog(
           `Bulk translation finished. Processed ${event.processed}, skipped ${event.skipped}, failed ${event.failed}.`,
           'success',
         )
@@ -109,31 +102,31 @@ export function BulkTranslateGlobal({
       case 'bulk-start':
         setProgress({ completed: 0, total: event.totalDocuments })
         setStats({ failed: 0, processed: 0, skipped: 0 })
-        addLog(
+        log.addLog(
           `Starting ${event.totalCollections} collection(s) / ${event.totalDocuments} document(s).`,
         )
         setCurrentTask('Preparing…')
         break
       case 'collection-complete':
-        addLog(
+        log.addLog(
           `Finished ${event.collection}: ${event.processed} processed, ${event.skipped} skipped, ${event.failed} failed.`,
         )
         setCurrentTask('Next collection…')
         break
       case 'collection-start':
-        addLog(
+        log.addLog(
           `Processing ${event.label} (${event.collection}) with ${event.totalDocuments} document(s).`,
         )
         setCurrentTask(`Collection ${event.collection}…`)
         break
       case 'document-applied':
-        addLog(
+        log.addLog(
           `Saved translations for ${event.collection}#${event.id} (${event.locale}).`,
           'success',
         )
         break
       case 'document-error':
-        addLog(`Failed ${event.collection}#${event.id}: ${event.message}.`, 'error')
+        log.addLog(`Failed ${event.collection}#${event.id}: ${event.message}.`, 'error')
         incrementProgress()
         setStats((p) => ({ ...p, failed: p.failed + 1 }))
         break
@@ -143,7 +136,7 @@ export function BulkTranslateGlobal({
         )
         break
       case 'document-skipped':
-        addLog(
+        log.addLog(
           `Skipped ${event.collection}#${event.id}: ${event.reason || 'No action required.'}`,
           'skip',
         )
@@ -151,30 +144,31 @@ export function BulkTranslateGlobal({
         setStats((p) => ({ ...p, skipped: p.skipped + 1 }))
         break
       case 'document-start':
-        addLog(`Translating ${event.collection}#${event.id}.`)
+        log.addLog(`Translating ${event.collection}#${event.id}.`)
         setCurrentTask(`Translating ${event.collection}#${event.id}…`)
         break
       case 'document-success':
-        addLog(`Completed ${event.collection}#${event.id}.`, 'success')
+        log.addLog(`Completed ${event.collection}#${event.id}.`, 'success')
         incrementProgress()
         setStats((p) => ({ ...p, processed: p.processed + 1 }))
         break
       case 'error':
-        addLog(event.message || 'Bulk translation failed.', 'error')
+        log.addLog(event.message || 'Bulk translation failed.', 'error')
         setRunning(false)
         setCurrentTask('Failed.')
         break
     }
   }
 
+  const canStart = selected.length > 0 && !running && targets.length > 0
+
   const handleStart = async () => {
-    const canStart = selected.length > 0 && !running && targets.length > 0
     if (!canStart) {
       return
     }
     const confirmLines = [
       `Start bulk translation for ${selected.length} collection(s)?`,
-      localeSummary,
+      `Translating ${defaultLocale} → ${targets.join(', ')}`,
       overwrite ? 'Overwrite existing translations: yes' : 'Overwrite existing translations: no',
       skipFields.length ? `Skip fields: ${skipFields.join(', ')}` : '',
     ].filter(Boolean)
@@ -185,212 +179,118 @@ export function BulkTranslateGlobal({
     }
 
     setRunning(true)
-    setLogs([])
+    setHasRun(true)
+    log.clearLogs()
     setStats({ failed: 0, processed: 0, skipped: 0 })
     setProgress({ completed: 0, total: 0 })
     setCurrentTask('Initializing…')
 
     try {
       if (overwrite) {
-        addLog('Overwrite enabled: existing translations will be replaced.')
+        log.addLog('Overwrite enabled: existing translations will be replaced.')
       }
       if (skipFields.length) {
-        addLog(`Skipping fields: ${skipFields.join(', ')}.`)
+        log.addLog(`Skipping fields: ${skipFields.join(', ')}.`)
       }
 
       await runBulkTranslation(selected, { onEvent: handleEvent, overwrite, skipFields })
     } catch (error) {
-      addLog(error instanceof Error ? error.message : 'Bulk translation failed.', 'error')
+      log.addLog(error instanceof Error ? error.message : 'Bulk translation failed.', 'error')
       setCurrentTask('Failed.')
       setRunning(false)
     }
   }
 
-  const percentage = progress.total ? Math.round((progress.completed / progress.total) * 100) : 0
-  const counts = React.useMemo(() => {
-    let e = 0,
-      i = 0,
-      s = 0,
-      w = 0
-    for (const l of logs) {
-      if (l.status === 'error') {
-        e++
-      } else if (l.status === 'skip') {
-        w++
-      } else if (l.status === 'success') {
-        s++
-      } else {
-        i++
-      }
-    }
-    return { all: logs.length, e, i, s, w }
-  }, [logs])
-
-  const filtered = visibleLogs(logs, logFilter)
-  const canStart = selected.length > 0 && !running && targets.length > 0
-  const hasLogs = logs.length > 0
-
   return (
-    <div aria-busy={running} className={styles.wrapper}>
-      <header className={styles.header}>
-        <div className={styles.toprow}>
-          <h3 className={styles.summary}>{localeSummary}</h3>
-          <div aria-label="run stats" className={styles.quickStats}>
-            <span>
-              Processed <strong>{stats.processed}</strong>
-            </span>
-            <span>
-              Skipped <strong>{stats.skipped}</strong>
-            </span>
-            <span>
-              Failed <strong>{stats.failed}</strong>
-            </span>
+    <ToolPage running={running}>
+      <ToolPanel
+        description="Translate every document in the selected collections from the default locale into all other configured locales. Fields that already have a translation are skipped unless overwrite is enabled."
+        eyebrow="AI translations"
+        headerExtra={
+          <div className={styles.badgeRow}>
+            {targets.length ? (
+              targets.map((target) => (
+                <Badge key={target}>
+                  {defaultLocale} → {target}
+                </Badge>
+              ))
+            ) : (
+              <Badge tone="error">No target locales configured</Badge>
+            )}
           </div>
-        </div>
-
-        <div className={styles.controls}>
-          <div className={styles.collections}>
-            <ul aria-label="Collections" className={styles.list} role="group">
-              {collections.map((c) => {
-                const checked = selected.includes(c.slug)
-                return (
-                  <li key={c.slug}>
-                    <label className={styles.item}>
-                      <input
-                        aria-label={`Select ${c.label}`}
-                        checked={checked}
-                        onChange={() => toggleCollection(c.slug)}
-                        type="checkbox"
-                      />
-                      <span className={styles.itemText}>
-                        {c.label} <code className={styles.slug}>{c.slug}</code>
-                      </span>
-                    </label>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-
-          <div className={styles.options}>
-            <label className={styles.optionLabel}>
-              <input
-                aria-label="Overwrite existing translations"
-                checked={overwrite}
-                disabled={running}
-                onChange={(event) => setOverwrite(event.target.checked)}
-                type="checkbox"
-              />
-              Overwrite existing translations
-            </label>
-
-            <label className={styles.fieldControl}>
-              <span>Skip fields</span>
-              <textarea
-                aria-label="Skip fields"
-                className={styles.fieldInput}
-                disabled={running}
-                onChange={(event) => setSkipFieldsText(event.target.value)}
-                placeholder="slug, singularSlug, seo.title"
-                rows={2}
-                value={skipFieldsText}
-              />
-            </label>
-          </div>
-
-          <div className={styles.actions}>
-            <Button disabled={!canStart} onClick={handleStart} type="button">
-              {running ? 'Running…' : 'Start bulk translation'}
-            </Button>
-            <Button disabled={!hasLogs} onClick={clearLogs} type="button">
-              Clear logs
-            </Button>
-            <Button disabled={!hasLogs} onClick={copyLogs} type="button">
-              Copy logs
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <section className={styles.progressArea}>
-        <meter
-          className={styles.meter}
-          max={Math.max(1, progress.total)}
-          min={0}
-          value={progress.completed}
+        }
+        title="Bulk translation"
+      >
+        <CheckboxCardGroup
+          disabled={running}
+          label="Collections"
+          onToggle={toggleCollection}
+          onToggleAll={toggleAll}
+          options={collections.map((c) => ({ key: c.slug, meta: c.slug, title: c.label }))}
+          selectedKeys={selected}
         />
-        <div className={styles.progressRow}>
-          <span className={styles.progressMeta}>
-            {progress.completed}/{progress.total || '-'} ({percentage}%)
-          </span>
-          <span aria-live="polite" className={styles.currentTask}>
-            {currentTask}
-          </span>
-        </div>
-      </section>
 
-      <details className={styles.log} data-has-logs={!!logs.length}>
-        <summary className={styles.logSummary}>
-          Logs ({counts.all}){counts.e ? ` · ${counts.e} errors` : ''}
-          <span className={styles.inlineControls}>
-            <label className={styles.selectWrap}>
-              <span className="sr-only">Filter</span>
-              <select
-                aria-label="Filter logs"
-                className={styles.select}
-                onChange={(e) => setLogFilter(e.target.value as 'all' | LogStatus)}
-                value={logFilter}
-              >
-                <option value="all">All</option>
-                <option value="error">Errors</option>
-                <option value="success">Success</option>
-                <option value="skip">Warnings</option>
-                <option value="info">Info</option>
-              </select>
+        <ToolSection label="Options">
+          <label className={styles.checkboxRow}>
+            <input
+              aria-label="Overwrite existing translations"
+              checked={overwrite}
+              disabled={running}
+              onChange={(event) => setOverwrite(event.target.checked)}
+              type="checkbox"
+            />
+            Overwrite existing translations
+          </label>
+
+          <div className={styles.field}>
+            <label className={styles.fieldLabel} htmlFor="bulk-translate-skip-fields">
+              Skip fields
             </label>
-          </span>
-        </summary>
+            <textarea
+              aria-label="Skip fields"
+              className={styles.textarea}
+              disabled={running}
+              id="bulk-translate-skip-fields"
+              onChange={(event) => setSkipFieldsText(event.target.value)}
+              placeholder="slug, singularSlug, seo.title"
+              rows={2}
+              value={skipFieldsText}
+            />
+            <p className={styles.fieldHint}>
+              Field paths to leave untouched, separated by commas or new lines.
+            </p>
+          </div>
+        </ToolSection>
 
-        <ul aria-live="polite" className={styles.logList}>
-          {filtered.length ? (
-            filtered.map((l) => (
-              <li className={`${styles.logItem} ${styles['log-' + l.status]}`} key={l.id}>
-                <span className={styles.logTime}>[{formatTime(l.timestamp)}]</span>
-                <span className={styles.logMessage}>{l.message}</span>
-              </li>
-            ))
-          ) : (
-            <li className={`${styles.logItem} ${styles.logEmpty}`}>No log entries.</li>
-          )}
-        </ul>
-      </details>
-    </div>
-  )
-}
+        <div className={styles.actions}>
+          <Button disabled={!canStart} onClick={() => void handleStart()} type="button">
+            {running ? 'Translating…' : 'Start bulk translation'}
+          </Button>
+        </div>
+      </ToolPanel>
 
-/* ---------- helpers ---------- */
-function visibleLogs(logs: LogEntry[], filter: 'all' | LogStatus, cap = 200) {
-  const arr = filter === 'all' ? logs : logs.filter((l) => l.status === filter)
-  return arr.slice(-cap)
-}
-function formatTime(ts: number) {
-  try {
-    const d = new Date(ts)
-    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-  } catch {
-    return '--:--:--'
-  }
-}
-function pad(n: number) {
-  return String(n).padStart(2, '0')
-}
-function parseSkipFields(value: string): string[] {
-  return Array.from(
-    new Set(
-      value
-        .split(/[,\n;]/)
-        .map((entry) => entry.trim())
-        .filter(Boolean),
-    ),
+      {hasRun ? (
+        <ToolPanel>
+          <ToolSection>
+            <StatGrid
+              stats={[
+                { label: 'Processed', tone: 'success', value: stats.processed },
+                { label: 'Skipped', tone: stats.skipped ? 'warning' : 'default', value: stats.skipped },
+                { label: 'Failed', tone: stats.failed ? 'error' : 'default', value: stats.failed },
+              ]}
+            />
+          </ToolSection>
+          <ToolSection>
+            <ProgressSection
+              completed={progress.completed}
+              status={currentTask}
+              total={progress.total}
+            />
+          </ToolSection>
+        </ToolPanel>
+      ) : null}
+
+      <LogViewer emptyText="Start a bulk translation to see activity here." log={log} />
+    </ToolPage>
   )
 }

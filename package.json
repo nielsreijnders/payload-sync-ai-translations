@@ -1,7 +1,7 @@
 {
   "name": "payload-sync-ai-translations",
   "version": "1.0.0",
-  "description": "A blank template to get started with Payload 3.0",
+  "description": "AI-powered translation sync, grammar checks, SEO auditing, link syncing and bulk find & replace for Payload CMS.",
   "repository": {
     "type": "git",
     "url": "https://github.com/nielsreijnders/payload-sync-ai-translations"
@@ -55,12 +55,12 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
-    "validator": "^13.15.23",
     "@payloadcms/db-mongodb": "3.84.0",
     "@payloadcms/db-postgres": "3.84.0",
     "@payloadcms/db-sqlite": "3.84.0",
     "@payloadcms/eslint-config": "3.9.0",
     "@payloadcms/next": "3.84.0",
+    "@payloadcms/plugin-seo": "3.84.0",
     "@payloadcms/richtext-lexical": "3.84.0",
     "@payloadcms/ui": "3.84.0",
     "@playwright/test": "^1.52.0",
@@ -94,6 +94,7 @@
     "sharp": "0.34.2",
     "sort-package-json": "^2.10.0",
     "typescript": "5.7.3",
+    "validator": "^13.15.23",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.1.2"
   },

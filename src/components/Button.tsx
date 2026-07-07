@@ -5,6 +5,7 @@ import { Sparkles } from 'lucide-react'
 import * as React from 'react'
 
 import type { AutoTranslateButtonProps } from './auto-translate-button/hooks/types.js'
+
 import { useAutoTranslateButton } from './auto-translate-button/hooks/useAutoTranslateButton.js'
 import styles from './AutoTranslateButton.module.css'
 import { AutoTranslateReviewModal, REVIEW_MODAL_SLUG } from './Modal.js'
@@ -41,7 +42,7 @@ export function AutoTranslateButton(props: AutoTranslateButtonProps) {
       <Button disabled={disabled} onClick={handleClick} type="button">
         <span className={styles.buttonContent}>
           <Sparkles className={styles.icon} size={14} />
-          Synchroniseer vertalingen
+          Sync translations
         </span>
       </Button>
       <AutoTranslateReviewModal

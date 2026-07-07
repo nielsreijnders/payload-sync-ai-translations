@@ -98,8 +98,8 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       const review = await requestTranslationReview({
         id,
         collection: collectionSlug,
-        global: globalSlug,
         defaultLocale,
+        global: globalSlug,
         items,
         // Oopsie for later
         locales: otherLocales as any,
@@ -123,8 +123,8 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       const { finished, hadError } = await runTranslations(items, selections, {
         id,
         collectionSlug,
-        globalSlug,
         defaultLocale,
+        globalSlug,
       })
 
       if (!hadError && !finished) {
@@ -159,8 +159,8 @@ export function useAutoTranslateButton(props: AutoTranslateButtonProps) {
       const { finished, hadError } = await runTranslations(pendingReview.items, selections, {
         id,
         collectionSlug,
-        globalSlug,
         defaultLocale,
+        globalSlug,
       })
 
       if (!hadError && !finished) {

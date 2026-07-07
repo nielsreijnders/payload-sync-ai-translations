@@ -1,0 +1,660 @@
+/* Shared UI foundation for the plugin's admin tool pages.
+   Uses Payload admin theme tokens so light/dark mode follow the
+   admin `data-theme` setting automatically. */
+
+.page {
+  display: grid;
+  gap: 24px;
+}
+
+/* Panels */
+.panel {
+  background: var(--theme-elevation-0);
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: var(--style-radius-l);
+  padding: 20px;
+}
+
+.panelHeader {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.panelHeaderRow {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.eyebrow {
+  color: var(--theme-elevation-600);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.title {
+  font-size: 24px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.description {
+  color: var(--theme-elevation-650);
+  margin: 0;
+  max-width: 760px;
+}
+
+/* Sections inside a panel */
+.section {
+  display: grid;
+  gap: 8px;
+}
+
+.section + .section {
+  margin-top: 18px;
+}
+
+.sectionHead {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  justify-content: space-between;
+}
+
+.sectionLabel {
+  color: var(--theme-elevation-800);
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.sectionHint {
+  color: var(--theme-elevation-600);
+  font-size: 12px;
+}
+
+.textButton {
+  appearance: none;
+  background: none;
+  border: none;
+  color: var(--theme-elevation-700);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.textButton:hover {
+  color: var(--theme-text);
+}
+
+.textButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Checkbox cards */
+.cardGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.card {
+  align-items: center;
+  background: var(--theme-input-bg);
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: var(--style-radius-m);
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  transition:
+    border-color 0.1s ease,
+    background 0.1s ease;
+}
+
+.card:hover {
+  border-color: var(--theme-elevation-300);
+}
+
+.card:has(input:checked) {
+  background: var(--theme-elevation-50);
+  border-color: var(--theme-elevation-400);
+}
+
+.card:has(input:focus-visible) {
+  outline: 2px solid var(--theme-elevation-400);
+  outline-offset: 2px;
+}
+
+.card input {
+  accent-color: var(--theme-text);
+  flex-shrink: 0;
+  height: 16px;
+  margin: 0;
+  width: 16px;
+}
+
+.card input:disabled {
+  cursor: not-allowed;
+}
+
+.cardBody {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cardTitle {
+  color: var(--theme-text);
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardMeta {
+  color: var(--theme-elevation-600);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Form fields */
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.fieldRow {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.fieldLabel {
+  color: var(--theme-elevation-800);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fieldHint {
+  color: var(--theme-elevation-600);
+  font-size: 12px;
+  margin: 0;
+}
+
+.input,
+.textarea,
+.select {
+  background: var(--theme-input-bg);
+  border: 1px solid var(--theme-elevation-250);
+  border-radius: var(--style-radius-m);
+  color: var(--theme-text);
+  font: inherit;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--theme-elevation-500);
+}
+
+.input:focus-visible,
+.textarea:focus-visible,
+.select:focus-visible {
+  border-color: var(--theme-elevation-400);
+  outline: 2px solid var(--theme-elevation-400);
+  outline-offset: 1px;
+}
+
+.textarea {
+  min-height: 64px;
+  resize: vertical;
+}
+
+.checkboxRow {
+  align-items: center;
+  color: var(--theme-text);
+  cursor: pointer;
+  display: flex;
+  font-size: 14px;
+  gap: 8px;
+  width: fit-content;
+}
+
+.checkboxRow input {
+  accent-color: var(--theme-text);
+  height: 16px;
+  margin: 0;
+  width: 16px;
+}
+
+/* Actions row */
+.actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.actions > * {
+  margin: 0;
+}
+
+/* Stat cards */
+.statGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.stat {
+  background: var(--theme-elevation-50);
+  border-radius: var(--style-radius-m);
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+}
+
+.statLabel {
+  color: var(--theme-elevation-650);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.statValue {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.statSuccess .statValue {
+  color: var(--theme-success-500);
+}
+
+.statWarning .statValue {
+  color: var(--theme-warning-500);
+}
+
+.statError .statValue {
+  color: var(--theme-error-500);
+}
+
+/* Progress */
+.progress {
+  display: grid;
+  gap: 8px;
+}
+
+.progressTrack {
+  background: var(--theme-elevation-100);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.progressFill {
+  background: var(--theme-success-500);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transition: width 0.25s ease;
+}
+
+.progressIndeterminate {
+  animation: toolui-indeterminate 1.2s ease-in-out infinite;
+  width: 40%;
+}
+
+@keyframes toolui-indeterminate {
+  0% {
+    margin-left: -40%;
+  }
+  100% {
+    margin-left: 100%;
+  }
+}
+
+.progressRow {
+  align-items: baseline;
+  color: var(--theme-elevation-650);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 4px 12px;
+  justify-content: space-between;
+}
+
+.progressStatus {
+  color: var(--theme-text);
+}
+
+/* Badges */
+.badge {
+  align-items: center;
+  background: var(--theme-elevation-100);
+  border-radius: 999px;
+  color: var(--theme-elevation-800);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 500;
+  gap: 4px;
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+
+.badgeSuccess {
+  background: color-mix(in srgb, var(--theme-success-500) 15%, transparent);
+  color: var(--theme-success-600);
+}
+
+.badgeWarning {
+  background: color-mix(in srgb, var(--theme-warning-500) 18%, transparent);
+  color: var(--theme-warning-650);
+}
+
+.badgeError {
+  background: color-mix(in srgb, var(--theme-error-500) 15%, transparent);
+  color: var(--theme-error-600);
+}
+
+.badgeRow {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Empty state */
+.empty {
+  border: 1px dashed var(--theme-elevation-200);
+  border-radius: var(--style-radius-m);
+  color: var(--theme-elevation-600);
+  font-size: 13px;
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+}
+
+/* Log viewer */
+.logPanel {
+  background: var(--theme-elevation-0);
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: var(--style-radius-l);
+  display: grid;
+  overflow: hidden;
+}
+
+.logHeader {
+  align-items: center;
+  border-bottom: 1px solid var(--theme-elevation-100);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  justify-content: space-between;
+  padding: 12px 16px;
+}
+
+.logHeaderTitle {
+  color: var(--theme-elevation-800);
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.logHeaderActions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--theme-elevation-200);
+  border-radius: 999px;
+  color: var(--theme-elevation-700);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  transition:
+    background 0.1s ease,
+    border-color 0.1s ease;
+}
+
+.chip:hover {
+  border-color: var(--theme-elevation-400);
+  color: var(--theme-text);
+}
+
+.chipActive {
+  background: var(--theme-elevation-900);
+  border-color: var(--theme-elevation-900);
+  color: var(--theme-elevation-0);
+}
+
+.chipActive:hover {
+  color: var(--theme-elevation-0);
+}
+
+.logList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  max-height: 280px;
+  overflow: auto;
+  padding: 8px;
+}
+
+.logItem {
+  align-items: baseline;
+  border-left: 3px solid var(--theme-elevation-200);
+  border-radius: var(--style-radius-s);
+  display: grid;
+  font-size: 13px;
+  gap: 10px;
+  grid-template-columns: auto 1fr;
+  padding: 4px 10px;
+}
+
+.logTime {
+  color: var(--theme-elevation-500);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.logMessage {
+  color: var(--theme-elevation-800);
+  overflow-wrap: anywhere;
+}
+
+.logSuccess {
+  background: color-mix(in srgb, var(--theme-success-500) 7%, transparent);
+  border-left-color: var(--theme-success-500);
+}
+
+.logError {
+  background: color-mix(in srgb, var(--theme-error-500) 8%, transparent);
+  border-left-color: var(--theme-error-500);
+}
+
+.logSkip {
+  background: color-mix(in srgb, var(--theme-warning-500) 9%, transparent);
+  border-left-color: var(--theme-warning-500);
+}
+
+/* Plain bullet list */
+.plainList {
+  color: var(--theme-elevation-800);
+  display: grid;
+  font-size: 13px;
+  gap: 4px;
+  list-style: disc;
+  margin: 0;
+  padding-left: 18px;
+}
+
+/* Collapsible result cards */
+.resultList {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.resultItem {
+  background: var(--theme-input-bg);
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: var(--style-radius-m);
+  overflow: hidden;
+}
+
+.resultSummary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  list-style: none;
+  padding: 10px 40px 10px 12px;
+  position: relative;
+}
+
+.resultSummary::marker {
+  content: '';
+}
+
+.resultSummary::-webkit-details-marker {
+  display: none;
+}
+
+.resultSummary::after {
+  border-bottom: 2px solid var(--theme-elevation-500);
+  border-right: 2px solid var(--theme-elevation-500);
+  content: '';
+  height: 7px;
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-70%) rotate(45deg);
+  transition: transform 0.15s ease;
+  width: 7px;
+}
+
+.resultItem[open] > .resultSummary::after {
+  transform: translateY(-30%) rotate(225deg);
+}
+
+.resultItem[open] > .resultSummary {
+  border-bottom: 1px solid var(--theme-elevation-100);
+}
+
+/* Static (non-collapsible) result row */
+.resultRow {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 10px 12px;
+}
+
+.resultTitle {
+  font-size: 14px;
+  font-weight: 600;
+  margin-right: auto;
+}
+
+.resultBody {
+  overflow-x: auto;
+  padding: 4px 12px 12px;
+}
+
+/* Diff table */
+.diffTable {
+  border-collapse: collapse;
+  font-size: 13px;
+  width: 100%;
+}
+
+.diffTable th {
+  color: var(--theme-elevation-600);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 8px 10px 4px;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.diffTable td {
+  border-top: 1px solid var(--theme-elevation-100);
+  padding: 8px 10px;
+  vertical-align: top;
+}
+
+.diffPath {
+  color: var(--theme-elevation-700);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.diffBefore {
+  background: color-mix(in srgb, var(--theme-error-500) 7%, transparent);
+  color: var(--theme-error-650);
+}
+
+.diffAfter {
+  background: color-mix(in srgb, var(--theme-success-500) 7%, transparent);
+  color: var(--theme-success-650);
+}
+
+.logList::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+.logList::-webkit-scrollbar-thumb {
+  background: var(--theme-elevation-200);
+  border-radius: 999px;
+}
+
+.logList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (max-width: 640px) {
+  .panelHeaderRow {
+    flex-direction: column;
+  }
+}

@@ -2,21 +2,19 @@ import type { Payload, PayloadHandler } from 'payload'
 
 import type { TranslatableItem } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
 import type {
-  BulkGrammarApplyTarget,
   BulkGrammarCheckRequestPayload,
   BulkStreamEvent,
   TranslateOverride,
 } from './translationTypes.js'
 
-import {
-  buildTranslatableItems,
-  collectIdentifierPaths,
-} from '../components/auto-translate-button/utils/buildTranslatableItems.js'
-import { isLexicalValue, serializeLexicalValue } from '../utils/lexical.js'
-import { chunkItems, extractPlainText, getValueAtPath } from '../utils/localizedFields.js'
+import { chunkItems } from '../utils/localizedFields.js'
+import { runApplyFromTargets } from './bulkApplyRunner.js'
+import { parseApplyTargets, sanitizeSlugArray, serializeBulkEvent } from './bulkRequestParsing.js'
 import { resolveCustomPrompt } from './customPrompt.js'
 import { logDebug } from './debugSettings.js'
 import { openAiProofreadTexts } from './openAiTranslationClient.js'
+import { rejectUnauthenticated } from './requireUser.js'
+import { buildTextCandidates } from './textCandidates.js'
 import {
   getStoredCollection,
   getStoredGlobal,
@@ -24,198 +22,11 @@ import {
 } from './translationStateStore.js'
 import { streamTranslations } from './translationStream.js'
 
-const encoder = new TextEncoder()
-
-type CollectionApplyTarget = Extract<BulkGrammarApplyTarget, { collection: string }>
-type GlobalApplyTarget = Extract<BulkGrammarApplyTarget, { global: string }>
 type StoredCollectionEntry = NonNullable<ReturnType<typeof getStoredCollection>>
 type StoredGlobalEntry = NonNullable<ReturnType<typeof getStoredGlobal>>
 type TypoOverride = {
   before: string
 } & TranslatableItem
-
-type CollectedApplyTarget = {
-  collection?: string
-  global?: string
-  id?: number | string
-  overrides: Map<string, TranslateOverride>
-}
-
-function isCollectionApplyTarget(target: BulkGrammarApplyTarget): target is CollectionApplyTarget {
-  return 'collection' in target && typeof target.collection === 'string'
-}
-
-function isGlobalApplyTarget(target: BulkGrammarApplyTarget): target is GlobalApplyTarget {
-  return 'global' in target && typeof target.global === 'string'
-}
-
-function serializeEvent(event: BulkStreamEvent): Uint8Array {
-  return encoder.encode(`${JSON.stringify(event)}\n`)
-}
-
-function sanitizeSlugArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return []
-  }
-
-  return Array.from(
-    new Set(
-      value
-        .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
-        .filter((entry): entry is string => Boolean(entry)),
-    ),
-  )
-}
-
-function toIdentifier(value: unknown): null | number | string {
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    return trimmed.length ? trimmed : null
-  }
-
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value
-  }
-
-  if (typeof value === 'object' && value !== null && 'id' in value) {
-    const nested = (value as { id?: unknown }).id
-    return toIdentifier(nested)
-  }
-
-  return null
-}
-
-function parseApplyOverride(value: unknown): null | TranslateOverride {
-  if (typeof value !== 'object' || value === null) {
-    return null
-  }
-
-  const candidate = value as Record<string, unknown>
-  const path = candidate.path
-  const text = candidate.text
-
-  if (typeof path !== 'string' || !path.trim()) {
-    return null
-  }
-
-  if (typeof text !== 'string' || !text.trim()) {
-    return null
-  }
-
-  return {
-    lexical: Boolean(candidate.lexical),
-    path: path.trim(),
-    text,
-  }
-}
-
-function parseApplyTargets(value: unknown): BulkGrammarApplyTarget[] | undefined {
-  if (value === undefined) {
-    return undefined
-  }
-
-  if (!Array.isArray(value)) {
-    throw new Error('Expected "applyTargets" to be an array')
-  }
-
-  const merged = new Map<string, CollectedApplyTarget>()
-
-  for (const rawEntry of value) {
-    if (typeof rawEntry !== 'object' || rawEntry === null) {
-      throw new Error('Expected each apply target to be an object')
-    }
-
-    const entry = rawEntry as Record<string, unknown>
-    const global = typeof entry.global === 'string' ? entry.global.trim() : ''
-    const collection = typeof entry.collection === 'string' ? entry.collection.trim() : ''
-    const id = toIdentifier(entry.id)
-
-    if (!Array.isArray(entry.overrides)) {
-      throw new Error('Expected each apply target to include an "overrides" array')
-    }
-
-    if (global) {
-      const key = `global:${global}`
-      if (!merged.has(key)) {
-        merged.set(key, {
-          global,
-          overrides: new Map(),
-        })
-      }
-
-      const current = merged.get(key)
-      if (!current) {
-        continue
-      }
-
-      for (const rawOverride of entry.overrides) {
-        const override = parseApplyOverride(rawOverride)
-        if (!override) {
-          continue
-        }
-
-        current.overrides.set(`${override.path}|${override.lexical ? '1' : '0'}`, override)
-      }
-
-      continue
-    }
-
-    if (!collection) {
-      throw new Error('Expected each collection apply target to include a "collection"')
-    }
-
-    if (id === null) {
-      throw new Error('Expected each collection apply target to include a valid "id"')
-    }
-
-    const key = `${collection}#${String(id)}`
-    if (!merged.has(key)) {
-      merged.set(key, {
-        id,
-        collection,
-        overrides: new Map(),
-      })
-    }
-
-    const current = merged.get(key)
-    if (!current) {
-      continue
-    }
-
-    for (const rawOverride of entry.overrides) {
-      const override = parseApplyOverride(rawOverride)
-      if (!override) {
-        continue
-      }
-
-      current.overrides.set(`${override.path}|${override.lexical ? '1' : '0'}`, override)
-    }
-  }
-
-  const targets: BulkGrammarApplyTarget[] = []
-
-  for (const entry of merged.values()) {
-    if (entry.global) {
-      targets.push({
-        global: entry.global,
-        overrides: Array.from(entry.overrides.values()),
-      })
-      continue
-    }
-
-    if (!entry.collection || entry.id === undefined) {
-      continue
-    }
-
-    targets.push({
-      id: entry.id,
-      collection: entry.collection,
-      overrides: Array.from(entry.overrides.values()),
-    })
-  }
-
-  return targets
-}
 
 function parseBulkGrammarBody(body: unknown): BulkGrammarCheckRequestPayload {
   if (typeof body !== 'object' || body === null) {
@@ -280,191 +91,6 @@ function isTrailingPunctuationOnlyChange(before: string, after: string): boolean
   )
 }
 
-const GRAMMAR_SCAN_IGNORED_TERMINAL_KEYS = new Set([
-  '__v',
-  '_id',
-  'blockname',
-  'blocktype',
-  'createdat',
-  'deletedat',
-  'id',
-  'internal',
-  'linktype',
-  'relationto',
-  'singularslug',
-  'slug',
-  'target',
-  'updatedat',
-  'value',
-])
-
-const GRAMMAR_SCAN_IGNORED_TRAVERSAL_KEYS = new Set([
-  '__v',
-  '_id',
-  'createdat',
-  'deletedat',
-  'id',
-  'updatedat',
-])
-
-function isIndexSegment(segment: string): boolean {
-  return /^\d+$/.test(segment)
-}
-
-function shouldSkipTerminalPath(path: string): boolean {
-  const segments = path
-    .split('.')
-    .map((segment) => segment.trim().toLowerCase())
-    .filter(Boolean)
-
-  const last = segments.at(-1)
-  if (!last) {
-    return true
-  }
-
-  return GRAMMAR_SCAN_IGNORED_TERMINAL_KEYS.has(last)
-}
-
-function shouldSkipTraversalKey(key: string): boolean {
-  const normalized = key.trim().toLowerCase()
-  return GRAMMAR_SCAN_IGNORED_TRAVERSAL_KEYS.has(normalized)
-}
-
-function collectFallbackGrammarItems(document: unknown): TranslatableItem[] {
-  const items: TranslatableItem[] = []
-
-  const walk = (value: unknown, segments: string[]) => {
-    const path = segments.join('.')
-
-    if (isLexicalValue(value)) {
-      if (!path || shouldSkipTerminalPath(path)) {
-        return
-      }
-
-      const serialized = serializeLexicalValue(value)
-      const text = serialized?.text?.trim()
-      if (!text) {
-        return
-      }
-
-      items.push({ lexical: true, path, text })
-      return
-    }
-
-    if (typeof value === 'string') {
-      if (!path || shouldSkipTerminalPath(path)) {
-        return
-      }
-
-      const text = extractPlainText(value)
-      if (!text) {
-        return
-      }
-
-      items.push({ lexical: false, path, text })
-      return
-    }
-
-    if (Array.isArray(value)) {
-      value.forEach((child, index) => walk(child, [...segments, String(index)]))
-      return
-    }
-
-    if (typeof value !== 'object' || value === null) {
-      return
-    }
-
-    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-      if (!key || shouldSkipTraversalKey(key)) {
-        continue
-      }
-
-      walk(child, [...segments, key])
-    }
-  }
-
-  walk(document, [])
-  return items
-}
-
-function collectIdentifierPathsFromItemPaths(data: unknown, items: TranslatableItem[]): string[] {
-  const paths = new Set<string>()
-
-  const addIdentifierPath = (path: string) => {
-    if (!path) {
-      return
-    }
-
-    const value = getValueAtPath(data, path)
-    if (value === undefined) {
-      return
-    }
-
-    paths.add(path)
-  }
-
-  for (const item of items) {
-    const segments = item.path.split('.')
-
-    for (let index = 0; index < segments.length; index += 1) {
-      const segment = segments[index] ?? ''
-      if (!isIndexSegment(segment)) {
-        continue
-      }
-
-      const ancestor = segments.slice(0, index + 1).join('.')
-      addIdentifierPath(`${ancestor}.id`)
-      addIdentifierPath(`${ancestor}._id`)
-    }
-  }
-
-  return Array.from(paths)
-}
-
-function mergeIdentifierPaths(...entries: string[][]): string[] {
-  const merged = new Set<string>()
-
-  for (const list of entries) {
-    for (const entry of list) {
-      const normalized = entry.trim()
-      if (normalized) {
-        merged.add(normalized)
-      }
-    }
-  }
-
-  return Array.from(merged)
-}
-
-function buildGrammarCandidates(
-  document: unknown,
-  fieldPatterns: string[],
-): { identifierPaths: string[]; items: TranslatableItem[] } {
-  const scopedItems = buildTranslatableItems(document, fieldPatterns)
-  const fallbackItems = collectFallbackGrammarItems(document)
-
-  const merged = new Map<string, TranslatableItem>()
-
-  for (const item of [...scopedItems, ...fallbackItems]) {
-    const key = `${item.lexical ? '1' : '0'}:${item.path}`
-    if (!merged.has(key)) {
-      merged.set(key, item)
-    }
-  }
-
-  const items = Array.from(merged.values())
-
-  const identifierPaths = mergeIdentifierPaths(
-    collectIdentifierPaths(document, fieldPatterns),
-    collectIdentifierPathsFromItemPaths(document, items),
-  )
-
-  return {
-    identifierPaths,
-    items,
-  }
-}
-
 async function buildTypoOverrides(
   items: TranslatableItem[],
   locale: string,
@@ -517,72 +143,6 @@ function toGlobalLabel(slug: string): string {
   return `global:${slug}`
 }
 
-async function applyCollectionOverrides(
-  payload: Payload,
-  options: {
-    collection: string
-    defaultLocale: string
-    id: number | string
-    identifierPaths: string[]
-    overrides: TranslateOverride[]
-  },
-): Promise<null | string> {
-  let errorMessage: null | string = null
-
-  for await (const event of streamTranslations(payload, {
-    id: options.id,
-    collection: options.collection,
-    from: options.defaultLocale,
-    locales: [
-      {
-        chunks: [],
-        code: options.defaultLocale,
-        identifierPaths: options.identifierPaths,
-        overrides: options.overrides,
-      },
-    ],
-  })) {
-    if (event.type === 'error') {
-      errorMessage = event.message
-      break
-    }
-  }
-
-  return errorMessage
-}
-
-async function applyGlobalOverrides(
-  payload: Payload,
-  options: {
-    defaultLocale: string
-    global: string
-    identifierPaths: string[]
-    overrides: TranslateOverride[]
-  },
-): Promise<null | string> {
-  let errorMessage: null | string = null
-
-  for await (const event of streamTranslations(payload, {
-    from: options.defaultLocale,
-    global: options.global,
-    locales: [
-      {
-        chunks: [],
-        code: options.defaultLocale,
-        identifierPaths: options.identifierPaths,
-        overrides: options.overrides,
-      },
-    ],
-  })) {
-    if (event.type === 'error') {
-      errorMessage = event.message
-      break
-    }
-  }
-
-  return errorMessage
-}
-
 function asApplyOverrides(overrides: TypoOverride[]): TranslateOverride[] {
   return overrides.map((override) => ({
     lexical: override.lexical,
@@ -591,267 +151,17 @@ function asApplyOverrides(overrides: TypoOverride[]): TranslateOverride[] {
   }))
 }
 
-async function* runApplyFromTargets(
-  payload: Payload,
-  options: {
-    defaultLocale: string
-    request: BulkGrammarCheckRequestPayload
-    selectedCollectionsBySlug: Map<string, StoredCollectionEntry>
-    selectedGlobalsBySlug: Map<string, StoredGlobalEntry>
-  },
-): AsyncGenerator<BulkStreamEvent> {
-  const rawTargets = options.request.applyTargets ?? []
-  const selectedCollectionTargets = rawTargets.filter(
-    (target): target is CollectionApplyTarget =>
-      isCollectionApplyTarget(target) && options.selectedCollectionsBySlug.has(target.collection),
-  )
-  const selectedGlobalTargets = rawTargets.filter(
-    (target): target is GlobalApplyTarget =>
-      isGlobalApplyTarget(target) && options.selectedGlobalsBySlug.has(target.global),
-  )
-
-  if (!selectedCollectionTargets.length && !selectedGlobalTargets.length) {
-    yield { type: 'error', message: 'No scan results found to apply.' }
-    return
+function toIdentifier(value: unknown): null | number | string {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed.length ? trimmed : null
   }
 
-  const groupedCollections = new Map<string, CollectionApplyTarget[]>()
-  for (const target of selectedCollectionTargets) {
-    if (!groupedCollections.has(target.collection)) {
-      groupedCollections.set(target.collection, [])
-    }
-    groupedCollections.get(target.collection)?.push(target)
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
   }
 
-  yield {
-    type: 'bulk-start',
-    totalCollections: groupedCollections.size + selectedGlobalTargets.length,
-    totalDocuments: selectedCollectionTargets.length + selectedGlobalTargets.length,
-  }
-
-  let overallProcessed = 0
-  let overallSkipped = 0
-  let overallFailed = 0
-
-  for (const [collectionSlug, collectionTargets] of groupedCollections.entries()) {
-    const entry = options.selectedCollectionsBySlug.get(collectionSlug)
-    if (!entry) {
-      continue
-    }
-
-    let collectionProcessed = 0
-    let collectionSkipped = 0
-    let collectionFailed = 0
-
-    yield {
-      type: 'collection-start',
-      collection: toCollectionLabel(collectionSlug),
-      label: entry.label,
-      totalDocuments: collectionTargets.length,
-    }
-
-    for (const target of collectionTargets) {
-      const docLabel = String(target.id)
-      const eventCollection = toCollectionLabel(collectionSlug)
-      yield { id: docLabel, type: 'document-start', collection: eventCollection }
-
-      if (!target.overrides.length) {
-        collectionSkipped += 1
-        overallSkipped += 1
-        yield {
-          id: docLabel,
-          type: 'document-skipped',
-          collection: eventCollection,
-          reason: 'No typo corrections available for this document.',
-        }
-        continue
-      }
-
-      let identifierPaths: string[] = []
-
-      try {
-        const document = await payload.findByID({
-          id: target.id,
-          collection: collectionSlug,
-          depth: 0,
-          fallbackLocale: false,
-          locale: options.defaultLocale,
-        })
-        identifierPaths = mergeIdentifierPaths(
-          collectIdentifierPaths(document, entry.fieldPatterns),
-          collectIdentifierPathsFromItemPaths(document, target.overrides),
-        )
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Failed to load document for applying fixes.'
-        collectionFailed += 1
-        overallFailed += 1
-        yield { id: docLabel, type: 'document-error', collection: eventCollection, message }
-        continue
-      }
-
-      yield {
-        id: docLabel,
-        type: 'document-progress',
-        collection: eventCollection,
-        completed: 0,
-        locale: options.defaultLocale,
-        total: target.overrides.length,
-      }
-
-      const message = await applyCollectionOverrides(payload, {
-        id: target.id,
-        collection: collectionSlug,
-        defaultLocale: options.defaultLocale,
-        identifierPaths,
-        overrides: target.overrides,
-      })
-
-      if (message) {
-        collectionFailed += 1
-        overallFailed += 1
-        yield { id: docLabel, type: 'document-error', collection: eventCollection, message }
-        continue
-      }
-
-      yield {
-        id: docLabel,
-        type: 'document-applied',
-        collection: eventCollection,
-        locale: options.defaultLocale,
-      }
-      yield {
-        id: docLabel,
-        type: 'document-progress',
-        collection: eventCollection,
-        completed: target.overrides.length,
-        locale: options.defaultLocale,
-        total: target.overrides.length,
-      }
-
-      collectionProcessed += 1
-      overallProcessed += 1
-      yield { id: docLabel, type: 'document-success', collection: eventCollection }
-    }
-
-    yield {
-      type: 'collection-complete',
-      collection: toCollectionLabel(collectionSlug),
-      failed: collectionFailed,
-      processed: collectionProcessed,
-      skipped: collectionSkipped,
-    }
-  }
-
-  for (const target of selectedGlobalTargets) {
-    const entry = options.selectedGlobalsBySlug.get(target.global)
-    if (!entry) {
-      continue
-    }
-
-    const eventCollection = toGlobalLabel(target.global)
-    let collectionProcessed = 0
-    let collectionSkipped = 0
-    let collectionFailed = 0
-
-    yield {
-      type: 'collection-start',
-      collection: eventCollection,
-      label: entry.label,
-      totalDocuments: 1,
-    }
-
-    yield { id: target.global, type: 'document-start', collection: eventCollection }
-
-    if (!target.overrides.length) {
-      collectionSkipped += 1
-      overallSkipped += 1
-      yield {
-        id: target.global,
-        type: 'document-skipped',
-        collection: eventCollection,
-        reason: 'No typo corrections available for this global.',
-      }
-    } else {
-      let identifierPaths: string[] = []
-
-      try {
-        const document = await payload.findGlobal({
-          slug: target.global,
-          depth: 0,
-          fallbackLocale: false,
-          locale: options.defaultLocale,
-        })
-        identifierPaths = mergeIdentifierPaths(
-          collectIdentifierPaths(document, entry.fieldPatterns),
-          collectIdentifierPathsFromItemPaths(document, target.overrides),
-        )
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Failed to load global for applying fixes.'
-        collectionFailed += 1
-        overallFailed += 1
-        yield { id: target.global, type: 'document-error', collection: eventCollection, message }
-      }
-
-      if (collectionFailed === 0) {
-        yield {
-          id: target.global,
-          type: 'document-progress',
-          collection: eventCollection,
-          completed: 0,
-          locale: options.defaultLocale,
-          total: target.overrides.length,
-        }
-
-        const message = await applyGlobalOverrides(payload, {
-          defaultLocale: options.defaultLocale,
-          global: target.global,
-          identifierPaths,
-          overrides: target.overrides,
-        })
-
-        if (message) {
-          collectionFailed += 1
-          overallFailed += 1
-          yield { id: target.global, type: 'document-error', collection: eventCollection, message }
-        } else {
-          yield {
-            id: target.global,
-            type: 'document-applied',
-            collection: eventCollection,
-            locale: options.defaultLocale,
-          }
-          yield {
-            id: target.global,
-            type: 'document-progress',
-            collection: eventCollection,
-            completed: target.overrides.length,
-            locale: options.defaultLocale,
-            total: target.overrides.length,
-          }
-          collectionProcessed += 1
-          overallProcessed += 1
-          yield { id: target.global, type: 'document-success', collection: eventCollection }
-        }
-      }
-    }
-
-    yield {
-      type: 'collection-complete',
-      collection: eventCollection,
-      failed: collectionFailed,
-      processed: collectionProcessed,
-      skipped: collectionSkipped,
-    }
-  }
-
-  yield {
-    type: 'bulk-complete',
-    failed: overallFailed,
-    processed: overallProcessed,
-    skipped: overallSkipped,
-  }
+  return null
 }
 
 async function* runBulkGrammarCheck(
@@ -903,8 +213,9 @@ async function* runBulkGrammarCheck(
 
   if (request.apply && (request.applyTargets?.length ?? 0) > 0) {
     yield* runApplyFromTargets(payload, {
-      defaultLocale,
-      request,
+      applyTargets: request.applyTargets ?? [],
+      locale: defaultLocale,
+      noOverridesReason: 'No typo corrections available for this target.',
       selectedCollectionsBySlug,
       selectedGlobalsBySlug,
     })
@@ -1027,7 +338,7 @@ async function* runBulkGrammarCheck(
         const eventCollection = toCollectionLabel(entry.slug)
         yield { id: docLabel, type: 'document-start', collection: eventCollection }
 
-        const { identifierPaths, items } = buildGrammarCandidates(doc, entry.fieldPatterns)
+        const { identifierPaths, items } = buildTextCandidates(doc, entry.fieldPatterns)
 
         if (!items.length) {
           collectionSkipped += 1
@@ -1209,7 +520,7 @@ async function* runBulkGrammarCheck(
 
     yield { id: entry.slug, type: 'document-start', collection: eventCollection }
 
-    const { identifierPaths, items } = buildGrammarCandidates(globalDoc, entry.fieldPatterns)
+    const { identifierPaths, items } = buildTextCandidates(globalDoc, entry.fieldPatterns)
 
     if (!items.length) {
       collectionSkipped += 1
@@ -1384,6 +695,11 @@ async function* runBulkGrammarCheck(
 
 export function createAiGrammarCheckHandler(): PayloadHandler {
   return async (req) => {
+    const unauthorized = rejectUnauthenticated(req)
+    if (unauthorized) {
+      return unauthorized
+    }
+
     try {
       const payload = req.payload
       if (!payload) {
@@ -1404,7 +720,7 @@ export function createAiGrammarCheckHandler(): PayloadHandler {
         async start(controller) {
           try {
             for await (const event of runBulkGrammarCheck(payload, parsed)) {
-              controller.enqueue(serializeEvent(event))
+              controller.enqueue(serializeBulkEvent(event))
               if (event.type === 'error') {
                 break
               }
@@ -1412,7 +728,7 @@ export function createAiGrammarCheckHandler(): PayloadHandler {
           } catch (error) {
             const message =
               error instanceof Error ? error.message : 'Failed to run bulk grammar check.'
-            controller.enqueue(serializeEvent({ type: 'error', message }))
+            controller.enqueue(serializeBulkEvent({ type: 'error', message }))
           } finally {
             controller.close()
           }
