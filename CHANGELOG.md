@@ -1,3 +1,10 @@
+# [1.29.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.28.0...v1.29.0) (2026-07-07)
+
+
+### Features
+
+* replace Button components with IconTooltipButton for improved UI consistency ([9a33dd5](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/9a33dd5f4ac9209e8b23497d40c85c4f5d4dc635))
+
 # [1.28.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.27.0...v1.28.0) (2026-07-07)
 
 
