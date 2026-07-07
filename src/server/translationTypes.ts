@@ -66,6 +66,11 @@ export type TranslateReviewResponse = {
 
 export type BulkTranslateRequestPayload = {
   collections: string[]
+  /**
+   * Optional per-collection document filter. When present for a collection,
+   * only these documents are translated instead of the whole collection.
+   */
+  documents?: Record<string, Array<number | string>>
   overwrite?: boolean
   skipFields?: string[]
 }

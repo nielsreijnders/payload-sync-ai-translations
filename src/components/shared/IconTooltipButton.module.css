@@ -1,5 +1,25 @@
 .anchor {
+  align-items: center;
   display: inline-flex;
+  position: relative;
+}
+
+/* Make the indicator position deterministic regardless of context. */
+.anchor :global(.btn) {
+  margin-block: 0;
+}
+
+.indicator {
+  background: var(--theme-warning-500);
+  border: 2px solid var(--theme-bg);
+  border-radius: 50%;
+  height: 11px;
+  pointer-events: none;
+  position: absolute;
+  right: -2px;
+  top: -2px;
+  width: 11px;
+  z-index: 1;
 }
 
 .tooltip {

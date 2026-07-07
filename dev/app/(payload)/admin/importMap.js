@@ -34,6 +34,7 @@ import { HiddenSaveButton as HiddenSaveButton_2043071721ce9b13e636c3dacf801366 }
 import { GrammarCheckGlobal as GrammarCheckGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
 import { FindReplaceGlobal as FindReplaceGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
 import { SyncLinksGlobal as SyncLinksGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
+import { TranslationStatusGlobal as TranslationStatusGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
 import { SeoOverviewGlobal as SeoOverviewGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
@@ -75,6 +76,7 @@ export const importMap = {
   "payload-sync-ai-translations/client#GrammarCheckGlobal": GrammarCheckGlobal_2043071721ce9b13e636c3dacf801366,
   "payload-sync-ai-translations/client#FindReplaceGlobal": FindReplaceGlobal_2043071721ce9b13e636c3dacf801366,
   "payload-sync-ai-translations/client#SyncLinksGlobal": SyncLinksGlobal_2043071721ce9b13e636c3dacf801366,
+  "payload-sync-ai-translations/client#TranslationStatusGlobal": TranslationStatusGlobal_2043071721ce9b13e636c3dacf801366,
   "payload-sync-ai-translations/client#SeoOverviewGlobal": SeoOverviewGlobal_2043071721ce9b13e636c3dacf801366,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

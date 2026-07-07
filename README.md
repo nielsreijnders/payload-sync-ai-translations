@@ -164,6 +164,24 @@ Replacements run through the same safe override pipeline as the grammar check
 (lexical rich text stays intact); replacements that would blank a field entirely
 are skipped.
 
+### Translation status
+
+Editors often change default-locale content and forget to sync the
+translations. The plugin tracks every successful sync by storing a content
+fingerprint per document and locale, and surfaces the drift in two places:
+
+- **Document indicator** — the *Sync translations* button shows a warning dot
+  (with the number of changed fields in its tooltip) whenever the document
+  changed after its last sync or was never synced at all. The indicator
+  refreshes right after every save.
+- **Plugins → Translation Status** — scans the configured collections and
+  globals and lists, per locale, which documents are `never synced`,
+  `out of sync` (with the exact number of changed fields), or `up to date`.
+  Select the stale documents and sync them straight from the overview.
+
+Tracking is content-based (a hash per translatable field), so edits to other
+locales or non-translatable fields never cause false positives.
+
 ---
 
 ## 💡 Summary

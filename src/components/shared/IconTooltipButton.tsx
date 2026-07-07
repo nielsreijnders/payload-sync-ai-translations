@@ -10,6 +10,11 @@ type IconTooltipButtonProps = {
   disabled?: boolean
   icon: React.ReactNode
   /**
+   * Shows a small attention dot on the button, e.g. when the document has
+   * changes that were not synced yet.
+   */
+  indicator?: boolean
+  /**
    * Accessible name of the action; shown in the tooltip.
    */
   label: string
@@ -23,7 +28,13 @@ const SHOW_DELAY_MS = 250
  * rendered through a portal because the Payload doc-controls bar scrolls
  * (`overflow: auto`) and would clip the built-in Button tooltip.
  */
-export function IconTooltipButton({ disabled, icon, label, onClick }: IconTooltipButtonProps) {
+export function IconTooltipButton({
+  disabled,
+  icon,
+  indicator,
+  label,
+  onClick,
+}: IconTooltipButtonProps) {
   const anchorRef = React.useRef<HTMLSpanElement>(null)
   const timerRef = React.useRef<number | undefined>(undefined)
   const [position, setPosition] = React.useState<null | { left: number; top: number }>(null)
@@ -62,6 +73,7 @@ export function IconTooltipButton({ disabled, icon, label, onClick }: IconToolti
         onClick={onClick}
         type="button"
       />
+      {indicator ? <span aria-hidden="true" className={styles.indicator} /> : null}
       {position
         ? createPortal(
             <span

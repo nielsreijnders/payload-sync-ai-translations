@@ -41,6 +41,34 @@ function normalizeSkipFields(value: unknown): string[] {
   )
 }
 
+function parseDocumentsFilter(
+  value: unknown,
+): BulkTranslateRequestPayload['documents'] | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return undefined
+  }
+
+  const parsed: Record<string, Array<number | string>> = {}
+
+  for (const [slug, rawIds] of Object.entries(value as Record<string, unknown>)) {
+    if (!slug.trim() || !Array.isArray(rawIds)) {
+      continue
+    }
+
+    const ids = rawIds.filter(
+      (id): id is number | string =>
+        (typeof id === 'string' && Boolean(id.trim())) ||
+        (typeof id === 'number' && Number.isFinite(id)),
+    )
+
+    if (ids.length) {
+      parsed[slug.trim()] = ids
+    }
+  }
+
+  return Object.keys(parsed).length ? parsed : undefined
+}
+
 function parseBulkBody(body: unknown): BulkTranslateRequestPayload {
   if (typeof body !== 'object' || body === null) {
     throw new Error('Invalid JSON body')
@@ -50,6 +78,7 @@ function parseBulkBody(body: unknown): BulkTranslateRequestPayload {
   const collections = candidate.collections
   const overwrite = candidate.overwrite === true
   const skipFields = normalizeSkipFields(candidate.skipFields)
+  const documents = parseDocumentsFilter(candidate.documents)
 
   if (!Array.isArray(collections)) {
     throw new Error('Expected "collections" to be an array of collection slugs')
@@ -67,7 +96,7 @@ function parseBulkBody(body: unknown): BulkTranslateRequestPayload {
     throw new Error('No collections selected for bulk translation')
   }
 
-  return { collections: sanitized, overwrite, skipFields }
+  return { collections: sanitized, documents, overwrite, skipFields }
 }
 
 function toIdentifier(value: unknown): null | number | string {
@@ -206,6 +235,7 @@ async function* runBulkTranslations(
 
   for (const entry of selected) {
     try {
+      const documentIds = request.documents?.[entry.slug]
       const result = await payload.find({
         collection: entry.slug,
         depth: 0,
@@ -213,6 +243,7 @@ async function* runBulkTranslations(
         limit: 1,
         locale: defaultLocale,
         page: 1,
+        ...(documentIds ? { where: { id: { in: documentIds } } } : {}),
       })
 
       const totalDocs = typeof result.totalDocs === 'number' ? result.totalDocs : 0
@@ -264,6 +295,7 @@ async function* runBulkTranslations(
     let hasMore = true
 
     while (hasMore) {
+      const documentIds = request.documents?.[entry.slug]
       let result: Awaited<ReturnType<Payload['find']>>
       try {
         result = await payload.find({
@@ -273,6 +305,7 @@ async function* runBulkTranslations(
           limit,
           locale: defaultLocale,
           page,
+          ...(documentIds ? { where: { id: { in: documentIds } } } : {}),
         })
       } catch (error) {
         const message =

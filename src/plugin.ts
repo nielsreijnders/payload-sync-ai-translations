@@ -8,6 +8,11 @@ import { createBulkSyncLinksHandler, createSyncLinksHandler } from './server/lin
 import { setOpenAISettings } from './server/openAiSettings.js'
 import { createSeoScanHandler, createSeoUpdateHandler } from './server/seoHandler.js'
 import { configureSeoState, listSeoCollections } from './server/seoState.js'
+import {
+  createSyncStatusDocumentHandler,
+  createSyncStatusScanHandler,
+} from './server/syncStatusHandler.js'
+import { createSyncStatusCollection } from './server/syncStatusStore.js'
 import { createAiTranslateHandler } from './server/translationRequestHandler.js'
 import { createAiTranslateReviewHandler } from './server/translationReviewService.js'
 import {
@@ -104,11 +109,13 @@ const FIND_REPLACE_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#FindR
 const GRAMMAR_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#GrammarCheckGlobal'
 const LINK_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#SyncLinksGlobal'
 const SEO_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#SeoOverviewGlobal'
+const SYNC_STATUS_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#TranslationStatusGlobal'
 const BULK_GLOBAL_SLUG = 'ai-bulk-translation'
 const FIND_REPLACE_GLOBAL_SLUG = 'find-replace'
 const GRAMMAR_GLOBAL_SLUG = 'grammar-check'
 const LINK_GLOBAL_SLUG = 'sync-links'
 const SEO_GLOBAL_SLUG = 'seo-overview'
+const SYNC_STATUS_GLOBAL_SLUG = 'translation-status'
 const DEBUG_CLIENT_EXPORT = 'payload-sync-ai-translations/client#DebugDocumentCopyButton'
 const SYNC_LINKS_CLIENT_EXPORT = 'payload-sync-ai-translations/client#DocumentSyncLinksButton'
 
@@ -502,17 +509,45 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
       label: 'SEO Overview',
     }
 
+    const syncStatusGlobal: GlobalConfig = {
+      slug: SYNC_STATUS_GLOBAL_SLUG,
+      admin: toolGlobalAdmin,
+      fields: [
+        {
+          name: 'translationStatus',
+          type: 'ui',
+          admin: {
+            components: {
+              Field: {
+                clientProps: {
+                  collections: bulkClientProps.collections,
+                  defaultLocale,
+                  globals: storedGlobals.map((entry) => ({
+                    slug: entry.slug,
+                    label: entry.label,
+                  })),
+                  locales: localeCodes,
+                },
+                path: SYNC_STATUS_GLOBAL_COMPONENT,
+              },
+            },
+          },
+        },
+      ],
+      label: 'Translation Status',
+    }
+
     const enhancedGlobals = [
       ...globals,
       ...(storedCollections.length || storedGlobals.length
-        ? [bulkGlobal, grammarGlobal, findReplaceGlobal, linkGlobal]
+        ? [bulkGlobal, grammarGlobal, findReplaceGlobal, linkGlobal, syncStatusGlobal]
         : []),
       ...(storedSeoCollections.length ? [seoGlobal] : []),
     ]
 
     return {
       ...config,
-      collections,
+      collections: [...collections, createSyncStatusCollection()],
       endpoints: [
         ...(config.endpoints ?? []),
         { handler: createAiBulkTranslateHandler(), method: 'post', path: '/ai-translate/bulk' },
@@ -529,6 +564,16 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
           handler: createBulkSyncLinksHandler(options.serverURL),
           method: 'post',
           path: '/ai-links/bulk',
+        },
+        {
+          handler: createSyncStatusScanHandler(),
+          method: 'post',
+          path: '/ai-sync-status/scan',
+        },
+        {
+          handler: createSyncStatusDocumentHandler(),
+          method: 'post',
+          path: '/ai-sync-status/document',
         },
         ...(storedSeoCollections.length
           ? [

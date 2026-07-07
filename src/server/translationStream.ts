@@ -8,6 +8,7 @@ import type {
   TranslateStreamEvent,
 } from './translationTypes.js'
 
+import { buildTranslatableItems } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
 import { splitLexicalText, toLexical } from '../utils/lexical.js'
 import {
   expandConcretePathsFromPattern,
@@ -23,6 +24,7 @@ import {
 } from './documentUtils.js'
 import { cloneLocaleData, mergeStructuralData, setValueAtPath } from './localeStructure.js'
 import { openAiTranslateTexts } from './openAiTranslationClient.js'
+import { buildSyncSnapshot, buildTargetKey, recordSyncSnapshot } from './syncStatusStore.js'
 import { getStoredTarget } from './translationStateStore.js'
 
 type LocaleIdentifierMap = Map<string, Set<string>>
@@ -748,6 +750,18 @@ export async function* streamTranslations(
   const promptCache = new Map<string, string | undefined>()
   const localeIdentifierPaths = collectIdentifierPaths(locales)
 
+  // Fingerprint of the source content, recorded per locale after a successful
+  // sync so the plugin can detect documents that change afterwards.
+  const syncSnapshot =
+    storedEntry && baseDoc
+      ? buildSyncSnapshot(buildTranslatableItems(baseDoc, storedEntry.fieldPatterns))
+      : null
+  const syncTarget = buildTargetKey({
+    collection: collectionSlug,
+    documentId,
+    global: globalSlug,
+  })
+
   for (const localeEntry of locales) {
     const { chunks, code: locale } = localeEntry
     let existingLocaleDoc: null | Record<string, unknown> = null
@@ -1040,6 +1054,17 @@ export async function* streamTranslations(
     }
 
     payload.logger?.info?.(`[AI Translate] Saved translations for ${targetLabel} (${locale}).`)
+
+    // Grammar check and find & replace apply overrides within the source
+    // locale itself (locale === from); those runs are not translation syncs.
+    if (syncSnapshot && locale !== from) {
+      await recordSyncSnapshot(payload, {
+        locale,
+        snapshot: syncSnapshot,
+        target: syncTarget,
+      })
+    }
+
     yield { type: 'applied', locale }
   }
 

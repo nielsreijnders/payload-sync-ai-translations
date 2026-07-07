@@ -1,0 +1,298 @@
+import type { CollectionConfig, Payload } from 'payload'
+
+import { createHash } from 'node:crypto'
+
+import type { TranslatableItem } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
+import type { LocaleSyncStatus, SyncSnapshotEntry } from './syncStatusTypes.js'
+
+import { logDebug } from './debugSettings.js'
+
+/**
+ * Bookkeeping for translation syncs. Every successful sync of a locale stores
+ * a fingerprint of the default-locale content (path + content hash per
+ * translatable field). Comparing the current document against that snapshot
+ * tells exactly which fields changed since the locale was last synced.
+ */
+
+export const SYNC_STATUS_COLLECTION_SLUG = 'ai-translation-sync'
+
+export function buildTargetKey(target: {
+  collection?: string
+  documentId?: number | string
+  global?: string
+}): string {
+  if (target.global) {
+    return `global:${target.global}`
+  }
+
+  return `${target.collection}:${String(target.documentId)}`
+}
+
+/**
+ * Hidden plugin collection storing one record per (target, locale).
+ * Locked for API access — the plugin reads and writes with overrideAccess.
+ */
+export function createSyncStatusCollection(): CollectionConfig {
+  return {
+    slug: SYNC_STATUS_COLLECTION_SLUG,
+    access: {
+      create: () => false,
+      delete: () => false,
+      read: () => false,
+      update: () => false,
+    },
+    admin: {
+      hidden: true,
+    },
+    fields: [
+      {
+        // `${target}::${locale}`
+        name: 'key',
+        type: 'text',
+        index: true,
+        required: true,
+        unique: true,
+      },
+      {
+        // `${collection}:${id}` or `global:${slug}`
+        name: 'target',
+        type: 'text',
+        index: true,
+        required: true,
+      },
+      {
+        name: 'locale',
+        type: 'text',
+        required: true,
+      },
+      {
+        name: 'syncedAt',
+        type: 'date',
+        required: true,
+      },
+      {
+        // SyncSnapshotEntry[]
+        name: 'snapshot',
+        type: 'json',
+        required: true,
+      },
+    ],
+    labels: {
+      plural: 'AI Translation Sync Records',
+      singular: 'AI Translation Sync Record',
+    },
+  }
+}
+
+export function hashSnapshotText(text: string): string {
+  return createHash('sha1').update(text).digest('hex').slice(0, 20)
+}
+
+export function buildSyncSnapshot(items: TranslatableItem[]): SyncSnapshotEntry[] {
+  return items.map((item) => ({
+    hash: hashSnapshotText(item.text),
+    lexical: item.lexical,
+    path: item.path,
+  }))
+}
+
+function snapshotEntryKey(entry: { lexical: boolean; path: string }): string {
+  return `${entry.lexical ? '1' : '0'}:${entry.path}`
+}
+
+/**
+ * Counts fields that differ between the current default-locale content and a
+ * stored snapshot. Added and removed fields count as changes too — removed
+ * content leaves stale text behind in the target locale.
+ */
+export function countSnapshotChanges(
+  current: SyncSnapshotEntry[],
+  stored: SyncSnapshotEntry[],
+): number {
+  const storedByKey = new Map(stored.map((entry) => [snapshotEntryKey(entry), entry.hash]))
+  const seen = new Set<string>()
+  let changes = 0
+
+  for (const entry of current) {
+    const key = snapshotEntryKey(entry)
+    seen.add(key)
+
+    const previousHash = storedByKey.get(key)
+    if (previousHash === undefined || previousHash !== entry.hash) {
+      changes += 1
+    }
+  }
+
+  for (const key of storedByKey.keys()) {
+    if (!seen.has(key)) {
+      changes += 1
+    }
+  }
+
+  return changes
+}
+
+function normalizeSnapshot(value: unknown): SyncSnapshotEntry[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const entries: SyncSnapshotEntry[] = []
+
+  for (const raw of value) {
+    if (typeof raw !== 'object' || raw === null) {
+      continue
+    }
+
+    const candidate = raw as Record<string, unknown>
+    if (typeof candidate.path !== 'string' || typeof candidate.hash !== 'string') {
+      continue
+    }
+
+    entries.push({
+      hash: candidate.hash,
+      lexical: Boolean(candidate.lexical),
+      path: candidate.path,
+    })
+  }
+
+  return entries
+}
+
+export async function recordSyncSnapshot(
+  payload: Payload,
+  options: {
+    locale: string
+    snapshot: SyncSnapshotEntry[]
+    target: string
+  },
+): Promise<void> {
+  const key = `${options.target}::${options.locale}`
+
+  try {
+    const existing = await payload.find({
+      collection: SYNC_STATUS_COLLECTION_SLUG,
+      depth: 0,
+      limit: 1,
+      overrideAccess: true,
+      pagination: false,
+      where: { key: { equals: key } },
+    })
+
+    const current = existing.docs?.[0]
+    const data = {
+      key,
+      locale: options.locale,
+      snapshot: options.snapshot,
+      syncedAt: new Date().toISOString(),
+      target: options.target,
+    }
+
+    if (current && current.id != null) {
+      await payload.update({
+        id: current.id as number | string,
+        collection: SYNC_STATUS_COLLECTION_SLUG,
+        data,
+        overrideAccess: true,
+      })
+    } else {
+      await payload.create({
+        collection: SYNC_STATUS_COLLECTION_SLUG,
+        data,
+        overrideAccess: true,
+      })
+    }
+  } catch (error) {
+    // Bookkeeping must never break the translation flow itself.
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    payload.logger?.warn?.(`[AI Translate] Failed to record sync snapshot for ${key}: ${message}`)
+    logDebug(payload, '[AI Translate] Failed to record sync snapshot.', {
+      error: message,
+      key,
+    })
+  }
+}
+
+export type StoredSyncRecord = {
+  locale: string
+  snapshot: SyncSnapshotEntry[]
+  syncedAt?: string
+}
+
+/**
+ * Loads all sync records for a batch of targets in one query, grouped by
+ * target key.
+ */
+export async function fetchSyncRecords(
+  payload: Payload,
+  targets: string[],
+): Promise<Map<string, StoredSyncRecord[]>> {
+  const grouped = new Map<string, StoredSyncRecord[]>()
+
+  if (!targets.length) {
+    return grouped
+  }
+
+  const result = await payload.find({
+    collection: SYNC_STATUS_COLLECTION_SLUG,
+    depth: 0,
+    overrideAccess: true,
+    pagination: false,
+    where: { target: { in: targets } },
+  })
+
+  for (const doc of result.docs ?? []) {
+    const record = doc as unknown as {
+      locale?: unknown
+      snapshot?: unknown
+      syncedAt?: unknown
+      target?: unknown
+    }
+
+    if (typeof record.target !== 'string' || typeof record.locale !== 'string') {
+      continue
+    }
+
+    if (!grouped.has(record.target)) {
+      grouped.set(record.target, [])
+    }
+
+    grouped.get(record.target)?.push({
+      locale: record.locale,
+      snapshot: normalizeSnapshot(record.snapshot),
+      syncedAt: typeof record.syncedAt === 'string' ? record.syncedAt : undefined,
+    })
+  }
+
+  return grouped
+}
+
+/**
+ * Derives the per-locale sync status of a document from its current snapshot
+ * and the stored records. Documents without translatable content report as
+ * synced — there is nothing to translate.
+ */
+export function computeLocaleStatuses(
+  current: SyncSnapshotEntry[],
+  records: StoredSyncRecord[],
+  locales: string[],
+): LocaleSyncStatus[] {
+  return locales.map((locale) => {
+    const record = records.find((entry) => entry.locale === locale)
+
+    if (!record) {
+      return current.length
+        ? { changedFields: current.length, locale, status: 'never-synced' as const }
+        : { changedFields: 0, locale, status: 'synced' as const }
+    }
+
+    const changedFields = countSnapshotChanges(current, record.snapshot)
+
+    return {
+      changedFields,
+      locale,
+      status: changedFields ? ('out-of-sync' as const) : ('synced' as const),
+      syncedAt: record.syncedAt,
+    }
+  })
+}

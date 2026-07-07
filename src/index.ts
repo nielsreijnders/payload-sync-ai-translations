@@ -7,6 +7,7 @@ export type {
 export { payloadSyncAiTranslations } from './plugin.js'
 
 export type { SeoScanDocument, SeoScoreStatus } from './server/seoTypes.js'
+export type { LocaleSyncStatus, SyncStatusDocument } from './server/syncStatusTypes.js'
 export { streamTranslations } from './server/translationStream.js'
 export type {
   TranslateChunk,

@@ -1,0 +1,67 @@
+/* Translation-status specific styles; layout primitives come from ToolUI.module.css */
+
+.toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.search {
+  flex: 1;
+  max-width: 360px;
+  min-width: 220px;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  min-width: 860px;
+  width: 100%;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--theme-elevation-150);
+  padding: 13px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  color: var(--theme-elevation-600);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.selectCell {
+  width: 34px;
+}
+
+.documentLink {
+  color: var(--theme-text);
+  font-weight: 600;
+}
+
+.documentMeta,
+.muted {
+  color: var(--theme-elevation-600);
+  font-size: 12px;
+}
+
+.localeBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 420px;
+}
+
+.fieldCount {
+  white-space: nowrap;
+}
