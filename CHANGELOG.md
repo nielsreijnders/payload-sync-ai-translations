@@ -1,3 +1,10 @@
+# [1.31.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.30.0...v1.31.0) (2026-07-07)
+
+
+### Features
+
+* enhance translation status management with link syncing and skip field options ([3e543e2](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/3e543e259fcd8664fe1f55dd20b80868e98afa74))
+
 # [1.30.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.29.0...v1.30.0) (2026-07-07)
 
 
