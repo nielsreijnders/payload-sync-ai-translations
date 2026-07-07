@@ -1,3 +1,10 @@
+# [1.30.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.29.0...v1.30.0) (2026-07-07)
+
+
+### Features
+
+* **sync-status:** implement sync status scanning and document handling ([d935d86](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/d935d860de81a05b86a0b40916b75d1d8f3539a1))
+
 # [1.29.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.28.0...v1.29.0) (2026-07-07)
 
 
