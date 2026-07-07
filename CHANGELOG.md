@@ -1,3 +1,10 @@
+# [1.28.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.27.0...v1.28.0) (2026-07-07)
+
+
+### Features
+
+* implement SEO scoring and management features ([632bdf9](https://github.com/nielsreijnders/payload-sync-ai-translations/commit/632bdf9821a2ae9481083bcd458ff2610f8afaa9))
+
 # [1.27.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.26.0...v1.27.0) (2026-06-03)
 
 
