@@ -11,7 +11,6 @@ import type {
 } from '../../server/syncStatusTypes.js'
 import type { BulkStreamEvent } from '../../server/translationTypes.js'
 
-import { runBulkSyncLinks } from '../sync-links/utils/runBulkSyncLinks.js'
 import { postBulkStream } from '../shared/streamBulkEvents.js'
 import {
   Badge,
@@ -25,6 +24,7 @@ import {
   useToolLogs,
 } from '../shared/ToolUI.js'
 import toolStyles from '../shared/ToolUI.module.css'
+import { runBulkSyncLinks } from '../sync-links/utils/runBulkSyncLinks.js'
 import styles from './TranslationStatusGlobal.module.css'
 import { runSyncStatusScan } from './utils/runSyncStatusScan.js'
 
@@ -38,7 +38,15 @@ type CollectionOption = {
   slug: string
 }
 
-type TargetOption = { label: string; slug: string }
+type TargetOption = {
+  /**
+   * Top-level translatable field roots of this global; offered as
+   * skip-field checkboxes once the global is selected.
+   */
+  fields?: string[]
+  label: string
+  slug: string
+}
 
 type TranslationStatusGlobalProps = {
   collections: CollectionOption[]
@@ -57,6 +65,18 @@ function documentKey(document: SyncStatusDocument): string {
   return document.global
     ? `global:${document.global}`
     : `${document.collection}:${String(document.id)}`
+}
+
+function documentIsSelectable(document: SyncStatusDocument): boolean {
+  return Boolean(document.global) || (Boolean(document.collection) && document.id != null)
+}
+
+function formatTarget(collection: string, id: string): string {
+  if (collection.startsWith('global:') && collection.slice('global:'.length) === id) {
+    return collection
+  }
+
+  return `${collection}#${id}`
 }
 
 function localeBadgeTone(status: LocaleSyncStatus['status']): 'error' | 'success' | 'warning' {
@@ -136,6 +156,11 @@ export function TranslationStatusGlobal({
     [collections],
   )
 
+  const fieldsByGlobal = React.useMemo(
+    () => new Map(globals.map((entry) => [entry.slug, entry.fields ?? []])),
+    [globals],
+  )
+
   const [selectedKeys, setSelectedKeys] = React.useState<string[]>(() =>
     allTargets.map((entry) => entry.key),
   )
@@ -180,38 +205,56 @@ export function TranslationStatusGlobal({
     () =>
       selectedDocKeys
         .map((key) => documentByKey.get(key))
-        .filter(
-          (document): document is SyncStatusDocument =>
-            Boolean(document?.collection) && document?.id != null,
-        ),
+        .filter((document): document is SyncStatusDocument => Boolean(document))
+        .filter(documentIsSelectable),
     [documentByKey, selectedDocKeys],
+  )
+
+  const selectedCollectionDocuments = React.useMemo(
+    () =>
+      selectedDocuments.filter(
+        (document) => Boolean(document.collection) && document.id != null,
+      ),
+    [selectedDocuments],
+  )
+
+  const selectedGlobalSlugs = React.useMemo(
+    () =>
+      Array.from(
+        new Set(
+          selectedDocuments
+            .map((document) => document.global)
+            .filter((slug): slug is string => Boolean(slug)),
+        ),
+      ),
+    [selectedDocuments],
   )
 
   /**
    * Skip-field options follow the selection: the union of translatable field
-   * roots of the collections the selected documents belong to.
+   * roots of the collections and globals the selected documents belong to.
    */
   const availableSkipFields = React.useMemo(() => {
-    const slugs = new Set(
-      selectedDocuments
-        .map((document) => document.collection)
-        .filter((slug): slug is string => Boolean(slug)),
-    )
     const fields = new Set<string>()
-    for (const slug of slugs) {
-      for (const field of fieldsByCollection.get(slug) ?? []) {
+    for (const document of selectedDocuments) {
+      const roots = document.global
+        ? fieldsByGlobal.get(document.global)
+        : document.collection
+          ? fieldsByCollection.get(document.collection)
+          : undefined
+      for (const field of roots ?? []) {
         fields.add(field)
       }
     }
     return Array.from(fields).sort()
-  }, [fieldsByCollection, selectedDocuments])
+  }, [fieldsByCollection, fieldsByGlobal, selectedDocuments])
 
   const skipFields = React.useMemo(
     () =>
       Array.from(
         new Set([
-          ...skipFieldKeys.filter((field) => availableSkipFields.includes(field)),
           ...parseExtraSkipFields(extraSkipText),
+          ...skipFieldKeys.filter((field) => availableSkipFields.includes(field)),
         ]),
       ),
     [availableSkipFields, extraSkipText, skipFieldKeys],
@@ -329,16 +372,16 @@ export function TranslationStatusGlobal({
         )
         break
       case 'collection-start':
-        setCurrentTask(`Collection ${event.collection}…`)
+        setCurrentTask(`Processing ${event.collection}…`)
         break
       case 'document-applied':
         log.addLog(
-          `Saved translations for ${event.collection}#${event.id} (${event.locale}).`,
+          `Saved translations for ${formatTarget(event.collection, event.id)} (${event.locale}).`,
           'success',
         )
         break
       case 'document-error':
-        log.addLog(`Failed ${event.collection}#${event.id}: ${event.message}.`, 'error')
+        log.addLog(`Failed ${formatTarget(event.collection, event.id)}: ${event.message}.`, 'error')
         setProgress((previous) => ({
           completed: Math.min(previous.total, previous.completed + 1),
           total: previous.total,
@@ -346,12 +389,12 @@ export function TranslationStatusGlobal({
         break
       case 'document-progress':
         setCurrentTask(
-          `Translating ${event.collection}#${event.id} (${event.locale}) ${event.completed}/${event.total}.`,
+          `Translating ${formatTarget(event.collection, event.id)} (${event.locale}) ${event.completed}/${event.total}.`,
         )
         break
       case 'document-skipped':
         log.addLog(
-          `Skipped ${event.collection}#${event.id}: ${event.reason || 'No action required.'}`,
+          `Skipped ${formatTarget(event.collection, event.id)}: ${event.reason || 'No action required.'}`,
           'skip',
         )
         setProgress((previous) => ({
@@ -360,10 +403,10 @@ export function TranslationStatusGlobal({
         }))
         break
       case 'document-start':
-        setCurrentTask(`Translating ${event.collection}#${event.id}…`)
+        setCurrentTask(`Translating ${formatTarget(event.collection, event.id)}…`)
         break
       case 'document-success':
-        log.addLog(`Completed ${event.collection}#${event.id}.`, 'success')
+        log.addLog(`Completed ${formatTarget(event.collection, event.id)}.`, 'success')
         setProgress((previous) => ({
           completed: Math.min(previous.total, previous.completed + 1),
           total: previous.total,
@@ -381,7 +424,7 @@ export function TranslationStatusGlobal({
 
   const groupSelectedByCollection = (): Map<string, Array<number | string>> => {
     const grouped = new Map<string, Array<number | string>>()
-    for (const document of selectedDocuments) {
+    for (const document of selectedCollectionDocuments) {
       if (!document.collection || document.id == null) {
         continue
       }
@@ -429,6 +472,7 @@ export function TranslationStatusGlobal({
         {
           collections: Array.from(grouped.keys()),
           documents: Object.fromEntries(grouped.entries()),
+          globals: selectedGlobalSlugs,
           overwrite,
           skipFields,
         },
@@ -473,12 +517,16 @@ export function TranslationStatusGlobal({
   }
 
   const startLinkSync = async () => {
-    if (busy || !selectedDocuments.length) {
+    if (busy || !selectedCollectionDocuments.length) {
       return
     }
 
     const grouped = groupSelectedByCollection()
-    if (!window.confirm(`Sync links for ${selectedDocuments.length} selected document(s)?`)) {
+    if (
+      !window.confirm(
+        `Sync links for ${selectedCollectionDocuments.length} selected document(s)?`,
+      )
+    ) {
       return
     }
 
@@ -543,8 +591,7 @@ export function TranslationStatusGlobal({
   }, [documents, filter, search])
 
   const selectableVisible = React.useMemo(
-    () =>
-      visibleDocuments.filter((document) => Boolean(document.collection) && document.id != null),
+    () => visibleDocuments.filter(documentIsSelectable),
     [visibleDocuments],
   )
 
@@ -693,7 +740,7 @@ export function TranslationStatusGlobal({
               <tbody>
                 {visibleDocuments.map((document) => {
                   const key = documentKey(document)
-                  const selectable = Boolean(document.collection) && document.id != null
+                  const selectable = documentIsSelectable(document)
                   const href = document.global
                     ? `${routes.admin}/globals/${encodeURIComponent(document.global)}`
                     : `${routes.admin}/collections/${encodeURIComponent(
@@ -713,11 +760,6 @@ export function TranslationStatusGlobal({
                           checked={selectedDocKeys.includes(key)}
                           disabled={busy || !selectable}
                           onChange={() => toggleDocument(key)}
-                          title={
-                            document.global
-                              ? 'Globals are synced from their own document view.'
-                              : undefined
-                          }
                           type="checkbox"
                         />
                       </td>
@@ -841,11 +883,13 @@ export function TranslationStatusGlobal({
               </Button>
               <Button
                 buttonStyle="secondary"
-                disabled={busy}
+                disabled={busy || !selectedCollectionDocuments.length}
                 onClick={() => void startLinkSync()}
                 type="button"
               >
-                {linkSyncing ? 'Syncing links…' : `Sync links (${selectedDocuments.length})`}
+                {linkSyncing
+                  ? 'Syncing links…'
+                  : `Sync links (${selectedCollectionDocuments.length})`}
               </Button>
             </div>
           </div>

@@ -103,6 +103,7 @@ export function configureTranslationState(
     config: GlobalConfig
     customPrompt?: StoredEntry['customPrompt']
     excludeFields?: string[]
+    grammarCheckPrompt?: StoredEntry['grammarCheckPrompt']
   }> = [],
   localization: {
     defaultLocale?: LocalizationConfig['defaultLocale']
@@ -146,7 +147,7 @@ export function configureTranslationState(
   const normalizedGlobals = Array.isArray(globals) ? globals : []
 
   for (const entry of normalizedGlobals) {
-    const { config, customPrompt, excludeFields } = entry
+    const { config, customPrompt, excludeFields, grammarCheckPrompt } = entry
     if (!config?.slug) {
       continue
     }
@@ -166,6 +167,7 @@ export function configureTranslationState(
       slug,
       customPrompt,
       fieldPatterns,
+      grammarCheckPrompt,
       // @ts-expect-error -- Need to investigate
       label,
       localizedContainerPatterns,

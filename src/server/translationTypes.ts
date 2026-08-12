@@ -71,6 +71,7 @@ export type BulkTranslateRequestPayload = {
    * only these documents are translated instead of the whole collection.
    */
   documents?: Record<string, Array<number | string>>
+  globals?: string[]
   overwrite?: boolean
   skipFields?: string[]
 }

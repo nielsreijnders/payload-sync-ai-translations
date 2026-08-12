@@ -5,6 +5,7 @@ import type {
   BulkTranslateRequestPayload,
   TranslateLocaleRequestPayload,
   TranslateReviewLocale,
+  TranslationTarget,
 } from './translationTypes.js'
 
 import {
@@ -13,12 +14,18 @@ import {
   collectSkippedTranslatablePaths,
 } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
 import { chunkItems } from '../utils/localizedFields.js'
-import { parseDocumentsFilter } from './bulkRequestParsing.js'
+import { parseDocumentsFilter, sanitizeSlugArray } from './bulkRequestParsing.js'
 import { logDebug } from './debugSettings.js'
 import { rejectUnauthenticated } from './requireUser.js'
 import { generateTranslationReview } from './translationReviewService.js'
-import { getStoredCollection, getTranslationState } from './translationStateStore.js'
+import {
+  getStoredCollection,
+  getStoredGlobal,
+  getTranslationState,
+} from './translationStateStore.js'
 import { streamTranslations } from './translationStream.js'
+
+type StoredTargetEntry = NonNullable<ReturnType<typeof getStoredCollection>>
 
 const encoder = new TextEncoder()
 
@@ -48,28 +55,26 @@ function parseBulkBody(body: unknown): BulkTranslateRequestPayload {
   }
 
   const candidate = body as Record<string, unknown>
-  const collections = candidate.collections
   const overwrite = candidate.overwrite === true
   const skipFields = normalizeSkipFields(candidate.skipFields)
   const documents = parseDocumentsFilter(candidate.documents)
 
-  if (!Array.isArray(collections)) {
+  if (candidate.collections !== undefined && !Array.isArray(candidate.collections)) {
     throw new Error('Expected "collections" to be an array of collection slugs')
   }
 
-  const sanitized = Array.from(
-    new Set(
-      collections
-        .map((value) => (typeof value === 'string' ? value.trim() : ''))
-        .filter((value): value is string => Boolean(value)),
-    ),
-  )
-
-  if (!sanitized.length) {
-    throw new Error('No collections selected for bulk translation')
+  if (candidate.globals !== undefined && !Array.isArray(candidate.globals)) {
+    throw new Error('Expected "globals" to be an array of global slugs')
   }
 
-  return { collections: sanitized, documents, overwrite, skipFields }
+  const collections = sanitizeSlugArray(candidate.collections)
+  const globals = sanitizeSlugArray(candidate.globals)
+
+  if (!collections.length && !globals.length) {
+    throw new Error('No collections or globals selected for bulk translation')
+  }
+
+  return { collections, documents, globals, overwrite, skipFields }
 }
 
 function toIdentifier(value: unknown): null | number | string {
@@ -162,6 +167,202 @@ function buildOverwriteLocaleRequests(
   }))
 }
 
+type DocumentOutcome = 'failed' | 'processed' | 'skipped'
+
+/**
+ * Translates one resolved document (a collection document or a global) and
+ * yields its bulk stream events. Returns the outcome so callers can update
+ * their counters.
+ */
+async function* translateResolvedDocument(
+  payload: Payload,
+  options: {
+    defaultLocale: string
+    doc: unknown
+    entry: StoredTargetEntry
+    eventCollection: string
+    eventId: string
+    overwrite: boolean
+    skipFields: string[]
+    target: TranslationTarget
+    targetLabel: string
+    targetLocales: string[]
+  },
+): AsyncGenerator<BulkStreamEvent, DocumentOutcome> {
+  const {
+    defaultLocale,
+    doc,
+    entry,
+    eventCollection,
+    eventId,
+    overwrite,
+    skipFields,
+    target,
+    targetLabel,
+    targetLocales,
+  } = options
+
+  payload.logger?.info?.(`[AI Translate] Starting bulk translation for ${targetLabel}.`)
+  yield { id: eventId, type: 'document-start', collection: eventCollection }
+
+  const identifierPaths = collectIdentifierPaths(doc, entry.fieldPatterns)
+  const preservePaths = collectSkippedTranslatablePaths(doc, entry.fieldPatterns, skipFields)
+  const items = buildTranslatableItems(doc, entry.fieldPatterns, { skipFields })
+
+  logDebug(payload, '[AI Translate] Built translatable items for bulk document.', {
+    collection: eventCollection,
+    documentId: eventId,
+    itemCount: items.length,
+    preservePathCount: preservePaths.length,
+    skippedFields: skipFields,
+  })
+
+  if (!items.length) {
+    payload.logger?.info?.(`[AI Translate] Skipped ${targetLabel}: no translatable fields found.`)
+    yield {
+      id: eventId,
+      type: 'document-skipped',
+      collection: eventCollection,
+      reason: 'No translatable fields found.',
+    }
+    return 'skipped'
+  }
+
+  let localeRequests: TranslateLocaleRequestPayload[]
+
+  if (overwrite) {
+    localeRequests = buildOverwriteLocaleRequests(
+      items,
+      targetLocales,
+      identifierPaths,
+      preservePaths,
+    )
+    logDebug(payload, '[AI Translate] Prepared overwrite locale requests for bulk document.', {
+      collection: eventCollection,
+      documentId: eventId,
+      locales: localeRequests.map((locale) => ({
+        chunkCount: locale.chunks.length,
+        code: locale.code,
+      })),
+    })
+  } else {
+    let review
+    try {
+      review = await generateTranslationReview(payload, {
+        ...target,
+        from: defaultLocale,
+        items,
+        locales: targetLocales,
+      })
+      logDebug(payload, '[AI Translate] Generated translation review for bulk document.', {
+        collection: eventCollection,
+        documentId: eventId,
+        locales: review.locales.map((locale) => ({
+          code: locale.code,
+          suggestions: locale.suggestions?.length ?? 0,
+          translateIndexes: locale.translateIndexes,
+        })),
+      })
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Translation review failed for document.'
+      payload.logger?.error?.(`[AI Translate] Review failed for ${targetLabel}: ${message}`)
+      yield { id: eventId, type: 'document-error', collection: eventCollection, message }
+      return 'failed'
+    }
+
+    localeRequests = buildLocaleRequests(items, review.locales, identifierPaths, preservePaths)
+  }
+
+  logDebug(payload, '[AI Translate] Prepared locale requests for bulk document.', {
+    collection: eventCollection,
+    documentId: eventId,
+    locales: localeRequests.map((locale) => ({
+      chunkCount: locale.chunks.length,
+      code: locale.code,
+      overrideCount: locale.overrides?.length ?? 0,
+    })),
+  })
+
+  if (!localeRequests.length) {
+    payload.logger?.info?.(`[AI Translate] Skipped ${targetLabel}: translations are up to date.`)
+    yield {
+      id: eventId,
+      type: 'document-skipped',
+      collection: eventCollection,
+      reason: 'Translations are already up to date.',
+    }
+    return 'skipped'
+  }
+
+  let hadError = false
+
+  try {
+    for await (const event of streamTranslations(payload, {
+      ...target,
+      from: defaultLocale,
+      locales: localeRequests,
+    })) {
+      switch (event.type) {
+        case 'applied':
+          payload.logger?.info?.(
+            `[AI Translate] Saved translations for ${targetLabel} (${event.locale}).`,
+          )
+          yield {
+            id: eventId,
+            type: 'document-applied',
+            collection: eventCollection,
+            locale: event.locale,
+          }
+          break
+        case 'done':
+          break
+        case 'error':
+          hadError = true
+          payload.logger?.error?.(
+            `[AI Translate] Failed to translate ${targetLabel}: ${event.message}`,
+          )
+          yield {
+            id: eventId,
+            type: 'document-error',
+            collection: eventCollection,
+            message: event.message,
+          }
+          break
+        case 'progress':
+          yield {
+            id: eventId,
+            type: 'document-progress',
+            collection: eventCollection,
+            completed: event.completed,
+            locale: event.locale,
+            total: event.total,
+          }
+          break
+        default:
+          break
+      }
+
+      if (hadError) {
+        break
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unexpected failure while translating.'
+    payload.logger?.error?.(`[AI Translate] Unexpected error for ${targetLabel}: ${message}`)
+    yield { id: eventId, type: 'document-error', collection: eventCollection, message }
+    return 'failed'
+  }
+
+  if (hadError) {
+    return 'failed'
+  }
+
+  payload.logger?.info?.(`[AI Translate] Completed translations for ${targetLabel}.`)
+  yield { id: eventId, type: 'document-success', collection: eventCollection }
+  return 'processed'
+}
+
 async function* runBulkTranslations(
   payload: Payload,
   request: BulkTranslateRequestPayload,
@@ -183,18 +384,30 @@ async function* runBulkTranslations(
 
   const selected = request.collections
     .map((slug) => getStoredCollection(slug))
-    .filter((entry): entry is NonNullable<ReturnType<typeof getStoredCollection>> => Boolean(entry))
+    .filter((entry): entry is StoredTargetEntry => Boolean(entry))
+  const selectedGlobals = (request.globals ?? [])
+    .map((slug) => getStoredGlobal(slug))
+    .filter((entry): entry is StoredTargetEntry => Boolean(entry))
 
-  if (!selected.length) {
-    yield { type: 'error', message: 'No matching collections configured for translations.' }
+  if (!selected.length && !selectedGlobals.length) {
+    yield {
+      type: 'error',
+      message: 'No matching collections or globals configured for translations.',
+    }
     return
   }
 
-  logDebug(payload, '[AI Translate] Bulk translation collections resolved.', {
+  logDebug(payload, '[AI Translate] Bulk translation targets resolved.', {
     defaultLocale,
     overwrite: Boolean(request.overwrite),
     requestedCollections: request.collections,
+    requestedGlobals: request.globals ?? [],
     resolvedCollections: selected.map((entry) => ({
+      slug: entry.slug,
+      fieldPatterns: entry.fieldPatterns,
+      label: entry.label,
+    })),
+    resolvedGlobals: selectedGlobals.map((entry) => ({
       slug: entry.slug,
       fieldPatterns: entry.fieldPatterns,
       label: entry.label,
@@ -232,8 +445,13 @@ async function* runBulkTranslations(
     }
   }
 
+  for (const entry of selectedGlobals) {
+    totals.set(`global:${entry.slug}`, 1)
+    grandTotal += 1
+  }
+
   payload.logger?.info?.(
-    `[AI Translate] Starting bulk translation for ${selected.length} collections (total documents: ${grandTotal}).`,
+    `[AI Translate] Starting bulk translation for ${selected.length + selectedGlobals.length} targets (total documents: ${grandTotal}).`,
   )
 
   logDebug(payload, '[AI Translate] Bulk translation totals calculated.', {
@@ -241,7 +459,11 @@ async function* runBulkTranslations(
     totals: Object.fromEntries(totals.entries()),
   })
 
-  yield { type: 'bulk-start', totalCollections: selected.length, totalDocuments: grandTotal }
+  yield {
+    type: 'bulk-start',
+    totalCollections: selected.length + selectedGlobals.length,
+    totalDocuments: grandTotal,
+  }
 
   let overallProcessed = 0
   let overallSkipped = 0
@@ -327,192 +549,29 @@ async function* runBulkTranslations(
         }
 
         const docLabel = String(docIdentifier)
-
-        payload.logger?.info?.(
-          `[AI Translate] Starting bulk translation for ${entry.slug}#${docLabel}.`,
-        )
-        yield { id: docLabel, type: 'document-start', collection: entry.slug }
-
-        const identifierPaths = collectIdentifierPaths(doc, entry.fieldPatterns)
-        const preservePaths = collectSkippedTranslatablePaths(doc, entry.fieldPatterns, skipFields)
-        const items = buildTranslatableItems(doc, entry.fieldPatterns, { skipFields })
-
-        logDebug(payload, '[AI Translate] Built translatable items for bulk document.', {
-          collection: entry.slug,
-          documentId: docIdentifier,
-          itemCount: items.length,
-          preservePathCount: preservePaths.length,
-          skippedFields: skipFields,
+        const outcome = yield* translateResolvedDocument(payload, {
+          defaultLocale,
+          doc,
+          entry,
+          eventCollection: entry.slug,
+          eventId: docLabel,
+          overwrite: Boolean(request.overwrite),
+          skipFields,
+          target: { id: docIdentifier, collection: entry.slug },
+          targetLabel: `${entry.slug}#${docLabel}`,
+          targetLocales,
         })
 
-        if (!items.length) {
+        if (outcome === 'processed') {
+          collectionProcessed += 1
+          overallProcessed += 1
+        } else if (outcome === 'skipped') {
           collectionSkipped += 1
           overallSkipped += 1
-          payload.logger?.info?.(
-            `[AI Translate] Skipped ${entry.slug}#${docLabel}: no translatable fields found.`,
-          )
-          yield {
-            id: docLabel,
-            type: 'document-skipped',
-            collection: entry.slug,
-            reason: 'No translatable fields found.',
-          }
-          continue
-        }
-
-        let localeRequests: TranslateLocaleRequestPayload[]
-
-        if (request.overwrite) {
-          localeRequests = buildOverwriteLocaleRequests(
-            items,
-            targetLocales,
-            identifierPaths,
-            preservePaths,
-          )
-          logDebug(payload, '[AI Translate] Prepared overwrite locale requests for bulk document.', {
-            collection: entry.slug,
-            documentId: docIdentifier,
-            locales: localeRequests.map((locale) => ({
-              chunkCount: locale.chunks.length,
-              code: locale.code,
-            })),
-          })
         } else {
-          let review
-          try {
-            review = await generateTranslationReview(payload, {
-              id: docIdentifier,
-              collection: entry.slug,
-              from: defaultLocale,
-              items,
-              locales: targetLocales,
-            })
-            logDebug(payload, '[AI Translate] Generated translation review for bulk document.', {
-              collection: entry.slug,
-              documentId: docIdentifier,
-              locales: review.locales.map((locale) => ({
-                code: locale.code,
-                suggestions: locale.suggestions?.length ?? 0,
-                translateIndexes: locale.translateIndexes,
-              })),
-            })
-          } catch (error) {
-            const message =
-              error instanceof Error ? error.message : 'Translation review failed for document.'
-            collectionFailed += 1
-            overallFailed += 1
-            payload.logger?.error?.(
-              `[AI Translate] Review failed for ${entry.slug}#${docLabel}: ${message}`,
-            )
-            yield { id: docLabel, type: 'document-error', collection: entry.slug, message }
-            continue
-          }
-
-          localeRequests = buildLocaleRequests(items, review.locales, identifierPaths, preservePaths)
-        }
-
-        logDebug(payload, '[AI Translate] Prepared locale requests for bulk document.', {
-          collection: entry.slug,
-          documentId: docIdentifier,
-          locales: localeRequests.map((locale) => ({
-            chunkCount: locale.chunks.length,
-            code: locale.code,
-            overrideCount: locale.overrides?.length ?? 0,
-          })),
-        })
-
-        if (!localeRequests.length) {
-          collectionSkipped += 1
-          overallSkipped += 1
-          payload.logger?.info?.(
-            `[AI Translate] Skipped ${entry.slug}#${docLabel}: translations are up to date.`,
-          )
-          yield {
-            id: docLabel,
-            type: 'document-skipped',
-            collection: entry.slug,
-            reason: 'Translations are already up to date.',
-          }
-          continue
-        }
-
-        let hadError = false
-
-        try {
-          for await (const event of streamTranslations(payload, {
-            id: docIdentifier,
-            collection: entry.slug,
-            from: defaultLocale,
-            locales: localeRequests,
-          })) {
-            switch (event.type) {
-              case 'applied':
-                payload.logger?.info?.(
-                  `[AI Translate] Saved translations for ${entry.slug}#${docLabel} (${event.locale}).`,
-                )
-                yield {
-                  id: docLabel,
-                  type: 'document-applied',
-                  collection: entry.slug,
-                  locale: event.locale,
-                }
-                break
-              case 'done':
-                break
-              case 'error':
-                hadError = true
-                collectionFailed += 1
-                overallFailed += 1
-                payload.logger?.error?.(
-                  `[AI Translate] Failed to translate ${entry.slug}#${docLabel}: ${event.message}`,
-                )
-                yield {
-                  id: docLabel,
-                  type: 'document-error',
-                  collection: entry.slug,
-                  message: event.message,
-                }
-                break
-              case 'progress':
-                yield {
-                  id: docLabel,
-                  type: 'document-progress',
-                  collection: entry.slug,
-                  completed: event.completed,
-                  locale: event.locale,
-                  total: event.total,
-                }
-                break
-              default:
-                break
-            }
-
-            if (hadError) {
-              break
-            }
-          }
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : 'Unexpected failure while translating.'
-          hadError = true
           collectionFailed += 1
           overallFailed += 1
-          payload.logger?.error?.(
-            `[AI Translate] Unexpected error for ${entry.slug}#${docLabel}: ${message}`,
-          )
-          yield { id: docLabel, type: 'document-error', collection: entry.slug, message }
         }
-
-        if (hadError) {
-          continue
-        }
-
-        collectionProcessed += 1
-        overallProcessed += 1
-        payload.logger?.info?.(
-          `[AI Translate] Completed translations for ${entry.slug}#${docLabel}.`,
-        )
-        yield { id: docLabel, type: 'document-success', collection: entry.slug }
       }
     }
 
@@ -526,6 +585,68 @@ async function* runBulkTranslations(
       failed: collectionFailed,
       processed: collectionProcessed,
       skipped: collectionSkipped,
+    }
+  }
+
+  for (const entry of selectedGlobals) {
+    const eventCollection = `global:${entry.slug}`
+
+    payload.logger?.info?.(`[AI Translate] Processing global ${entry.slug}.`)
+    yield {
+      type: 'collection-start',
+      collection: eventCollection,
+      label: entry.label,
+      totalDocuments: 1,
+    }
+
+    let outcome: DocumentOutcome
+
+    try {
+      const doc = await payload.findGlobal({
+        slug: entry.slug,
+        depth: 0,
+        fallbackLocale: false,
+        locale: defaultLocale,
+      })
+
+      outcome = yield* translateResolvedDocument(payload, {
+        defaultLocale,
+        doc,
+        entry,
+        eventCollection,
+        eventId: entry.slug,
+        overwrite: Boolean(request.overwrite),
+        skipFields,
+        target: { global: entry.slug },
+        targetLabel: eventCollection,
+        targetLocales,
+      })
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : `Failed to load global ${entry.slug}.`
+      payload.logger?.error?.(`[AI Translate] ${message}`)
+      yield { id: entry.slug, type: 'document-error', collection: eventCollection, message }
+      outcome = 'failed'
+    }
+
+    if (outcome === 'processed') {
+      overallProcessed += 1
+    } else if (outcome === 'skipped') {
+      overallSkipped += 1
+    } else {
+      overallFailed += 1
+    }
+
+    payload.logger?.info?.(
+      `[AI Translate] Finished global ${entry.slug}: ${outcome === 'processed' ? 1 : 0} processed, ${outcome === 'skipped' ? 1 : 0} skipped, ${outcome === 'failed' ? 1 : 0} failed.`,
+    )
+
+    yield {
+      type: 'collection-complete',
+      collection: eventCollection,
+      failed: outcome === 'failed' ? 1 : 0,
+      processed: outcome === 'processed' ? 1 : 0,
+      skipped: outcome === 'skipped' ? 1 : 0,
     }
   }
 
@@ -559,6 +680,7 @@ export function createAiBulkTranslateHandler(): PayloadHandler {
 
       logDebug(payload, '[AI Translate] Parsed bulk translation request.', {
         collections: parsed.collections,
+        globals: parsed.globals,
         overwrite: parsed.overwrite,
         skipFields: parsed.skipFields,
       })

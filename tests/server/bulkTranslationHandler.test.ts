@@ -1,4 +1,4 @@
-import type { CollectionConfig, Payload } from 'payload'
+import type { CollectionConfig, GlobalConfig, Payload } from 'payload'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -51,7 +51,24 @@ describe('createAiBulkTranslateHandler', () => {
           } as CollectionConfig,
         },
       ],
-      [],
+      [
+        {
+          config: {
+            fields: [
+              { name: 'tagline', type: 'text', localized: true },
+              {
+                name: 'cta',
+                type: 'group',
+                fields: [{ name: 'label', type: 'text', localized: true }],
+              },
+            ],
+            label: 'Site Settings',
+            slug: 'site-settings',
+          } as GlobalConfig,
+          customPrompt: (data, locale) =>
+            `Tagline: ${(data as { tagline?: string }).tagline} → ${locale}`,
+        },
+      ],
       { defaultLocale: 'en', locales: ['en', 'nl'] },
     )
   })
@@ -126,6 +143,85 @@ describe('createAiBulkTranslateHandler', () => {
       }),
     )
     expect(events).toContainEqual({ collection: 'pages', id: '1', type: 'document-success' })
+    expect(events).toContainEqual({ failed: 0, processed: 1, skipped: 0, type: 'bulk-complete' })
+  })
+
+  it('overwrites translations for selected globals using their custom prompt', async () => {
+    const baseGlobal = {
+      id: 1,
+      cta: { label: 'Read more' },
+      tagline: 'Welcome',
+    }
+    const existingNlGlobal = {
+      id: 1,
+      cta: { label: 'Bestaande CTA' },
+      tagline: 'Bestaande tagline',
+    }
+
+    const payloadMock = {
+      create: vi.fn(async (args: unknown) => args),
+      find: vi.fn().mockResolvedValue({ docs: [], hasNextPage: false, totalDocs: 0 }),
+      findGlobal: vi.fn().mockImplementation(async ({ locale, slug }) => {
+        if (slug !== 'site-settings') {
+          return {}
+        }
+
+        return locale === 'en' ? baseGlobal : existingNlGlobal
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+      },
+      updateGlobal: vi.fn(async (args: unknown) => args),
+    } as unknown as Payload
+
+    translateTextsMock.mockResolvedValueOnce(['Welkom', 'Lees meer'])
+
+    const handler = createAiBulkTranslateHandler()
+    const response = await handler({
+      json: async () => ({
+        globals: ['site-settings'],
+        overwrite: true,
+      }),
+      payload: payloadMock,
+      user: { id: 'user-1' },
+    } as any)
+
+    expect(response.status).toBe(200)
+    const events = parseEvents(await response.text())
+
+    expect(detectMissingInformationMock).not.toHaveBeenCalled()
+    expect(translateTextsMock).toHaveBeenCalledWith(
+      ['Welcome', 'Read more'],
+      'en',
+      'nl',
+      expect.objectContaining({ customPrompt: 'Tagline: Welcome → nl' }),
+    )
+    expect(payloadMock.updateGlobal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        slug: 'site-settings',
+        data: { cta: { label: 'Lees meer' }, tagline: 'Welkom' },
+        locale: 'nl',
+        overrideAccess: true,
+      }),
+    )
+    expect(events).toContainEqual({
+      totalCollections: 1,
+      totalDocuments: 1,
+      type: 'bulk-start',
+    })
+    expect(events).toContainEqual({
+      collection: 'global:site-settings',
+      label: 'Site Settings',
+      totalDocuments: 1,
+      type: 'collection-start',
+    })
+    expect(events).toContainEqual({
+      collection: 'global:site-settings',
+      id: 'site-settings',
+      type: 'document-success',
+    })
     expect(events).toContainEqual({ failed: 0, processed: 1, skipped: 0, type: 'bulk-complete' })
   })
 })

@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "dev-admin",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev"],
-      "port": 3000
+      "name": "payload-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev", "dev", "--turbo", "-p", "3210"],
+      "port": 3210
     }
   ]
 }

@@ -233,6 +233,7 @@ export const payloadContentOps: PayloadContentOpsPlugin =
       config: GlobalConfig
       customPrompt?: AiLocalizationCollectionOptions['customPrompt']
       excludeFields?: string[]
+      grammarCheckPrompt?: AiLocalePromptResolver
     }> = []
     const seoCollections: Array<{
       config: CollectionConfig
@@ -319,6 +320,7 @@ export const payloadContentOps: PayloadContentOpsPlugin =
         config: global,
         customPrompt: perGlobal.customPrompt,
         excludeFields: perGlobal.excludeFields,
+        grammarCheckPrompt: normalizeLocalePromptSetting(perGlobal.grammarCheckPrompt),
       })
 
       const fieldPatterns = extractFieldPatterns(global, {
@@ -504,6 +506,7 @@ export const payloadContentOps: PayloadContentOpsPlugin =
                   defaultLocale,
                   globals: storedGlobals.map((entry) => ({
                     slug: entry.slug,
+                    fields: fieldPatternRoots(entry.fieldPatterns),
                     label: entry.label,
                   })),
                   locales: localeCodes,

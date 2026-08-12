@@ -66,6 +66,12 @@ export default buildConfig({
           },
         },
       },
+      globals: {
+        header: {
+          // Globals take the same options as collections
+          customPrompt: (data, locale) => `Keep navigation labels short in ${locale}.`,
+        },
+      },
       openai: {
         apiKey: process.env.OPENAI_API_KEY || '',
         baseURL: process.env.OPENAI_ENDPOINT, // Optional openai compatible endpoint
@@ -86,7 +92,21 @@ export interface PayloadSyncAiTranslationsOptions {
    */
   collections: {
     [collectionSlug: string]: {
+      /**
+       * Extra instructions appended to every translation request for this
+       * collection, resolved per document and target locale.
+       */
+      customPrompt?: (data: unknown, locale: string) => string | undefined
       excludeFields?: string[]
+      /**
+       * Locale-aware prompt for grammar checks only (not used when
+       * translating). A function, a locale map ({ 'en-us': '…', default: '…' })
+       * or a single string.
+       */
+      grammarCheckPrompt?:
+        | ((data: unknown, locale: string) => string | undefined)
+        | Record<string, string>
+        | string
       seo?:
         | boolean
         | {
@@ -96,6 +116,22 @@ export interface PayloadSyncAiTranslationsOptions {
             slugPath?: string // default: slug
             titlePath?: string // default: meta.title
           }
+    }
+  }
+
+  /**
+   * Globals to include. They accept the same options as collections
+   * (`customPrompt`, `excludeFields`, `grammarCheckPrompt`); `seo` is
+   * collection-only.
+   */
+  globals?: {
+    [globalSlug: string]: {
+      customPrompt?: (data: unknown, locale: string) => string | undefined
+      excludeFields?: string[]
+      grammarCheckPrompt?:
+        | ((data: unknown, locale: string) => string | undefined)
+        | Record<string, string>
+        | string
     }
   }
 
@@ -231,17 +267,19 @@ fingerprint per document and locale, and surfaces the drift in two places:
   refreshes right after every save.
 - **Plugins → Translation Status** — the central hub for keeping translations
   in sync, built around one flow: **scan → select → sync**. A scan lists, per
-  locale, which documents are `never synced`, `out of sync` (with the exact
-  number of changed fields), or `up to date`. Check the documents you want to
-  act on (the header checkbox selects everything) and a selection bar appears
-  with the available actions:
-  - **Translate** — sync the selected documents, with an optional overwrite
-    of existing translations;
-  - **Sync links** — rewrite internal links in the selected documents to
-    their localized equivalents;
+  locale, which documents and globals are `never synced`, `out of sync` (with
+  the exact number of changed fields), or `up to date`. Check the targets you
+  want to act on (the header checkbox selects everything) and a selection bar
+  appears with the available actions:
+  - **Translate** — sync the selected documents and globals, with an optional
+    overwrite of existing translations;
+  - **Sync links** — rewrite internal links in the selected collection
+    documents to their localized equivalents (globals sync their links from
+    their own document view);
   - **Skip fields** — tick translatable field roots (e.g. `slug`, `title`) to
-    leave them untouched; the options follow the collections of the selected
-    documents, plus a free-form input for deeper paths such as `seo.title`.
+    leave them untouched; the options follow the collections and globals of
+    the selected targets, plus a free-form input for deeper paths such as
+    `seo.title`.
 
 Tracking is content-based (a hash per translatable field), so edits to other
 locales or non-translatable fields never cause false positives.
