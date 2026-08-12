@@ -1,3 +1,26 @@
+# [2.0.0](https://github.com/nielsreijnders/payload-content-ops/compare/v1.31.0...v2.0.0) (2026-08-12)
+
+
+* feat!: rename package to payload-content-ops ([fb9df77](https://github.com/nielsreijnders/payload-content-ops/commit/fb9df77f54d0b61ae312270310fa1446340e7d27))
+
+
+### Features
+
+* per-feature model settings, prompt caching, and smarter request batching ([9a4f4bd](https://github.com/nielsreijnders/payload-content-ops/commit/9a4f4bdc15a6da42526c81c7ada1a54e861077a0))
+
+
+### BREAKING CHANGES
+
+* Admin components resolve via
+`payload-content-ops/client` instead of
+`payload-sync-ai-translations/client`. After swapping the dependency,
+update the import to `import { payloadContentOps } from
+'payload-content-ops'` (the old export name still works) and run
+`payload generate:importmap` — without regenerating the import map the
+admin panel cannot resolve the plugin components.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
 # [1.31.0](https://github.com/nielsreijnders/payload-sync-ai-translations/compare/v1.30.0...v1.31.0) (2026-07-07)
 
 
