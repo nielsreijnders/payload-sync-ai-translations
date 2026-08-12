@@ -41,7 +41,7 @@ describe('openAiTranslateTexts', () => {
     expect(result).toEqual(['Hallo wereld'])
   })
 
-  it('requests a strict JSON schema with the expected number of entries', async () => {
+  it('requests a strict JSON schema that stays identical across batch sizes', async () => {
     completionsCreateMock.mockResolvedValue({
       id: 'resp-1b',
       created: 0,
@@ -57,6 +57,8 @@ describe('openAiTranslateTexts', () => {
 
     await openAiTranslateTexts(['Hello', 'World'], 'en', 'nl')
 
+    // The schema must not vary with the number of inputs: a changing schema
+    // invalidates OpenAI's automatic prompt caching on every request.
     expect(completionsCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         response_format: {
@@ -71,8 +73,6 @@ describe('openAiTranslateTexts', () => {
                 t: {
                   type: 'array',
                   items: { type: 'string' },
-                  minItems: 2,
-                  maxItems: 2,
                 },
               },
             },
@@ -80,6 +80,93 @@ describe('openAiTranslateTexts', () => {
         },
       }),
     )
+  })
+
+  it('keeps the custom prompt in the stable prefix, before locales and items', async () => {
+    completionsCreateMock.mockResolvedValue({
+      id: 'resp-1c',
+      created: 0,
+      usage: {},
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({ t: ['Hallo'] }),
+          },
+        },
+      ],
+    })
+
+    await openAiTranslateTexts(['Hello'], 'en', 'nl', { customPrompt: 'Use formal tone.' })
+
+    const params = completionsCreateMock.mock.calls[0][0]
+    const userMessage = params.messages.find(
+      (message: { role: string }) => message.role === 'user',
+    ) as { content: string }
+
+    const promptIndex = userMessage.content.indexOf('Custom instructions: Use formal tone.')
+    const localeIndex = userMessage.content.indexOf('Source locale: "en". Target locale: "nl".')
+    const itemsIndex = userMessage.content.indexOf('items (1 entries):')
+
+    expect(promptIndex).toBeGreaterThan(-1)
+    expect(localeIndex).toBeGreaterThan(promptIndex)
+    expect(itemsIndex).toBeGreaterThan(localeIndex)
+  })
+
+  it('uses the model override from options when provided', async () => {
+    completionsCreateMock.mockResolvedValue({
+      id: 'resp-1d',
+      created: 0,
+      usage: {},
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({ t: ['Hallo'] }),
+          },
+        },
+      ],
+    })
+
+    await openAiTranslateTexts(['Hello'], 'en', 'nl', { model: 'override-model' })
+
+    expect(completionsCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'override-model' }),
+    )
+  })
+
+  it('retries without temperature when the model rejects it', async () => {
+    setOpenAISettings({ apiKey: 'test-key', model: 'reasoning-model' })
+
+    completionsCreateMock
+      .mockRejectedValueOnce({
+        code: 'unsupported_value',
+        message:
+          "Unsupported value: 'temperature' does not support 0 with this model. Only the default (1) value is supported.",
+        param: 'temperature',
+      })
+      .mockResolvedValue({
+        id: 'resp-1e',
+        created: 0,
+        usage: {},
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ t: ['Hallo'] }),
+            },
+          },
+        ],
+      })
+
+    const result = await openAiTranslateTexts(['Hello'], 'en', 'nl')
+
+    expect(result).toEqual(['Hallo'])
+    expect(completionsCreateMock).toHaveBeenCalledTimes(2)
+    expect(completionsCreateMock.mock.calls[0][0]).toHaveProperty('temperature', 0)
+    expect(completionsCreateMock.mock.calls[1][0]).not.toHaveProperty('temperature')
+
+    // The rejection is remembered per model: later calls skip temperature entirely.
+    await openAiTranslateTexts(['World'], 'en', 'nl')
+    expect(completionsCreateMock).toHaveBeenCalledTimes(3)
+    expect(completionsCreateMock.mock.calls[2][0]).not.toHaveProperty('temperature')
   })
 
   it('throws an error when OpenAI response has a mismatched length', async () => {

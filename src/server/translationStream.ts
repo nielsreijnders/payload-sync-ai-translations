@@ -10,11 +10,8 @@ import type {
 
 import { buildTranslatableItems } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
 import { splitLexicalText, toLexical } from '../utils/lexical.js'
-import {
-  expandConcretePathsFromPattern,
-  getValueAtPath,
-  MAX_CHARS_PER_CHUNK,
-} from '../utils/localizedFields.js'
+import { expandConcretePathsFromPattern, getValueAtPath } from '../utils/localizedFields.js'
+import { resolveFeatureModels } from './aiSettingsGlobal.js'
 import { resolveCustomPrompt } from './customPrompt.js'
 import { logDebug } from './debugSettings.js'
 import {
@@ -23,6 +20,7 @@ import {
   stripDocumentMetadata,
 } from './documentUtils.js'
 import { cloneLocaleData, mergeStructuralData, setValueAtPath } from './localeStructure.js'
+import { getMaxCharsPerRequest } from './openAiSettings.js'
 import { openAiTranslateTexts } from './openAiTranslationClient.js'
 import { buildSyncSnapshot, buildTargetKey, recordSyncSnapshot } from './syncStatusStore.js'
 import { getStoredTarget } from './translationStateStore.js'
@@ -297,7 +295,11 @@ function countLocalesItems(locales: TranslateLocaleRequestPayload[]): number {
   )
 }
 
-const MAX_CHARS_PER_BATCH = MAX_CHARS_PER_CHUNK * 2
+// Splitting threshold for single oversized lexical items: half the request
+// budget, so two translated segments still fit in one follow-up request.
+function getSegmentMaxChars(): number {
+  return Math.max(1, Math.floor(getMaxCharsPerRequest() / 2))
+}
 
 type TranslationTask =
   | {
@@ -318,11 +320,12 @@ function isLargeLexicalChunk(chunk: TranslateChunk): boolean {
     chunk.length === 1 &&
     chunk[0]?.lexical &&
     typeof chunk[0].text === 'string' &&
-    chunk[0].text.length > MAX_CHARS_PER_CHUNK
+    chunk[0].text.length > getSegmentMaxChars()
   )
 }
 
 function createTranslationTasks(chunks: TranslateChunk[]): TranslationTask[] {
+  const maxCharsPerBatch = getMaxCharsPerRequest()
   const tasks: TranslationTask[] = []
   let currentBatch: TranslateChunk[] = []
   let currentBatchChars = 0
@@ -347,7 +350,7 @@ function createTranslationTasks(chunks: TranslateChunk[]): TranslationTask[] {
     }
 
     const chunkLength = chunkCharacterLength(chunk)
-    if (currentBatch.length && currentBatchChars + chunkLength > MAX_CHARS_PER_BATCH) {
+    if (currentBatch.length && currentBatchChars + chunkLength > maxCharsPerBatch) {
       flushBatch()
     }
 
@@ -364,23 +367,52 @@ async function translateLargeLexicalItem(
   item: TranslateItem,
   from: string,
   locale: string,
-  options: { customPrompt?: string },
+  options: { customPrompt?: string; model?: string },
 ): Promise<string> {
-  const segments = splitLexicalText(item.text, MAX_CHARS_PER_CHUNK)
+  const segments = splitLexicalText(item.text, getSegmentMaxChars())
   if (segments.length <= 1) {
-    const [translated] = await openAiTranslateTexts([item.text], from, locale, {
-      customPrompt: options.customPrompt,
-    })
+    const [translated] = await openAiTranslateTexts([item.text], from, locale, options)
     return translated
+  }
+
+  // Bundle consecutive segments into shared requests instead of one request
+  // per segment, so the prompt overhead is paid once per group.
+  const maxCharsPerRequest = getMaxCharsPerRequest()
+  const groups: string[][] = []
+  let currentGroup: string[] = []
+  let currentChars = 0
+
+  for (const segment of segments) {
+    if (currentGroup.length && currentChars + segment.length > maxCharsPerRequest) {
+      groups.push(currentGroup)
+      currentGroup = []
+      currentChars = 0
+    }
+
+    currentGroup.push(segment)
+    currentChars += segment.length
+  }
+
+  if (currentGroup.length) {
+    groups.push(currentGroup)
   }
 
   const translatedSegments: string[] = []
 
-  for (const segment of segments) {
-    const [translated] = await openAiTranslateTexts([segment], from, locale, {
-      customPrompt: options.customPrompt,
-    })
-    translatedSegments.push(translated)
+  for (const group of groups) {
+    try {
+      const translated = await openAiTranslateTexts(group, from, locale, options)
+      translatedSegments.push(...translated)
+    } catch (error) {
+      if (group.length <= 1) {
+        throw error
+      }
+
+      for (const segment of group) {
+        const [translated] = await openAiTranslateTexts([segment], from, locale, options)
+        translatedSegments.push(translated)
+      }
+    }
   }
 
   return translatedSegments.join('')
@@ -391,7 +423,7 @@ async function translateChunk(
   chunk: TranslateChunk,
   from: string,
   locale: string,
-  options: { collection: string; customPrompt?: string; documentId: number | string },
+  options: { collection: string; customPrompt?: string; documentId: number | string; model?: string },
 ): Promise<string[]> {
   const texts = chunk.map((item) => item.text)
 
@@ -406,6 +438,7 @@ async function translateChunk(
     })
     const translated = await openAiTranslateTexts(texts, from, locale, {
       customPrompt: options.customPrompt,
+      model: options.model,
     })
     logDebug(payload, '[AI Translate] Received OpenAI translation.', {
       collection: options.collection,
@@ -436,6 +469,7 @@ async function translateChunk(
       try {
         const [result] = await openAiTranslateTexts([item.text], from, locale, {
           customPrompt: options.customPrompt,
+          model: options.model,
         })
         translated.push(result)
       } catch (singleError) {
@@ -469,7 +503,7 @@ async function translateChunkGroup(
   chunks: TranslateChunk[],
   from: string,
   locale: string,
-  options: { collection: string; customPrompt?: string; documentId: number | string },
+  options: { collection: string; customPrompt?: string; documentId: number | string; model?: string },
 ): Promise<string[][]> {
   if (!chunks.length) {
     return []
@@ -491,6 +525,7 @@ async function translateChunkGroup(
 
       const translated = await openAiTranslateTexts(texts, from, locale, {
         customPrompt: options.customPrompt,
+        model: options.model,
       })
 
       logDebug(payload, '[AI Translate] Received OpenAI translation batch.', {
@@ -749,6 +784,8 @@ export async function* streamTranslations(
   const customPromptFn = storedEntry?.customPrompt
   const promptCache = new Map<string, string | undefined>()
   const localeIdentifierPaths = collectIdentifierPaths(locales)
+  const featureModels = await resolveFeatureModels(payload)
+  const translateModel = featureModels.translate
 
   // Fingerprint of the source content, recorded per locale after a successful
   // sync so the plugin can detect documents that change afterwards.
@@ -852,6 +889,7 @@ export async function* streamTranslations(
           })
           const translatedText = await translateLargeLexicalItem(chunk[0], from, locale, {
             customPrompt: localePrompt,
+            model: translateModel,
           })
           translated = [translatedText]
         } catch (error) {
@@ -902,6 +940,7 @@ export async function* streamTranslations(
           collection: collectionLabel,
           customPrompt: localePrompt,
           documentId: translationDocumentId,
+          model: translateModel,
         })
 
         for (let index = 0; index < task.chunks.length; index += 1) {

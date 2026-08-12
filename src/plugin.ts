@@ -1,5 +1,6 @@
-import type { CollectionConfig, Config, GlobalConfig, PayloadTypes } from 'payload'
+import type { CollectionConfig, Config, Field, GlobalConfig, PayloadTypes } from 'payload'
 
+import { AI_SETTINGS_GLOBAL_SLUG } from './server/aiSettingsGlobal.js'
 import { createAiBulkTranslateHandler } from './server/bulkTranslationHandler.js'
 import { setDebugEnabled } from './server/debugSettings.js'
 import { createFindReplaceHandler } from './server/findReplaceHandler.js'
@@ -89,8 +90,28 @@ export type AiLocalizationConfig<TPayloadConfig = DefaultPayloadTypes> = {
   globals?: OptionsBySlug<GlobalDataBySlug<TPayloadConfig>>
   openai: {
     apiKey: string
+    /**
+     * Model choices offered in the AI Settings admin panel. When provided, the
+     * per-feature model overrides render as select fields instead of free text.
+     */
+    availableModels?: string[]
     baseURL?: string
+    /**
+     * Maximum number of source characters bundled into a single OpenAI request.
+     * Larger values mean fewer requests (and fewer repeats of the custom
+     * prompt) per document. Defaults to 6400.
+     */
+    maxCharsPerRequest?: number
     model?: string
+    /**
+     * Per-feature model overrides. Any feature left unset falls back to
+     * `model`. Values chosen in the AI Settings admin panel take precedence.
+     */
+    models?: {
+      proofread?: string
+      review?: string
+      translate?: string
+    }
   }
   /**
    * Optional base URL for building absolute links when syncing translated alternates.
@@ -496,10 +517,67 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
       label: 'Translation Status',
     }
 
+    const availableModels = (options.openai.availableModels ?? []).filter(Boolean)
+
+    const modelOverrideField = (name: string, label: string, description: string): Field => {
+      const base = {
+        name,
+        admin: { description },
+        label,
+      }
+
+      if (availableModels.length) {
+        return {
+          ...base,
+          type: 'select',
+          options: availableModels.map((model) => ({ label: model, value: model })),
+        }
+      }
+
+      return { ...base, type: 'text' }
+    }
+
+    const aiSettingsGlobal: GlobalConfig = {
+      slug: AI_SETTINGS_GLOBAL_SLUG,
+      admin: {
+        group: 'Plugins',
+        hideAPIURL: true,
+      },
+      fields: [
+        {
+          name: 'models',
+          type: 'group',
+          admin: {
+            description:
+              'Override which OpenAI model each AI feature uses. Empty fields fall back to the model from the plugin configuration.',
+          },
+          fields: [
+            modelOverrideField(
+              'translate',
+              'Translation model',
+              'Used for document translations and review suggestions.',
+            ),
+            modelOverrideField(
+              'review',
+              'Review model',
+              'Used for the missing-information check on existing translations.',
+            ),
+            modelOverrideField(
+              'proofread',
+              'Grammar check model',
+              'Used for grammar checks and typo corrections.',
+            ),
+          ],
+          label: 'AI models',
+        },
+      ],
+      label: 'AI Settings',
+    }
+
     const enhancedGlobals = [
       ...globals,
       ...(storedCollections.length || storedGlobals.length
-        ? [syncStatusGlobal, grammarGlobal, findReplaceGlobal]
+        ? [syncStatusGlobal, grammarGlobal, findReplaceGlobal, aiSettingsGlobal]
         : []),
       ...(storedSeoCollections.length ? [seoGlobal] : []),
     ]

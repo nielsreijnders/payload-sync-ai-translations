@@ -102,12 +102,34 @@ export interface PayloadSyncAiTranslationsOptions {
   openai: {
     apiKey: string
     /**
+     * Model choices offered in the AI Settings admin panel. When provided,
+     * the per-feature model overrides render as select fields instead of
+     * free-text inputs.
+     */
+    availableModels?: string[]
+    /**
      * Optional custom endpoint URL for self-hosted or alternative OpenAI-compatible APIs.
      * Supports Azure OpenAI, local LLMs, custom proxies, and other compatible providers.
      * Example: 'https://your-domain.com/v1' or 'http://localhost:8080/v1'
      */
     baseURL?: string
+    /**
+     * Maximum number of source characters bundled into a single OpenAI
+     * request (default: 6400). Raise this for capable models to reduce the
+     * number of requests (and repeats of your custom prompt) per document.
+     */
+    maxCharsPerRequest?: number
     model?: string
+    /**
+     * Per-feature model overrides. Any feature left unset falls back to
+     * `model`. Values chosen in the AI Settings admin panel take precedence
+     * over both.
+     */
+    models?: {
+      proofread?: string // grammar checks & typo corrections
+      review?: string // missing-information checks on existing translations
+      translate?: string // document translations & review suggestions
+    }
   }
 
   /**
@@ -122,6 +144,26 @@ export interface PayloadSyncAiTranslationsOptions {
 The SEO overview is compatible with the official `@payloadcms/plugin-seo` fields by default. Set
 `seo: true` for automatic content detection, or provide `contentFields` for a more precise score.
 Custom SEO schemas can use `titlePath` and `descriptionPath`.
+
+### Model selection & the AI Settings panel
+
+The plugin registers an **AI Settings** global in the admin panel where editors can override the
+model per feature (translate / review / grammar check) without a deploy. Overrides resolve in this
+order: admin panel value → `openai.models[feature]` → `openai.model` → `OPENAI_TRANSLATE_MODEL` env
+var → built-in default. Pass `openai.availableModels` to turn the free-text inputs into a curated
+select. Note: the new global requires a schema migration on databases that use migrations (e.g.
+Postgres).
+
+Reasoning models (o-series, gpt-5 family) that reject an explicit `temperature` are handled
+automatically: the plugin retries without the parameter and remembers this per model.
+
+### Requests & cost
+
+Translatable fields are bundled by character count — `maxCharsPerRequest` source characters per
+API request (default 6400) — so a typical document needs only one or two requests per locale
+instead of one per field. Prompts are structured so the static instructions and your
+`customPrompt` form a stable prefix, letting OpenAI's automatic prompt caching discount them on
+consecutive requests.
 
 ---
 

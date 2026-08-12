@@ -9,10 +9,12 @@ import type {
 } from './translationTypes.js'
 
 import { stripLexicalMarkers } from '../utils/lexical.js'
-import { extractPlainText, getValueAtPath, MAX_CHARS_PER_CHUNK } from '../utils/localizedFields.js'
+import { extractPlainText, getValueAtPath } from '../utils/localizedFields.js'
+import { resolveFeatureModels } from './aiSettingsGlobal.js'
 import { resolveCustomPrompt } from './customPrompt.js'
 import { logDebug } from './debugSettings.js'
 import { loadLocalizedDocument, stripDocumentMetadata } from './documentUtils.js'
+import { getMaxCharsPerRequest } from './openAiSettings.js'
 import {
   type MissingInformationCheckInput,
   openAiDetectMissingInformation,
@@ -29,13 +31,14 @@ type TranslateSuggestionInput = {
 }
 
 function chunkSuggestionInputs(entries: TranslateSuggestionInput[]): TranslateSuggestionInput[][] {
+  const maxCharsPerRequest = getMaxCharsPerRequest()
   const chunks: TranslateSuggestionInput[][] = []
   let current: TranslateSuggestionInput[] = []
   let total = 0
 
   for (const entry of entries) {
     const length = entry.text.length
-    if (current.length && total + length > MAX_CHARS_PER_CHUNK) {
+    if (current.length && total + length > maxCharsPerRequest) {
       chunks.push(current)
       current = [entry]
       total = length
@@ -268,6 +271,7 @@ export async function generateTranslationReview(
   const storedEntry = getStoredTarget({ collection: request.collection, global: request.global })
   const customPromptFn = storedEntry?.customPrompt
   const promptCache = new Map<string, string | undefined>()
+  const featureModels = await resolveFeatureModels(payload)
 
   for (const localeCode of request.locales) {
     let localeDoc: null | Record<string, unknown> = null
@@ -359,7 +363,9 @@ export async function generateTranslationReview(
             locale: localeCode,
           },
         )
-        const results = await openAiDetectMissingInformation(aiInputs, request.from, localeCode)
+        const results = await openAiDetectMissingInformation(aiInputs, request.from, localeCode, {
+          model: featureModels.review,
+        })
         logDebug(payload, '[AI Translate] Missing information check results.', {
           // @ts-expect-error -- Need to investigate
           collection: request.collection,
@@ -450,7 +456,7 @@ export async function generateTranslationReview(
             chunk.map((item) => item.text),
             request.from,
             localeCode,
-            { customPrompt: localePrompt },
+            { customPrompt: localePrompt, model: featureModels.translate },
           )
 
           chunk.forEach((item, chunkIndex) => {

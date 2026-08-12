@@ -237,7 +237,7 @@ function safeParseJsonResponse(content: string): unknown {
   return null
 }
 
-function getClientAndModel(): { client: OpenAI; model: string } {
+function getClientAndModel(modelOverride?: string): { client: OpenAI; model: string } {
   const settings = getOpenAISettings()
   if (!settings?.apiKey) {
     throw new Error('Missing OpenAI API key')
@@ -248,29 +248,82 @@ function getClientAndModel(): { client: OpenAI; model: string } {
     baseURL: settings.baseURL
   })
 
-  const model = settings.model || DEFAULT_MODEL
+  const model = modelOverride || settings.model || DEFAULT_MODEL
 
   return { client, model }
+}
+
+// Reasoning models (o-series, gpt-5 family) only accept their default temperature
+// and reject any explicit value with a 400 error.
+const temperatureUnsupportedModels = new Set<string>()
+
+function isTemperatureUnsupportedError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false
+  }
+
+  const details = error as { code?: unknown; message?: unknown; param?: unknown }
+
+  if (
+    details.param === 'temperature' &&
+    (details.code === 'unsupported_parameter' || details.code === 'unsupported_value')
+  ) {
+    return true
+  }
+
+  const message = typeof details.message === 'string' ? details.message.toLowerCase() : ''
+
+  return (
+    message.includes('temperature') &&
+    (message.includes('unsupported') ||
+      message.includes('not supported') ||
+      message.includes('does not support'))
+  )
+}
+
+async function createChatCompletion(
+  client: OpenAI,
+  params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  const { temperature: _temperature, ...withoutTemperature } = params
+
+  if (params.temperature === undefined || temperatureUnsupportedModels.has(params.model)) {
+    return client.chat.completions.create(withoutTemperature)
+  }
+
+  try {
+    return await client.chat.completions.create(params)
+  } catch (error) {
+    if (!isTemperatureUnsupportedError(error)) {
+      throw error
+    }
+
+    temperatureUnsupportedModels.add(params.model)
+    return client.chat.completions.create(withoutTemperature)
+  }
 }
 
 export async function openAiTranslateTexts(
   inputs: string[],
   from: string,
   to: string,
-  options: { customPrompt?: string } = {},
+  options: { customPrompt?: string; model?: string } = {},
 ): Promise<string[]> {
   if (!inputs.length) {
     return []
   }
 
-  const { client, model } = getClientAndModel()
+  const { client, model } = getClientAndModel(options.model)
   const itemsPayload = JSON.stringify(inputs)
 
+  // Static instructions (and the custom prompt) come first so consecutive
+  // requests share a stable prefix that OpenAI can serve from its prompt cache;
+  // everything that varies per request stays at the end.
   const userPromptSections = [
-    `Translate the values inside the "items" array from locale "${from}" to locale "${to}".`,
+    'Translate the values inside the "items" array from the source locale to the target locale specified below.',
     'Keep formatting and punctuation.',
     'If text includes markers like [[LEX-0]]...[[/LEX-0]], preserve them exactly as-is.',
-    `Return strict JSON in the shape {"t": [...]} with exactly ${inputs.length} entries in the same order as "items".`,
+    'Return strict JSON in the shape {"t": [...]} with exactly one entry per item, in the same order as "items".',
     'Do not include translations for anything outside of the "items" array.',
     'Do not add numbering or bullet markers that are not present in the source text.',
   ]
@@ -279,12 +332,14 @@ export async function openAiTranslateTexts(
     userPromptSections.push(`Custom instructions: ${options.customPrompt}`)
   }
 
+  userPromptSections.push(`Source locale: "${from}". Target locale: "${to}".`)
+
   // Prevent the ai model from translating the prompt itself by isolating the items payload
-  userPromptSections.push(`items: ${itemsPayload}`)
+  userPromptSections.push(`items (${inputs.length} entries): ${itemsPayload}`)
 
   const userPrompt = userPromptSections.join('\n')
 
-  const response = await client.chat.completions.create({
+  const response = await createChatCompletion(client, {
     messages: [
       { content: SYSTEM_PROMPT, role: 'system' },
       { content: userPrompt, role: 'user' },
@@ -301,8 +356,6 @@ export async function openAiTranslateTexts(
             t: {
               type: 'array',
               items: { type: 'string' },
-              maxItems: inputs.length,
-              minItems: inputs.length,
             },
           },
           required: ['t'],
@@ -373,22 +426,23 @@ export async function openAiTranslateTexts(
 export async function openAiProofreadTexts(
   inputs: string[],
   locale: string,
-  options: { customPrompt?: string } = {},
+  options: { customPrompt?: string; model?: string } = {},
 ): Promise<string[]> {
   if (!inputs.length) {
     return []
   }
 
-  const { client, model } = getClientAndModel()
+  const { client, model } = getClientAndModel(options.model)
   const itemsPayload = JSON.stringify(inputs)
 
+  // Static parts first, variable parts last — see openAiTranslateTexts.
   const userPromptSections = [
-    `Proofread the values inside the "items" array for locale "${locale}".`,
+    'Proofread the values inside the "items" array for the locale specified below.',
     'Fix obvious typos, spelling mistakes, and grammar errors.',
     'Do not translate to another language.',
     'Keep style and tone unchanged unless required for a correction.',
     'If text includes markers like [[LEX-0]]...[[/LEX-0]], preserve them exactly as-is.',
-    `Return strict JSON in the shape {"t": [...]} with exactly ${inputs.length} entries in the same order as "items".`,
+    'Return strict JSON in the shape {"t": [...]} with exactly one entry per item, in the same order as "items".',
     'If an item is already correct, return it unchanged.',
   ]
 
@@ -396,11 +450,12 @@ export async function openAiProofreadTexts(
     userPromptSections.push(`Additional instructions: ${options.customPrompt}`)
   }
 
-  userPromptSections.push(`items: ${itemsPayload}`)
+  userPromptSections.push(`Locale: "${locale}".`)
+  userPromptSections.push(`items (${inputs.length} entries): ${itemsPayload}`)
 
   const userPrompt = userPromptSections.join('\n')
 
-  const response = await client.chat.completions.create({
+  const response = await createChatCompletion(client, {
     messages: [
       { content: PROOFREAD_SYSTEM_PROMPT, role: 'system' },
       { content: userPrompt, role: 'user' },
@@ -417,8 +472,6 @@ export async function openAiProofreadTexts(
             t: {
               type: 'array',
               items: { type: 'string' },
-              maxItems: inputs.length,
-              minItems: inputs.length,
             },
           },
           required: ['t'],
@@ -502,12 +555,13 @@ export async function openAiDetectMissingInformation(
   inputs: MissingInformationCheckInput[],
   from: string,
   to: string,
+  options: { model?: string } = {},
 ): Promise<MissingInformationCheckResult[]> {
   if (!inputs.length) {
     return []
   }
 
-  const { client, model } = getClientAndModel()
+  const { client, model } = getClientAndModel(options.model)
   const payload = JSON.stringify(
     inputs.map((item) => ({
       defaultText: item.defaultText,
@@ -516,16 +570,17 @@ export async function openAiDetectMissingInformation(
     })),
   )
 
+  // Static parts first, variable parts last — see openAiTranslateTexts.
   const userPrompt = [
-    `Base locale: ${from}. Target locale: ${to}.`,
-    'Analyse the JSON array. For each entry, decide if translatedText lacks important information (facts, names, numbers, claims, whole sentences, or calls to action) present in defaultText.',
+    'Analyse the JSON array given at the end of this message. For each entry, decide if translatedText lacks important information (facts, names, numbers, claims, whole sentences, or calls to action) present in defaultText.',
     'Stylistic, idiomatic, word-choice, or punctuation differences are not missing information.',
     'Respond with JSON {"issues":[{"index":number,"missing":boolean,"reason":string}]} including one entry per input item.',
     'Reason must be empty when missing is false and limited to 20 words otherwise.',
+    `Base locale: ${from}. Target locale: ${to}.`,
     `Input: ${payload}`,
   ].join('\n')
 
-  const response = await client.chat.completions.create({
+  const response = await createChatCompletion(client, {
     messages: [
       { content: REVIEW_SYSTEM_PROMPT, role: 'system' },
       { content: userPrompt, role: 'user' },

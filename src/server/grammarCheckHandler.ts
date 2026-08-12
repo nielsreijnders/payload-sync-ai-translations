@@ -8,6 +8,7 @@ import type {
 } from './translationTypes.js'
 
 import { chunkItems } from '../utils/localizedFields.js'
+import { resolveFeatureModels } from './aiSettingsGlobal.js'
 import { runApplyFromTargets } from './bulkApplyRunner.js'
 import { parseApplyTargets, sanitizeSlugArray, serializeBulkEvent } from './bulkRequestParsing.js'
 import { resolveCustomPrompt } from './customPrompt.js'
@@ -95,6 +96,7 @@ async function buildTypoOverrides(
   items: TranslatableItem[],
   locale: string,
   customPrompt?: string,
+  model?: string,
 ): Promise<TypoOverride[]> {
   if (!items.length) {
     return []
@@ -108,6 +110,7 @@ async function buildTypoOverrides(
       locale,
       {
         customPrompt,
+        model,
       },
     )
 
@@ -254,6 +257,8 @@ async function* runBulkGrammarCheck(
     grandTotal += 1
   }
 
+  const featureModels = await resolveFeatureModels(payload)
+
   yield {
     type: 'bulk-start',
     totalCollections: selectedCollections.length + selectedGlobals.length,
@@ -360,7 +365,7 @@ async function* runBulkGrammarCheck(
 
         let overrides: TypoOverride[] = []
         try {
-          overrides = await buildTypoOverrides(items, defaultLocale, grammarPrompt)
+          overrides = await buildTypoOverrides(items, defaultLocale, grammarPrompt, featureModels.proofread)
         } catch (error) {
           const message =
             error instanceof Error
@@ -550,7 +555,7 @@ async function* runBulkGrammarCheck(
     let overrides: TypoOverride[] = []
 
     try {
-      overrides = await buildTypoOverrides(items, defaultLocale, grammarPrompt)
+      overrides = await buildTypoOverrides(items, defaultLocale, grammarPrompt, featureModels.proofread)
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to scan global for grammar corrections.'
