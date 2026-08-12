@@ -1,10 +1,10 @@
 {
-  "name": "payload-sync-ai-translations",
+  "name": "payload-content-ops",
   "version": "1.0.0",
-  "description": "AI-powered translation sync, grammar checks, SEO auditing, link syncing and bulk find & replace for Payload CMS.",
+  "description": "Content operations for Payload CMS: AI-powered translation sync, grammar checks, SEO auditing, link syncing and bulk find & replace. Formerly payload-sync-ai-translations.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nielsreijnders/payload-sync-ai-translations"
+    "url": "https://github.com/nielsreijnders/payload-content-ops"
   },
   "license": "MIT",
   "type": "module",

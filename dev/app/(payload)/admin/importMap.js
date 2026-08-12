@@ -26,14 +26,14 @@ import { MetaTitleComponent as MetaTitleComponent_a8a977ebc872c5d5ea7ee689724c08
 import { MetaDescriptionComponent as MetaDescriptionComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { MetaImageComponent as MetaImageComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { PreviewComponent as PreviewComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
-import { DebugDocumentCopyButton as DebugDocumentCopyButton_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
-import { AutoTranslateButton as AutoTranslateButton_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
-import { DocumentSyncLinksButton as DocumentSyncLinksButton_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
-import { TranslationStatusGlobal as TranslationStatusGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
-import { HiddenSaveButton as HiddenSaveButton_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
-import { GrammarCheckGlobal as GrammarCheckGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
-import { FindReplaceGlobal as FindReplaceGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
-import { SeoOverviewGlobal as SeoOverviewGlobal_2043071721ce9b13e636c3dacf801366 } from 'payload-sync-ai-translations/client'
+import { DebugDocumentCopyButton as DebugDocumentCopyButton_b6aac4a45645b9152c7682d0c57291bb } from 'payload-content-ops/client'
+import { AutoTranslateButton as AutoTranslateButton_b6aac4a45645b9152c7682d0c57291bb } from 'payload-content-ops/client'
+import { DocumentSyncLinksButton as DocumentSyncLinksButton_b6aac4a45645b9152c7682d0c57291bb } from 'payload-content-ops/client'
+import { TranslationStatusGlobal as TranslationStatusGlobal_b6aac4a45645b9152c7682d0c57291bb } from 'payload-content-ops/client'
+import { HiddenSaveButton as HiddenSaveButton_b6aac4a45645b9152c7682d0c57291bb } from 'payload-content-ops/client'
+import { GrammarCheckGlobal as GrammarCheckGlobal_b6aac4a45645b9152c7682d0c57291bb } from 'payload-content-ops/client'
+import { FindReplaceGlobal as FindReplaceGlobal_b6aac4a45645b9152c7682d0c57291bb } from 'payload-content-ops/client'
+import { SeoOverviewGlobal as SeoOverviewGlobal_b6aac4a45645b9152c7682d0c57291bb } from 'payload-content-ops/client'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
 /** @type import('payload').ImportMap */
@@ -66,13 +66,13 @@ export const importMap = {
   "@payloadcms/plugin-seo/client#MetaDescriptionComponent": MetaDescriptionComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "@payloadcms/plugin-seo/client#MetaImageComponent": MetaImageComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "@payloadcms/plugin-seo/client#PreviewComponent": PreviewComponent_a8a977ebc872c5d5ea7ee689724c0860,
-  "payload-sync-ai-translations/client#DebugDocumentCopyButton": DebugDocumentCopyButton_2043071721ce9b13e636c3dacf801366,
-  "payload-sync-ai-translations/client#AutoTranslateButton": AutoTranslateButton_2043071721ce9b13e636c3dacf801366,
-  "payload-sync-ai-translations/client#DocumentSyncLinksButton": DocumentSyncLinksButton_2043071721ce9b13e636c3dacf801366,
-  "payload-sync-ai-translations/client#TranslationStatusGlobal": TranslationStatusGlobal_2043071721ce9b13e636c3dacf801366,
-  "payload-sync-ai-translations/client#HiddenSaveButton": HiddenSaveButton_2043071721ce9b13e636c3dacf801366,
-  "payload-sync-ai-translations/client#GrammarCheckGlobal": GrammarCheckGlobal_2043071721ce9b13e636c3dacf801366,
-  "payload-sync-ai-translations/client#FindReplaceGlobal": FindReplaceGlobal_2043071721ce9b13e636c3dacf801366,
-  "payload-sync-ai-translations/client#SeoOverviewGlobal": SeoOverviewGlobal_2043071721ce9b13e636c3dacf801366,
+  "payload-content-ops/client#DebugDocumentCopyButton": DebugDocumentCopyButton_b6aac4a45645b9152c7682d0c57291bb,
+  "payload-content-ops/client#AutoTranslateButton": AutoTranslateButton_b6aac4a45645b9152c7682d0c57291bb,
+  "payload-content-ops/client#DocumentSyncLinksButton": DocumentSyncLinksButton_b6aac4a45645b9152c7682d0c57291bb,
+  "payload-content-ops/client#TranslationStatusGlobal": TranslationStatusGlobal_b6aac4a45645b9152c7682d0c57291bb,
+  "payload-content-ops/client#HiddenSaveButton": HiddenSaveButton_b6aac4a45645b9152c7682d0c57291bb,
+  "payload-content-ops/client#GrammarCheckGlobal": GrammarCheckGlobal_b6aac4a45645b9152c7682d0c57291bb,
+  "payload-content-ops/client#FindReplaceGlobal": FindReplaceGlobal_b6aac4a45645b9152c7682d0c57291bb,
+  "payload-content-ops/client#SeoOverviewGlobal": SeoOverviewGlobal_b6aac4a45645b9152c7682d0c57291bb,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

@@ -120,22 +120,22 @@ export type AiLocalizationConfig<TPayloadConfig = DefaultPayloadTypes> = {
   serverURL?: string
 }
 
-export type PayloadSyncAiTranslationsPlugin = <TPayloadConfig = DefaultPayloadTypes>(
+export type PayloadContentOpsPlugin = <TPayloadConfig = DefaultPayloadTypes>(
   options: AiLocalizationConfig<NoInferPayloadTypes<TPayloadConfig>>,
 ) => (config: Config) => Config
 
-const CLIENT_EXPORT = 'payload-sync-ai-translations/client#AutoTranslateButton'
-const HIDDEN_SAVE_BUTTON = 'payload-sync-ai-translations/client#HiddenSaveButton'
-const FIND_REPLACE_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#FindReplaceGlobal'
-const GRAMMAR_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#GrammarCheckGlobal'
-const SEO_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#SeoOverviewGlobal'
-const SYNC_STATUS_GLOBAL_COMPONENT = 'payload-sync-ai-translations/client#TranslationStatusGlobal'
+const CLIENT_EXPORT = 'payload-content-ops/client#AutoTranslateButton'
+const HIDDEN_SAVE_BUTTON = 'payload-content-ops/client#HiddenSaveButton'
+const FIND_REPLACE_GLOBAL_COMPONENT = 'payload-content-ops/client#FindReplaceGlobal'
+const GRAMMAR_GLOBAL_COMPONENT = 'payload-content-ops/client#GrammarCheckGlobal'
+const SEO_GLOBAL_COMPONENT = 'payload-content-ops/client#SeoOverviewGlobal'
+const SYNC_STATUS_GLOBAL_COMPONENT = 'payload-content-ops/client#TranslationStatusGlobal'
 const FIND_REPLACE_GLOBAL_SLUG = 'find-replace'
 const GRAMMAR_GLOBAL_SLUG = 'grammar-check'
 const SEO_GLOBAL_SLUG = 'seo-overview'
 const SYNC_STATUS_GLOBAL_SLUG = 'translation-status'
-const DEBUG_CLIENT_EXPORT = 'payload-sync-ai-translations/client#DebugDocumentCopyButton'
-const SYNC_LINKS_CLIENT_EXPORT = 'payload-sync-ai-translations/client#DocumentSyncLinksButton'
+const DEBUG_CLIENT_EXPORT = 'payload-content-ops/client#DebugDocumentCopyButton'
+const SYNC_LINKS_CLIENT_EXPORT = 'payload-content-ops/client#DocumentSyncLinksButton'
 
 function normalizeLocalePromptSetting<TData = unknown>(
   input?: AiLocalePromptSetting<TData>,
@@ -190,7 +190,7 @@ function normalizeLocalePromptSetting<TData = unknown>(
   }
 }
 
-export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
+export const payloadContentOps: PayloadContentOpsPlugin =
   (options) =>
   (config: Config): Config => {
     const collectionOptions = options.collections as
@@ -626,3 +626,15 @@ export const payloadSyncAiTranslations: PayloadSyncAiTranslationsPlugin =
       globals: enhancedGlobals,
     }
   }
+
+/**
+ * @deprecated Renamed to {@link payloadContentOps} as part of the package
+ * rename from `payload-sync-ai-translations` to `payload-content-ops`.
+ */
+export const payloadSyncAiTranslations = payloadContentOps
+
+/**
+ * @deprecated Renamed to {@link PayloadContentOpsPlugin} as part of the package
+ * rename from `payload-sync-ai-translations` to `payload-content-ops`.
+ */
+export type PayloadSyncAiTranslationsPlugin = PayloadContentOpsPlugin

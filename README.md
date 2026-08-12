@@ -1,9 +1,12 @@
-# payload-sync-ai-translations
+# payload-content-ops
+
+> Formerly published as `payload-sync-ai-translations` — see [Migrating from payload-sync-ai-translations](#-migrating-from-payload-sync-ai-translations).
 
 ## Overview
 
-**payload-sync-ai-translations** is a Payload CMS plugin that adds a powerful one-click translation workflow to your projects.  
-It automatically translates your documents into all available languages, intelligently detects missing context, and allows you to review and edit translations before applying them.
+**payload-content-ops** is a content-operations plugin for Payload CMS: bulk, reviewable operations on your content — AI-powered translation sync, grammar checks, SEO auditing, link syncing, translation status and find & replace.
+
+Its flagship workflow is one-click translation: it automatically translates your documents into all available languages, intelligently detects missing context, and allows you to review and edit translations before applying them.
 
 Built using the official [Payload Plugin Template](https://payloadcms.com/docs/plugins/overview), this plugin is reusable, modular, and easy to integrate into any Payload setup.
 
@@ -30,9 +33,9 @@ Built using the official [Payload Plugin Template](https://payloadcms.com/docs/p
 Install via your package manager:
 
 ```bash
-pnpm install payload-sync-ai-translations
+pnpm install payload-content-ops
 # or
-npm install payload-sync-ai-translations
+npm install payload-content-ops
 ```
 
 ---
@@ -44,7 +47,7 @@ Add the plugin to your Payload config:
 ```ts
 import { seoPlugin } from '@payloadcms/plugin-seo'
 import { buildConfig } from 'payload/config'
-import { payloadSyncAiTranslations } from 'payload-sync-ai-translations'
+import { payloadContentOps } from 'payload-content-ops'
 
 export default buildConfig({
   plugins: [
@@ -52,7 +55,7 @@ export default buildConfig({
       collections: ['posts'],
       uploadsCollection: 'media',
     }),
-    payloadSyncAiTranslations({
+    payloadContentOps({
       collections: {
         posts: {
           excludeFields: ['slug'],
@@ -253,7 +256,35 @@ By encapsulating your translation logic in a reusable Payload plugin, you can:
 - Share your work with the Payload community
 - Keep your codebase clean and modular
 
-**payload-sync-ai-translations** streamlines multilingual content management with smart, context-aware AI translations — all directly inside the Payload admin interface.
+**payload-content-ops** streamlines multilingual content management with smart, context-aware AI translations — all directly inside the Payload admin interface.
+
+---
+
+## 🔁 Migrating from payload-sync-ai-translations
+
+This package was previously published as `payload-sync-ai-translations`. To migrate:
+
+1. Swap the dependency:
+
+   ```bash
+   pnpm remove payload-sync-ai-translations && pnpm add payload-content-ops
+   ```
+
+2. Update your imports — the plugin function is now `payloadContentOps` (the old
+   `payloadSyncAiTranslations` name is still exported as a deprecated alias):
+
+   ```ts
+   import { payloadContentOps } from 'payload-content-ops'
+   ```
+
+3. **Regenerate your import map** — the admin components are registered under the new package
+   name, so this step is required or your admin panel will fail to resolve them:
+
+   ```bash
+   payload generate:importmap
+   ```
+
+No option names, field structures, endpoints or database schemas changed as part of the rename.
 
 ---
 

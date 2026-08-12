@@ -34,7 +34,7 @@ export async function fetchAlternateLinks(
   const response = await fetcher(resolved, {
     headers: {
       'Accept': 'text/html,application/xhtml+xml',
-      'User-Agent': 'payload-sync-ai-translations/links (+https://github.com/nielsreijnders/payload-sync-ai-translations)',
+      'User-Agent': 'payload-content-ops/links (+https://github.com/nielsreijnders/payload-content-ops)',
     },
   })
 

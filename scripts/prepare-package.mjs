@@ -70,7 +70,7 @@ async function main() {
         ? pkg.repository
         : {
             type: 'git',
-            url: 'https://github.com/nielsreijnders/payload-sync-ai-translations',
+            url: 'https://github.com/nielsreijnders/payload-content-ops',
           },
     homepage: pkg.homepage,
     bugs: pkg.bugs,

@@ -19,13 +19,13 @@
       "@payload-config": [
         "./payload.config.ts"
       ],
-      "payload-sync-ai-translations": [
+      "payload-content-ops": [
         "../src/index.ts"
       ],
-      "payload-sync-ai-translations/client": [
+      "payload-content-ops/client": [
         "../src/exports/client.ts"
       ],
-      "payload-sync-ai-translations/rsc": [
+      "payload-content-ops/rsc": [
         "../src/exports/rsc.ts"
       ]
     },

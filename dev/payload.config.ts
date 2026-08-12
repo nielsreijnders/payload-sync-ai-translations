@@ -4,7 +4,7 @@ import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { MongoMemoryReplSet } from 'mongodb-memory-server'
 import path from 'path'
 import { buildConfig } from 'payload'
-import { payloadSyncAiTranslations } from 'payload-sync-ai-translations'
+import { payloadContentOps } from 'payload-content-ops'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
@@ -72,7 +72,7 @@ const buildConfigWithMemoryDB = async () => {
         generateTitle: ({ doc }) => (typeof doc?.title === 'string' ? doc.title : ''),
         uploadsCollection: 'media',
       }),
-      payloadSyncAiTranslations({
+      payloadContentOps({
         collections: {
           posts: {
             customPrompt: (data) => {
