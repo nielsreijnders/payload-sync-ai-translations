@@ -42,6 +42,32 @@ function ensureArray<T>(value: Iterable<T> | undefined): T[] {
   return value ? Array.from(value) : []
 }
 
+/**
+ * Same-origin links are stored as site-relative paths. Alternate (hreflang)
+ * tags expose absolute URLs for whatever host rendered the page, so writing
+ * them verbatim bakes the environment into the content — a sync against a
+ * dev server would store `http://localhost:3000/...` links in production
+ * data. External origins pass through untouched.
+ */
+function toSiteRelativeUrl(url: string, baseUrl?: string): string {
+  if (!baseUrl || !/^https?:\/\//i.test(url)) {
+    return url
+  }
+
+  try {
+    const parsed = new URL(url)
+    const base = new URL(baseUrl)
+
+    if (parsed.origin !== base.origin) {
+      return url
+    }
+
+    return `${parsed.pathname}${parsed.search}${parsed.hash}` || '/'
+  } catch (_error) {
+    return url
+  }
+}
+
 export async function synchronizeLinksForDocument(
   options: LinkSyncOptions,
   cache: FetchCache = new Map(),
@@ -203,7 +229,7 @@ export async function synchronizeLinksForDocument(
       if (!localeUrlMap.has(locale)) {
         localeUrlMap.set(locale, new Map())
       }
-      localeUrlMap.get(locale)?.set(url, nextUrl)
+      localeUrlMap.get(locale)?.set(url, toSiteRelativeUrl(nextUrl, serverURL))
     }
   }
 

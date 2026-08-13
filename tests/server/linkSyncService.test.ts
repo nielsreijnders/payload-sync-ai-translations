@@ -462,6 +462,78 @@ describe('synchronizeLinksForDocument', () => {
     expect(savedLinks[0].sublinks[0].link.label).toBe('Market Map')
   })
 
+  it('stores same-origin alternates as site-relative paths', async () => {
+    // hreflang tags expose absolute URLs for whatever host rendered the page;
+    // storing them verbatim would bake e.g. http://localhost:3000 into
+    // production content. Same-origin results must be saved relative.
+    const fieldPatterns = ['mainMenu', 'mainMenu[].link', 'mainMenu[].link.custom']
+
+    const defaultGlobal = {
+      id: 'global:menu',
+      mainMenu: [{ id: 'main-0', link: { custom: '/blog', linkType: 'custom' } }],
+      __links: [{ path: 'mainMenu.0.link.custom', value: '/blog' }],
+    }
+
+    vi.mocked(fetchAlternateLinks).mockResolvedValueOnce(
+      new Map([['nl', 'https://example.com/nl/blog']]),
+    )
+
+    const payloadMock = {
+      findGlobal: vi.fn<Payload['findGlobal']>().mockImplementation(async ({ locale }) => {
+        return { ...defaultGlobal, locale }
+      }),
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+      logger: { error: vi.fn(), info: vi.fn() },
+    } satisfies Partial<Payload>
+
+    const result = await synchronizeLinksForDocument({
+      defaultLocale: 'en',
+      fieldPatterns,
+      global: 'menu',
+      payload: payloadMock as Payload,
+      serverURL: 'https://example.com',
+      targetLocales: ['en', 'nl'],
+    })
+
+    expect(result.replacements).toBeGreaterThan(0)
+    const saved = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
+    expect(saved?.data?.replaced).toBe('/nl/blog')
+  })
+
+  it('keeps external alternate URLs absolute', async () => {
+    const fieldPatterns = ['mainMenu', 'mainMenu[].link', 'mainMenu[].link.custom']
+
+    const defaultGlobal = {
+      id: 'global:menu',
+      mainMenu: [{ id: 'main-0', link: { custom: 'https://docs.partner.com/en/guide' } }],
+      __links: [{ path: 'mainMenu.0.link.custom', value: 'https://docs.partner.com/en/guide' }],
+    }
+
+    vi.mocked(fetchAlternateLinks).mockResolvedValueOnce(
+      new Map([['nl', 'https://docs.partner.com/nl/guide']]),
+    )
+
+    const payloadMock = {
+      findGlobal: vi.fn<Payload['findGlobal']>().mockImplementation(async ({ locale }) => {
+        return { ...defaultGlobal, locale }
+      }),
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+      logger: { error: vi.fn(), info: vi.fn() },
+    } satisfies Partial<Payload>
+
+    await synchronizeLinksForDocument({
+      defaultLocale: 'en',
+      fieldPatterns,
+      global: 'menu',
+      payload: payloadMock as Payload,
+      serverURL: 'https://example.com',
+      targetLocales: ['en', 'nl'],
+    })
+
+    const saved = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
+    expect(saved?.data?.replaced).toBe('https://docs.partner.com/nl/guide')
+  })
+
   it('mirrors the published source status when saving link updates', async () => {
     const fieldPatterns = ['mainMenu', 'mainMenu[].link', 'mainMenu[].link.custom']
 

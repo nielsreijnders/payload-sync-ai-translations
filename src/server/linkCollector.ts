@@ -147,13 +147,33 @@ export function collectLinkOccurrences(
   return collected
 }
 
+/**
+ * Resolve the locale value for an occurrence path. The id-based lookup keeps
+ * replacements on the right row when shared arrays are reordered, but rows of
+ * LOCALIZED arrays exist per locale with their own ids, so that lookup finds
+ * nothing there. Fall back to the plain positional path — callers verify the
+ * source URL before replacing, which keeps the positional match safe.
+ */
+function resolveOccurrenceValue(
+  occurrence: LinkOccurrence,
+  baseDoc: unknown,
+  data: unknown,
+): unknown {
+  const idMatched = getValueAtPath(data, occurrence.path, { base: baseDoc })
+  if (idMatched !== undefined) {
+    return idMatched
+  }
+
+  return getValueAtPath(data, occurrence.path)
+}
+
 function replaceInString(
   occurrence: Extract<LinkOccurrence, { type: 'string' }>,
   baseDoc: unknown,
   data: unknown,
   replacement: string,
 ): LinkReplacementResult<unknown> {
-  const current = getValueAtPath(data, occurrence.path, { base: baseDoc })
+  const current = resolveOccurrenceValue(occurrence, baseDoc, data)
   if (typeof current !== 'string' || !current.includes(occurrence.value)) {
     return { changed: false, data }
   }
@@ -176,7 +196,7 @@ function replaceInLexical(
   data: unknown,
   replacement: string,
 ): LinkReplacementResult<unknown> {
-  const current = getValueAtPath(data, occurrence.path, { base: baseDoc })
+  const current = resolveOccurrenceValue(occurrence, baseDoc, data)
   if (!isLexicalValue(current)) {
     return { changed: false, data }
   }
