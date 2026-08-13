@@ -29,6 +29,7 @@ export type BulkLinkSyncRequestPayload = {
    * only these documents are link-synced instead of the whole collection.
    */
   documents?: Record<string, Array<number | string>>
+  globals?: string[]
 }
 
 export type BulkLinkSyncDocumentReport = {

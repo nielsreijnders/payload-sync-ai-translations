@@ -2,11 +2,12 @@ import type { Payload, PayloadHandler } from 'payload'
 
 import type { BulkLinkSyncRequestPayload, BulkLinkSyncResponse } from './linkSyncTypes.js'
 
-import { parseDocumentsFilter } from './bulkRequestParsing.js'
+import { parseDocumentsFilter, sanitizeSlugArray } from './bulkRequestParsing.js'
 import { synchronizeLinksForDocument } from './linkSyncService.js'
 import { rejectUnauthenticated } from './requireUser.js'
 import {
   getStoredCollection,
+  getStoredGlobal,
   getStoredTarget,
   getTranslationState,
 } from './translationStateStore.js'
@@ -92,25 +93,23 @@ function parseBulkBody(body: unknown): BulkLinkSyncRequestPayload {
   }
 
   const candidate = body as Record<string, unknown>
-  const collections = candidate.collections
 
-  if (!Array.isArray(collections)) {
+  if (candidate.collections !== undefined && !Array.isArray(candidate.collections)) {
     throw new Error('Expected "collections" to be an array')
   }
 
-  const sanitized = Array.from(
-    new Set(
-      collections
-        .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
-        .filter((entry): entry is string => Boolean(entry)),
-    ),
-  )
-
-  if (!sanitized.length) {
-    throw new Error('No collections selected for bulk link sync')
+  if (candidate.globals !== undefined && !Array.isArray(candidate.globals)) {
+    throw new Error('Expected "globals" to be an array')
   }
 
-  return { collections: sanitized, documents: parseDocumentsFilter(candidate.documents) }
+  const collections = sanitizeSlugArray(candidate.collections)
+  const globals = sanitizeSlugArray(candidate.globals)
+
+  if (!collections.length && !globals.length) {
+    throw new Error('No collections or globals selected for bulk link sync')
+  }
+
+  return { collections, documents: parseDocumentsFilter(candidate.documents), globals }
 }
 
 export function createSyncLinksHandler(configuredBaseUrl?: string): PayloadHandler {
@@ -194,6 +193,7 @@ export function createBulkSyncLinksHandler(configuredBaseUrl?: string): PayloadH
       const errors: string[] = []
       const missingCounts = new Map<string, number>()
       const cache = new Map<string, Map<string, string>>()
+      const checkedCandidates = new Map<string, boolean>()
 
       for (const slug of request.collections) {
         const stored = getStoredCollection(slug)
@@ -245,6 +245,7 @@ export function createBulkSyncLinksHandler(configuredBaseUrl?: string): PayloadH
                   targetLocales: state.locales,
                 },
                 cache,
+                checkedCandidates,
               )
 
               replacements += report.replacements
@@ -267,6 +268,49 @@ export function createBulkSyncLinksHandler(configuredBaseUrl?: string): PayloadH
               errors.push(`${slug}#${label}: ${message}`)
             }
           }
+        }
+      }
+
+      for (const slug of request.globals ?? []) {
+        const stored = getStoredGlobal(slug)
+        if (!stored) {
+          warnings.push(`Global "${slug}" is not configured; skipping.`)
+          continue
+        }
+
+        documentsProcessed += 1
+
+        try {
+          const report = await synchronizeLinksForDocument(
+            {
+              defaultLocale: state.defaultLocale,
+              fieldPatterns: stored.fieldPatterns,
+              global: slug,
+              payload,
+              serverURL,
+              targetLocales: state.locales,
+            },
+            cache,
+            checkedCandidates,
+          )
+
+          replacements += report.replacements
+          updatedLocales += report.updatedLocales.length
+          if (report.updatedLocales.length) {
+            documentsUpdated += 1
+          }
+
+          for (const entry of report.missingAlternateLocales) {
+            missingCounts.set(entry, (missingCounts.get(entry) ?? 0) + 1)
+          }
+
+          warnings.push(...report.warnings)
+          errors.push(...report.errors)
+
+          reports.push({ ...report, label: slug })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to synchronize global'
+          errors.push(`global:${slug}: ${message}`)
         }
       }
 

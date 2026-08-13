@@ -517,16 +517,12 @@ export function TranslationStatusGlobal({
   }
 
   const startLinkSync = async () => {
-    if (busy || !selectedCollectionDocuments.length) {
+    if (busy || !selectedDocuments.length) {
       return
     }
 
     const grouped = groupSelectedByCollection()
-    if (
-      !window.confirm(
-        `Sync links for ${selectedCollectionDocuments.length} selected document(s)?`,
-      )
-    ) {
+    if (!window.confirm(`Sync links for ${selectedDocuments.length} selected document(s)?`)) {
       return
     }
 
@@ -536,6 +532,7 @@ export function TranslationStatusGlobal({
     try {
       const result = await runBulkSyncLinks(Array.from(grouped.keys()), {
         documents: Object.fromEntries(grouped.entries()),
+        globals: selectedGlobalSlugs,
       })
       logLinkSyncResult(result)
       setCurrentTask('Link sync complete.')
@@ -883,13 +880,11 @@ export function TranslationStatusGlobal({
               </Button>
               <Button
                 buttonStyle="secondary"
-                disabled={busy || !selectedCollectionDocuments.length}
+                disabled={busy}
                 onClick={() => void startLinkSync()}
                 type="button"
               >
-                {linkSyncing
-                  ? 'Syncing links…'
-                  : `Sync links (${selectedCollectionDocuments.length})`}
+                {linkSyncing ? 'Syncing links…' : `Sync links (${selectedDocuments.length})`}
               </Button>
             </div>
           </div>

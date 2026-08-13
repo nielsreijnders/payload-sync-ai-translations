@@ -65,7 +65,7 @@ function buildStatusDocument(options: {
   records: StoredSyncRecord[]
   targetLocales: string[]
 }): SyncStatusDocument {
-  const { collection, doc, entry, global, id, records, targetLocales } = options
+  const { id, collection, doc, entry, global, records, targetLocales } = options
   const items = buildTranslatableItems(doc, entry.fieldPatterns)
   const snapshot = buildSyncSnapshot(items)
   const locales = computeLocaleStatuses(snapshot, records, targetLocales)

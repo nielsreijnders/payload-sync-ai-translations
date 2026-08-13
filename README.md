@@ -24,6 +24,10 @@ Built using the official [Payload Plugin Template](https://payloadcms.com/docs/p
   Payload SEO titles/descriptions inline.
 - 🔁 **Find & replace:** Search all configured collections and globals for a text (per locale,
   optionally case-sensitive or whole-word), review the matches, and replace them in bulk.
+- 🔗 **Link syncing:** Rewrite internal links to their localized equivalents via alternate
+  (`hreflang`) tags, with a verified locale-prefix fallback for hardcoded paths like `/blog`.
+- 🗂️ **Status-aware saves:** Plugin saves mirror the source document's publish state — published
+  documents publish only the saved locale, drafts stay drafts.
 - 🔒 **Authenticated endpoints:** All plugin endpoints require a logged-in user.
 
 ---
@@ -273,9 +277,10 @@ fingerprint per document and locale, and surfaces the drift in two places:
   appears with the available actions:
   - **Translate** — sync the selected documents and globals, with an optional
     overwrite of existing translations;
-  - **Sync links** — rewrite internal links in the selected collection
-    documents to their localized equivalents (globals sync their links from
-    their own document view);
+  - **Sync links** — rewrite internal links in the selected documents and
+    globals to their localized equivalents; hardcoded internal paths without
+    alternate tags (e.g. `/blog`) fall back to the locale-prefixed path
+    (`/nl/blog`) when that URL exists;
   - **Skip fields** — tick translatable field roots (e.g. `slug`, `title`) to
     leave them untouched; the options follow the collections and globals of
     the selected targets, plus a free-form input for deeper paths such as
@@ -283,6 +288,12 @@ fingerprint per document and locale, and surfaces the drift in two places:
 
 Tracking is content-based (a hash per translatable field), so edits to other
 locales or non-translatable fields never cause false positives.
+
+For collections and globals with drafts enabled, every plugin save mirrors the
+source document's publish state: published documents publish **only** the
+locale being saved (draft edits in other locales stay drafts, so nothing is
+published as a side effect), and documents that were never published are saved
+as drafts instead of being published by the sync.
 
 ---
 

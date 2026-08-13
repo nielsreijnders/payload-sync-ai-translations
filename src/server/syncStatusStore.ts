@@ -190,7 +190,7 @@ export async function recordSyncSnapshot(
 
     if (current && current.id != null) {
       await payload.update({
-        id: current.id as number | string,
+        id: current.id,
         collection: SYNC_STATUS_COLLECTION_SLUG,
         data,
         overrideAccess: true,

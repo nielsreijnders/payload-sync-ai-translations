@@ -10,7 +10,9 @@ import {
 } from './documentUtils.js'
 import { fetchAlternateLinks, selectAlternateForLocale } from './linkAlternate.js'
 import { applyLinkOccurrence, collectLinkOccurrences } from './linkCollector.js'
+import { buildLocalePathCandidate, confirmLocalePathCandidate } from './localeLinkFallback.js'
 import { cloneLocaleData } from './localeStructure.js'
+import { readDocumentStatus, resolveSaveStatusFlags } from './saveStatus.js'
 
 type CollectionLinkOptions = {
   collection: string
@@ -71,6 +73,7 @@ function ensureArray<T>(value: Iterable<T> | undefined): T[] {
 export async function synchronizeLinksForDocument(
   options: LinkSyncOptions,
   cache: FetchCache = new Map(),
+  checkedCandidates: Map<string, boolean> = new Map(),
 ): Promise<LinkSyncResult> {
   const { defaultLocale, fieldPatterns, payload, serverURL, targetLocales } = options
   const isCollectionTarget = 'collection' in options
@@ -80,6 +83,7 @@ export async function synchronizeLinksForDocument(
   const collectionSlug = isCollectionTarget ? options.collection : undefined
 
   const processedLocales = targetLocales.filter((locale) => locale !== defaultLocale)
+  const knownLocales = Array.from(new Set([defaultLocale, ...targetLocales]))
   const reports: LinkSyncLocaleReport[] = []
   const warnings: string[] = []
   const errors: string[] = []
@@ -189,7 +193,33 @@ export async function synchronizeLinksForDocument(
     }
 
     for (const locale of processedLocales) {
-      const nextUrl = selectAlternateForLocale(alternates, locale)
+      let nextUrl = selectAlternateForLocale(alternates, locale)
+
+      // Hardcoded internal paths (e.g. /blog) usually expose no alternate
+      // tags. Fall back to the locale-prefixed path, but only when that URL
+      // actually resolves.
+      if (!nextUrl) {
+        const candidate = buildLocalePathCandidate(url, locale, {
+          baseUrl: serverURL,
+          knownLocales,
+        })
+
+        if (candidate && candidate !== url) {
+          const exists = await confirmLocalePathCandidate(candidate, {
+            baseUrl: serverURL,
+            checked: checkedCandidates,
+          })
+
+          if (exists) {
+            nextUrl = candidate
+            // Remember the confirmed fallback as this URL's alternate so later
+            // documents in the same run resolve it without re-checking.
+            alternates.set(locale, candidate)
+            logDebug(payload, `Locale path fallback for ${url} (${locale})`, candidate)
+          }
+        }
+      }
+
       if (!nextUrl) {
         if (!missingAlternates.has(locale)) {
           missingAlternates.set(locale, new Set())
@@ -274,21 +304,34 @@ export async function synchronizeLinksForDocument(
       delete saveData._id
     }
 
+    // Mirror the source document's publish state: published sources publish
+    // this locale only, never-published sources stay drafts.
+    const statusFlags = resolveSaveStatusFlags(readDocumentStatus(defaultDoc), locale)
+    const dataToSave = statusFlags.data ? { ...saveData, ...statusFlags.data } : saveData
+
     try {
       if (isCollectionTarget) {
         await payload.update({
           id: options.id,
           collection: options.collection,
-          data: saveData,
+          data: dataToSave,
           locale,
           overrideAccess: true,
+          ...(statusFlags.draft ? { draft: true } : {}),
+          ...(statusFlags.publishSpecificLocale
+            ? { publishSpecificLocale: statusFlags.publishSpecificLocale }
+            : {}),
         })
       } else {
         await payload.updateGlobal({
           slug: options.global,
-          data: saveData,
+          data: dataToSave,
           locale,
           overrideAccess: true,
+          ...(statusFlags.draft ? { draft: true } : {}),
+          ...(statusFlags.publishSpecificLocale
+            ? { publishSpecificLocale: statusFlags.publishSpecificLocale }
+            : {}),
         })
       }
       localeReport.updated = true

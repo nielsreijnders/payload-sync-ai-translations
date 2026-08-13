@@ -22,6 +22,7 @@ import {
 import { cloneLocaleData, mergeStructuralData, setValueAtPath } from './localeStructure.js'
 import { getMaxCharsPerRequest } from './openAiSettings.js'
 import { openAiTranslateTexts } from './openAiTranslationClient.js'
+import { readDocumentStatus, resolveSaveStatusFlags } from './saveStatus.js'
 import { buildSyncSnapshot, buildTargetKey, recordSyncSnapshot } from './syncStatusStore.js'
 import { getStoredTarget } from './translationStateStore.js'
 
@@ -781,6 +782,10 @@ export async function* streamTranslations(
     collection: 'collection' in input ? input.collection : undefined,
     global: 'global' in input ? input.global : undefined,
   })
+  // Publish state of the source document; the default (draft: false) load
+  // returns the published version when one exists, so 'published' here means
+  // the document is live even when newer draft edits exist.
+  const sourceStatus = readDocumentStatus(baseDoc)
   const customPromptFn = storedEntry?.customPrompt
   const promptCache = new Map<string, string | undefined>()
   const localeIdentifierPaths = collectIdentifierPaths(locales)
@@ -1051,20 +1056,34 @@ export async function* streamTranslations(
         delete saveData._id
       }
 
+      // Mirror the source document's publish state: published sources publish
+      // this locale only (other locales keep their drafts), never-published
+      // sources stay drafts.
+      const statusFlags = resolveSaveStatusFlags(sourceStatus, locale)
+      const dataToSave = statusFlags.data ? { ...saveData, ...statusFlags.data } : saveData
+
       if (isCollectionTarget) {
         await payload.update({
           id: documentId as number | string,
           collection: collectionSlug as string,
-          data: saveData,
+          data: dataToSave,
           locale,
           overrideAccess: true,
+          ...(statusFlags.draft ? { draft: true } : {}),
+          ...(statusFlags.publishSpecificLocale
+            ? { publishSpecificLocale: statusFlags.publishSpecificLocale }
+            : {}),
         })
       } else {
         await payload.updateGlobal({
           slug: globalSlug as string,
-          data: saveData,
+          data: dataToSave,
           locale,
           overrideAccess: true,
+          ...(statusFlags.draft ? { draft: true } : {}),
+          ...(statusFlags.publishSpecificLocale
+            ? { publishSpecificLocale: statusFlags.publishSpecificLocale }
+            : {}),
         })
       }
       logDebug(payload, '[AI Translate] Saved locale document.', {

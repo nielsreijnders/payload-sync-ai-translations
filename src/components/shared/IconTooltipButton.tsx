@@ -37,7 +37,7 @@ export function IconTooltipButton({
 }: IconTooltipButtonProps) {
   const anchorRef = React.useRef<HTMLSpanElement>(null)
   const timerRef = React.useRef<number | undefined>(undefined)
-  const [position, setPosition] = React.useState<null | { left: number; top: number }>(null)
+  const [position, setPosition] = React.useState<{ left: number; top: number } | null>(null)
 
   const show = React.useCallback(() => {
     window.clearTimeout(timerRef.current)

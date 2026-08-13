@@ -1859,4 +1859,111 @@ describe('streamTranslations', () => {
     const savedValue = serializeLexicalValue(saved.data?.components?.[1]?.tab2?.fieldInTab2)
     expect(savedValue?.text).toEqual(translation)
   })
+
+  it('publishes only the translated locale when the source document is published', async () => {
+    const baseDoc = {
+      id: '1',
+      _status: 'published',
+      title: 'Hello world',
+    }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return structuredClone(baseDoc)
+        }
+
+        return { id: '1' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Hallo wereld'])
+
+    const request: TranslateRequestPayload = {
+      id: '1',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [[{ lexical: false, path: 'title', text: 'Hello world' }]],
+          code: 'nl',
+        },
+      ],
+    }
+
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      if (event.type === 'error') {
+        throw new Error(event.message)
+      }
+    }
+
+    expect(payloadMock.update).toHaveBeenCalledTimes(1)
+    expect(payloadMock.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ _status: 'published', title: 'Hallo wereld' }),
+        locale: 'nl',
+        publishSpecificLocale: 'nl',
+      }),
+    )
+    expect(payloadMock.update.mock.calls[0][0]).not.toHaveProperty('draft')
+  })
+
+  it('saves translations as drafts when the source document is a draft', async () => {
+    const baseDoc = {
+      id: '1',
+      _status: 'draft',
+      title: 'Hello world',
+    }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return structuredClone(baseDoc)
+        }
+
+        return { id: '1' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Hallo wereld'])
+
+    const request: TranslateRequestPayload = {
+      id: '1',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [[{ lexical: false, path: 'title', text: 'Hello world' }]],
+          code: 'nl',
+        },
+      ],
+    }
+
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      if (event.type === 'error') {
+        throw new Error(event.message)
+      }
+    }
+
+    expect(payloadMock.update).toHaveBeenCalledTimes(1)
+    expect(payloadMock.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ title: 'Hallo wereld' }),
+        draft: true,
+        locale: 'nl',
+      }),
+    )
+    expect(payloadMock.update.mock.calls[0][0]).not.toHaveProperty('publishSpecificLocale')
+    expect(payloadMock.update.mock.calls[0][0]?.data).not.toHaveProperty('_status')
+  })
 })

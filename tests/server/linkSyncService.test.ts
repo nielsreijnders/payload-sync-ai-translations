@@ -29,6 +29,16 @@ vi.mock('../../src/server/linkCollector.js', () => ({
   })),
 }))
 
+vi.mock('../../src/server/localeLinkFallback.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/server/localeLinkFallback.js')>()
+  return {
+    ...actual,
+    confirmLocalePathCandidate: vi.fn(async () => true),
+  }
+})
+
+import { fetchAlternateLinks } from '../../src/server/linkAlternate.js'
+import { confirmLocalePathCandidate } from '../../src/server/localeLinkFallback.js'
 import { synchronizeLinksForDocument } from '../../src/server/linkSyncService.js'
 
 describe('synchronizeLinksForDocument', () => {
@@ -303,5 +313,115 @@ describe('synchronizeLinksForDocument', () => {
     expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
     const saved = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
     expect(saved?.data?.replaced).toBe('/nl/collections/shop-all')
+  })
+
+  it('falls back to locale-prefixed paths for hardcoded links without alternates', async () => {
+    const fieldPatterns = ['mainMenu', 'mainMenu[].link', 'mainMenu[].link.custom']
+
+    const defaultGlobal = {
+      id: 'global:menu',
+      mainMenu: [{ id: 'main-0', link: { custom: '/blog', linkType: 'custom' } }],
+      __links: [{ path: 'mainMenu.0.link.custom', value: '/blog' }],
+    }
+
+    // The page behind /blog exposes no alternate tags (hardcoded route).
+    vi.mocked(fetchAlternateLinks).mockResolvedValueOnce(new Map())
+
+    const payloadMock = {
+      findGlobal: vi.fn<Payload['findGlobal']>().mockImplementation(async ({ locale }) => {
+        return { ...defaultGlobal, locale }
+      }),
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+      logger: { error: vi.fn(), info: vi.fn() },
+    } satisfies Partial<Payload>
+
+    const result = await synchronizeLinksForDocument({
+      defaultLocale: 'en',
+      fieldPatterns,
+      global: 'menu',
+      payload: payloadMock as Payload,
+      serverURL: 'https://example.com',
+      targetLocales: ['en', 'nl'],
+    })
+
+    expect(vi.mocked(confirmLocalePathCandidate)).toHaveBeenCalledWith(
+      '/nl/blog',
+      expect.objectContaining({ baseUrl: 'https://example.com' }),
+    )
+    expect(result.replacements).toBeGreaterThan(0)
+    expect(result.missingAlternateLocales).toEqual([])
+    expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
+    const saved = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
+    expect(saved?.data?.replaced).toBe('/nl/blog')
+  })
+
+  it('reports hardcoded links as missing when the locale-prefixed path does not resolve', async () => {
+    const fieldPatterns = ['mainMenu', 'mainMenu[].link', 'mainMenu[].link.custom']
+
+    const defaultGlobal = {
+      id: 'global:menu',
+      mainMenu: [{ id: 'main-0', link: { custom: '/blog', linkType: 'custom' } }],
+      __links: [{ path: 'mainMenu.0.link.custom', value: '/blog' }],
+    }
+
+    vi.mocked(fetchAlternateLinks).mockResolvedValueOnce(new Map())
+    vi.mocked(confirmLocalePathCandidate).mockResolvedValueOnce(false)
+
+    const payloadMock = {
+      findGlobal: vi.fn<Payload['findGlobal']>().mockImplementation(async ({ locale }) => {
+        return { ...defaultGlobal, locale }
+      }),
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+      logger: { error: vi.fn(), info: vi.fn() },
+    } satisfies Partial<Payload>
+
+    const result = await synchronizeLinksForDocument({
+      defaultLocale: 'en',
+      fieldPatterns,
+      global: 'menu',
+      payload: payloadMock as Payload,
+      serverURL: 'https://example.com',
+      targetLocales: ['en', 'nl'],
+    })
+
+    expect(result.replacements).toBe(0)
+    expect(result.missingAlternateLocales).toEqual(['nl'])
+    expect(payloadMock.updateGlobal).not.toHaveBeenCalled()
+  })
+
+  it('mirrors the published source status when saving link updates', async () => {
+    const fieldPatterns = ['mainMenu', 'mainMenu[].link', 'mainMenu[].link.custom']
+
+    const defaultGlobal = {
+      id: 'global:menu',
+      _status: 'published',
+      mainMenu: [{ id: 'main-0', link: { custom: '/collections/shop-all', linkType: 'custom' } }],
+      __links: [{ path: 'mainMenu.0.link.custom', value: '/collections/shop-all' }],
+    }
+
+    const payloadMock = {
+      findGlobal: vi.fn<Payload['findGlobal']>().mockImplementation(async ({ locale }) => {
+        return { ...defaultGlobal, locale }
+      }),
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+      logger: { error: vi.fn(), info: vi.fn() },
+    } satisfies Partial<Payload>
+
+    await synchronizeLinksForDocument({
+      defaultLocale: 'en',
+      fieldPatterns,
+      global: 'menu',
+      payload: payloadMock as Payload,
+      targetLocales: ['en', 'nl'],
+    })
+
+    expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
+    expect(payloadMock.updateGlobal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ _status: 'published' }),
+        locale: 'nl',
+        publishSpecificLocale: 'nl',
+      }),
+    )
   })
 })

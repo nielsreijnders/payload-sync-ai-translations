@@ -4,8 +4,8 @@ import { useDocumentInfo, useModal } from '@payloadcms/ui'
 import { Sparkles } from 'lucide-react'
 import * as React from 'react'
 
-import type { AutoTranslateButtonProps } from './auto-translate-button/hooks/types.js'
 import type { LocaleSyncStatus } from '../server/syncStatusTypes.js'
+import type { AutoTranslateButtonProps } from './auto-translate-button/hooks/types.js'
 
 import { useAutoTranslateButton } from './auto-translate-button/hooks/useAutoTranslateButton.js'
 import { AutoTranslateReviewModal, REVIEW_MODAL_SLUG } from './Modal.js'

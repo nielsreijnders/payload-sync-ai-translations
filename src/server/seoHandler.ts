@@ -3,6 +3,7 @@ import type { Payload, PayloadHandler, PayloadRequest } from 'payload'
 import type { SeoScanEvent, SeoScanRequest, SeoUpdateRequest } from './seoTypes.js'
 
 import { getValueAtPath } from '../utils/localizedFields.js'
+import { readDocumentStatus, resolveSaveStatusFlags } from './saveStatus.js'
 import { scoreSeoDocument } from './seoScoring.js'
 import { getSeoCollection, getSeoState } from './seoState.js'
 
@@ -317,13 +318,21 @@ export function createSeoUpdateHandler(): PayloadHandler {
         { path: collection.descriptionPath, value: parsed.description },
       ])
 
+      // Mirror the document's publish state so metadata edits do not flip
+      // published documents into drafts (or vice versa).
+      const statusFlags = resolveSaveStatusFlags(readDocumentStatus(existing), parsed.locale)
+
       await req.payload.update({
         id: parsed.id,
         collection: parsed.collection,
-        data,
+        data: statusFlags.data ? { ...data, ...statusFlags.data } : data,
         locale: parsed.locale,
         overrideAccess: false,
         req,
+        ...(statusFlags.draft ? { draft: true } : {}),
+        ...(statusFlags.publishSpecificLocale
+          ? { publishSpecificLocale: statusFlags.publishSpecificLocale }
+          : {}),
       })
 
       const updated = await req.payload.findByID({

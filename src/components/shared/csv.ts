@@ -37,7 +37,7 @@ export function parseCsv(text: string): string[][] {
   }
 
   while (index < input.length) {
-    const char = input[index] as string
+    const char = input[index]
 
     if (inQuotes) {
       if (char === '"') {

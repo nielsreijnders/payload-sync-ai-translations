@@ -8,10 +8,15 @@ export async function runBulkSyncLinks(
      * are link-synced.
      */
     documents?: Record<string, Array<number | string>>
+    globals?: string[]
   } = {},
 ): Promise<BulkLinkSyncResponse> {
   const response = await fetch('/api/ai-links/bulk', {
-    body: JSON.stringify({ collections, documents: options.documents }),
+    body: JSON.stringify({
+      collections,
+      documents: options.documents,
+      globals: options.globals,
+    }),
     headers: { 'Content-Type': 'application/json' },
     method: 'POST',
   })
