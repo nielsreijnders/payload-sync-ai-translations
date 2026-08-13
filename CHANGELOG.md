@@ -1,3 +1,10 @@
+# [2.1.0](https://github.com/nielsreijnders/payload-content-ops/compare/v2.0.0...v2.1.0) (2026-08-12)
+
+
+### Features
+
+* add bulk translations for globals ([15e3ec4](https://github.com/nielsreijnders/payload-content-ops/commit/15e3ec4216f23617fa64dbe3cba1fd86fbcedc91))
+
 # [2.0.0](https://github.com/nielsreijnders/payload-content-ops/compare/v1.31.0...v2.0.0) (2026-08-12)
 
 
