@@ -1,3 +1,10 @@
+## [2.1.2](https://github.com/nielsreijnders/payload-content-ops/compare/v2.1.1...v2.1.2) (2026-08-13)
+
+
+### Bug Fixes
+
+* keep shared array row ids on locale-scoped saves ([e83ce14](https://github.com/nielsreijnders/payload-content-ops/commit/e83ce14ecaeaa8cad391b4df807b1c248ab041f4))
+
 ## [2.1.1](https://github.com/nielsreijnders/payload-content-ops/compare/v2.1.0...v2.1.1) (2026-08-13)
 
 
