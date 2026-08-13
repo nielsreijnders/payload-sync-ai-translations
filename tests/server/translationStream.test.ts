@@ -340,20 +340,47 @@ describe('streamTranslations', () => {
     expect(savedPayload?.data).not.toHaveProperty('_id')
   })
 
-  it('strips nested global array identifiers before saving', async () => {
-    configureTranslationState(
-      [],
-      [
-        {
-          config: {
-            fields: [],
-            label: 'Navigation',
-            slug: 'menu',
-          } as GlobalConfig,
-        },
-      ],
-      { defaultLocale: 'en', locales: ['en', 'nl'] },
-    )
+  it('strips ids inside localized containers but keeps shared row ids', async () => {
+    // `links` is a shared (non-localized) array whose rows carry localized
+    // subfields: its row ids MUST survive the save, or Payload recreates the
+    // rows and silently wipes the other locales' values. `sublinks` is a
+    // localized array: its rows mirror the default locale's rows, so their
+    // ids must be dropped to give the target locale rows of its own.
+    const navigationLikeGlobal = (slug: string): GlobalConfig =>
+      ({
+        fields: [
+          {
+            name: 'links',
+            type: 'array',
+            fields: [
+              {
+                name: 'link',
+                type: 'group',
+                fields: [{ name: 'label', type: 'text', localized: true }],
+              },
+              {
+                name: 'sublinks',
+                type: 'array',
+                localized: true,
+                fields: [
+                  {
+                    name: 'link',
+                    type: 'group',
+                    fields: [{ name: 'label', type: 'text', localized: true }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        label: 'Navigation',
+        slug,
+      }) as GlobalConfig
+
+    configureTranslationState([], [{ config: navigationLikeGlobal('menu') }], {
+      defaultLocale: 'en',
+      locales: ['en', 'nl'],
+    })
 
     const baseDoc = {
       id: 'global:menu',
@@ -430,6 +457,89 @@ describe('streamTranslations', () => {
           id: 'link-2',
           link: { label: 'About' },
           sublinks: [{ link: { label: 'Contact' } }],
+        },
+      ],
+    })
+  })
+
+  it('keeps nested row ids when no localized containers are configured', async () => {
+    // Without a localized container in the config every array is shared
+    // across locales — stripping ANY row id here is what wiped default-locale
+    // content in production, so every id must survive.
+    configureTranslationState(
+      [],
+      [
+        {
+          config: {
+            fields: [],
+            label: 'Navigation',
+            slug: 'menu',
+          } as GlobalConfig,
+        },
+      ],
+      { defaultLocale: 'en', locales: ['en', 'nl'] },
+    )
+
+    const baseDoc = {
+      id: 'global:menu',
+      links: [
+        {
+          id: 'link-1',
+          link: { label: 'Menu' },
+          sublinks: [{ id: 'sub-1', link: { label: 'Market Map' } }],
+        },
+      ],
+    }
+
+    const payloadMock = {
+      findGlobal: vi.fn<Payload['findGlobal']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: 'global:menu' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Marktkaart'])
+
+    const request: TranslateRequestPayload = {
+      from: 'en',
+      global: 'menu',
+      locales: [
+        {
+          chunks: [
+            [
+              {
+                lexical: false,
+                path: 'links.0.sublinks.0.link.label',
+                text: 'Market Map',
+              },
+            ],
+          ],
+          code: 'nl',
+          identifierPaths: ['links.0.id', 'links.0.sublinks.0.id'],
+        },
+      ],
+    }
+
+    for await (const _event of streamTranslations(payloadMock as Payload, request)) {
+      // exhaust iterator
+    }
+
+    expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
+    const savedPayload = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
+    expect(savedPayload?.data).toEqual({
+      links: [
+        {
+          id: 'link-1',
+          link: { label: 'Menu' },
+          sublinks: [{ id: 'sub-1', link: { label: 'Marktkaart' } }],
         },
       ],
     })

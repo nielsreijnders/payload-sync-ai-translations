@@ -10,7 +10,7 @@ import type {
 
 import { buildTranslatableItems } from '../components/auto-translate-button/utils/buildTranslatableItems.js'
 import { splitLexicalText, toLexical } from '../utils/lexical.js'
-import { expandConcretePathsFromPattern, getValueAtPath } from '../utils/localizedFields.js'
+import { getValueAtPath } from '../utils/localizedFields.js'
 import { resolveFeatureModels } from './aiSettingsGlobal.js'
 import { resolveCustomPrompt } from './customPrompt.js'
 import { logDebug } from './debugSettings.js'
@@ -19,64 +19,16 @@ import {
   loadLocalizedDocument,
   stripDocumentMetadata,
 } from './documentUtils.js'
+import {
+  collectConcreteLocalizedContainerPaths,
+  pruneIdentifierFields,
+} from './identifierPruning.js'
 import { cloneLocaleData, mergeStructuralData, setValueAtPath } from './localeStructure.js'
 import { getMaxCharsPerRequest } from './openAiSettings.js'
 import { openAiTranslateTexts } from './openAiTranslationClient.js'
 import { readDocumentStatus, resolveSaveStatusFlags } from './saveStatus.js'
 import { buildSyncSnapshot, buildTargetKey, recordSyncSnapshot } from './syncStatusStore.js'
 import { getStoredTarget } from './translationStateStore.js'
-
-type LocaleIdentifierMap = Map<string, Set<string>>
-
-function isIdentifierKey(key: string): boolean {
-  return key === 'id' || key === '_id'
-}
-
-function collectIdentifierPaths(locales: TranslateLocaleRequestPayload[]): LocaleIdentifierMap {
-  const identifierMap: LocaleIdentifierMap = new Map()
-
-  const addPath = (locale: string, path?: string) => {
-    if (!path) {
-      return
-    }
-
-    const segments = path.split('.')
-    const key = segments.at(-1)
-    if (!key || !isIdentifierKey(key)) {
-      return
-    }
-
-    if (!identifierMap.has(locale)) {
-      identifierMap.set(locale, new Set())
-    }
-
-    identifierMap.get(locale)?.add(path)
-  }
-
-  for (const localeEntry of locales) {
-    const { chunks, code: locale, identifierPaths, overrides } = localeEntry
-
-    for (const chunk of chunks) {
-      for (const item of chunk) {
-        addPath(locale, item?.path)
-      }
-    }
-
-    if (Array.isArray(overrides)) {
-      for (const override of overrides) {
-        addPath(locale, override?.path)
-      }
-    }
-
-    if (Array.isArray(identifierPaths)) {
-      for (const identifier of identifierPaths) {
-        addPath(locale, identifier)
-      }
-    }
-  }
-
-  return identifierMap
-}
 
 function collectTranslatedPaths(localeEntry: TranslateLocaleRequestPayload): string[] {
   const translatedPaths: string[] = []
@@ -128,157 +80,6 @@ function pickTopLevelFields(data: unknown, fields: Set<string>): Record<string, 
   }
 
   return scoped
-}
-
-function collectCollectionIdentifierPaths(data: unknown, translatedPaths: string[]): Set<string> {
-  const identifiers = new Set<string>()
-
-  for (const path of translatedPaths) {
-    const segments = path.split('.')
-
-    for (let index = 0; index < segments.length; index += 1) {
-      if (!/^\d+$/.test(segments[index] ?? '')) {
-        continue
-      }
-
-      const ancestor = segments.slice(0, index + 1).join('.')
-
-      for (const key of ['id', '_id']) {
-        const identifierPath = `${ancestor}.${key}`
-        if (getValueAtPath(data, identifierPath) !== undefined) {
-          identifiers.add(identifierPath)
-        }
-      }
-    }
-  }
-
-  return identifiers
-}
-
-function getIdentifierContainerPath(path: string): null | string {
-  const segments = path.split('.')
-  if (!isIdentifierKey(segments.at(-1) ?? '')) {
-    return null
-  }
-
-  for (let index = segments.length - 2; index >= 0; index -= 1) {
-    if (/^\d+$/.test(segments[index] ?? '')) {
-      return segments.slice(0, index).join('.')
-    }
-  }
-
-  return null
-}
-
-function collectConcreteLocalizedContainerPaths(
-  data: unknown,
-  patterns: string[] = [],
-): Set<string> {
-  const containers = new Set<string>()
-
-  for (const pattern of patterns) {
-    for (const path of expandConcretePathsFromPattern(data, pattern)) {
-      containers.add(path)
-    }
-  }
-
-  return containers
-}
-
-function removeLocalizedContainerIdentifiers(
-  identifiers: Set<string>,
-  localizedContainers: Set<string>,
-): Set<string> {
-  if (!localizedContainers.size) {
-    return identifiers
-  }
-
-  const filtered = new Set<string>()
-
-  for (const identifier of identifiers) {
-    const containerPath = getIdentifierContainerPath(identifier)
-    if (!containerPath || !localizedContainers.has(containerPath)) {
-      filtered.add(identifier)
-    }
-  }
-
-  return filtered
-}
-
-function collectTopLevelArrayRowIdentifierPaths(value: unknown): Set<string> {
-  const identifiers = new Set<string>()
-
-  if (!isPlainObject(value)) {
-    return identifiers
-  }
-
-  const record = value as Record<string, unknown>
-
-  for (const [key, child] of Object.entries(record)) {
-    if (!Array.isArray(child)) {
-      continue
-    }
-
-    child.forEach((entry, index) => {
-      if (!isPlainObject(entry)) {
-        return
-      }
-
-      const arrayEntry = entry as Record<string, unknown>
-      for (const identifierKey of ['id', '_id']) {
-        if (arrayEntry[identifierKey] !== undefined) {
-          identifiers.add(`${key}.${index}.${identifierKey}`)
-        }
-      }
-    })
-  }
-
-  return identifiers
-}
-
-function collectTopLevelIdentifierPaths(paths: Set<string>): Set<string> {
-  const identifiers = new Set<string>()
-
-  for (const path of paths) {
-    const segments = path.split('.')
-    if (
-      segments.length === 3 &&
-      /^\d+$/.test(segments[1] ?? '') &&
-      isIdentifierKey(segments[2] ?? '')
-    ) {
-      identifiers.add(path)
-    }
-  }
-
-  return identifiers
-}
-
-function pruneIdentifierFields(value: unknown, allowed: Set<string>, currentPath = ''): unknown {
-  if (Array.isArray(value)) {
-    return value.map((entry, index) => {
-      const nextPath = currentPath ? `${currentPath}.${index}` : String(index)
-      return pruneIdentifierFields(entry, allowed, nextPath)
-    })
-  }
-
-  if (isPlainObject(value)) {
-    const record = value as Record<string, unknown>
-    const next: Record<string, unknown> = {}
-
-    for (const [key, child] of Object.entries(record)) {
-      const childPath = currentPath ? `${currentPath}.${key}` : key
-
-      if (isIdentifierKey(key) && !allowed.has(childPath)) {
-        continue
-      }
-
-      next[key] = pruneIdentifierFields(child, allowed, childPath)
-    }
-
-    return next
-  }
-
-  return value
 }
 
 function countItems(chunks: TranslateChunk[]): number {
@@ -788,7 +589,6 @@ export async function* streamTranslations(
   const sourceStatus = readDocumentStatus(baseDoc)
   const customPromptFn = storedEntry?.customPrompt
   const promptCache = new Map<string, string | undefined>()
-  const localeIdentifierPaths = collectIdentifierPaths(locales)
   const featureModels = await resolveFeatureModels(payload)
   const translateModel = featureModels.translate
 
@@ -1032,21 +832,12 @@ export async function* streamTranslations(
         collectTranslatedTopLevelFields(translatedPaths),
       )
       stripDocumentMetadata(scopedLocaleData)
-      const allowedIdentifiers = isCollectionTarget
-        ? removeLocalizedContainerIdentifiers(
-            collectCollectionIdentifierPaths(scopedLocaleData, translatedPaths),
-            collectConcreteLocalizedContainerPaths(
-              scopedLocaleData,
-              storedEntry?.localizedContainerPatterns,
-            ),
-          )
-        : new Set([
-            ...collectTopLevelArrayRowIdentifierPaths(scopedLocaleData),
-            ...collectTopLevelIdentifierPaths(
-              localeIdentifierPaths.get(locale) ?? new Set<string>(),
-            ),
-          ])
-      const sanitizedSource = pruneIdentifierFields(scopedLocaleData, allowedIdentifiers)
+      const sanitizedSource = pruneIdentifierFields(scopedLocaleData, {
+        localizedContainers: collectConcreteLocalizedContainerPaths(
+          scopedLocaleData,
+          storedEntry?.localizedContainerPatterns,
+        ),
+      })
       const saveData = (
         isCollectionTarget ? sanitizedSource : cloneWithoutDocumentMetadata(sanitizedSource)
       ) as Record<string, unknown>

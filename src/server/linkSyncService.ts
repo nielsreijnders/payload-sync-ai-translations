@@ -8,6 +8,10 @@ import {
   loadLocalizedDocument,
   stripDocumentMetadata,
 } from './documentUtils.js'
+import {
+  collectConcreteLocalizedContainerPaths,
+  pruneIdentifierFields,
+} from './identifierPruning.js'
 import { fetchAlternateLinks, selectAlternateForLocale } from './linkAlternate.js'
 import { applyLinkOccurrence, collectLinkOccurrences } from './linkCollector.js'
 import { buildLocalePathCandidate, confirmLocalePathCandidate } from './localeLinkFallback.js'
@@ -26,45 +30,13 @@ type GlobalLinkOptions = {
 type LinkSyncOptions = {
   defaultLocale: string
   fieldPatterns: string[]
+  localizedContainerPatterns?: string[]
   payload: Payload
   serverURL?: string
   targetLocales: string[]
 } & (CollectionLinkOptions | GlobalLinkOptions)
 
 type FetchCache = Map<string, Map<string, string>>
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function pruneIdentifierFields(value: unknown, allowed: Set<string>, currentPath = ''): unknown {
-  if (Array.isArray(value)) {
-    return value.map((entry, index) => {
-      const nextPath = currentPath ? `${currentPath}.${index}` : String(index)
-      return pruneIdentifierFields(entry, allowed, nextPath)
-    })
-  }
-
-  if (isPlainObject(value)) {
-    const record = value
-    const next: Record<string, unknown> = {}
-
-    for (const [key, child] of Object.entries(record)) {
-      const childPath = currentPath ? `${currentPath}.${key}` : key
-      const normalizedChildPath = childPath.replace(/\.\d+(?=\.|$)/g, '.[]')
-
-      if ((key === 'id' || key === '_id') && !allowed.has(normalizedChildPath)) {
-        continue
-      }
-
-      next[key] = pruneIdentifierFields(child, allowed, childPath)
-    }
-
-    return next
-  }
-
-  return value
-}
 
 function ensureArray<T>(value: Iterable<T> | undefined): T[] {
   return value ? Array.from(value) : []
@@ -294,7 +266,13 @@ export async function synchronizeLinksForDocument(
     stripDocumentMetadata(localeData)
     const identifierSafeData = isCollectionTarget
       ? localeData
-      : pruneIdentifierFields(localeData, allowedIdentifiers)
+      : pruneIdentifierFields(localeData, {
+          allowedPatterns: allowedIdentifiers,
+          localizedContainers: collectConcreteLocalizedContainerPaths(
+            localeData,
+            options.localizedContainerPatterns,
+          ),
+        })
     const saveData = (
       isCollectionTarget ? identifierSafeData : cloneWithoutDocumentMetadata(identifierSafeData)
     ) as Record<string, unknown>

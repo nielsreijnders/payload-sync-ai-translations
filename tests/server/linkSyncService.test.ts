@@ -389,6 +389,79 @@ describe('synchronizeLinksForDocument', () => {
     expect(payloadMock.updateGlobal).not.toHaveBeenCalled()
   })
 
+  it('keeps row ids outside localized containers and strips ids inside them', async () => {
+    // Mirrors the incident shape: a non-localized array (`links`) whose rows
+    // carry localized subfields, with a localized array (`sublinks`) nested in
+    // each row. The field patterns contain no `.id` entries, exactly like the
+    // patterns the extractor produces for such a global.
+    const fieldPatterns = [
+      'links[].link.label',
+      'links[].link.custom',
+      'links[].sublinks',
+      'links[].sublinks[].link.label',
+      'links[].sublinks[].link.custom',
+    ]
+
+    const navigation = {
+      id: 'global:navigation',
+      links: [
+        {
+          id: 'row-services',
+          link: { label: 'Services', custom: '/collections/shop-all', linkType: 'custom' },
+          sublinks: [
+            {
+              id: 'sub-row-market-map',
+              link: { label: 'Market Map', custom: '/collections/shop-all', linkType: 'custom' },
+            },
+          ],
+        },
+        {
+          id: 'row-solutions',
+          link: { label: 'Solutions', custom: '/solutions', linkType: 'custom' },
+          sublinks: [],
+        },
+      ],
+      __links: [
+        { path: 'links.0.link.custom', value: '/collections/shop-all' },
+        { path: 'links.0.sublinks.0.link.custom', value: '/collections/shop-all' },
+      ],
+    }
+
+    const payloadMock = {
+      findGlobal: vi.fn<Payload['findGlobal']>().mockImplementation(async ({ locale }) => {
+        // The array is not localized: every locale sees the same rows and ids.
+        return { ...navigation, locale }
+      }),
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+      logger: { error: vi.fn(), info: vi.fn() },
+    } satisfies Partial<Payload>
+
+    const result = await synchronizeLinksForDocument({
+      defaultLocale: 'en',
+      fieldPatterns,
+      global: 'navigation',
+      localizedContainerPatterns: ['links[].sublinks'],
+      payload: payloadMock as Payload,
+      targetLocales: ['en', 'nl'],
+    })
+
+    expect(result.updatedLocales).toEqual(['nl'])
+    expect(payloadMock.updateGlobal).toHaveBeenCalledTimes(1)
+    const saved = payloadMock.updateGlobal.mock.calls.at(0)?.at(0)
+    expect(saved?.data?.id).toBeUndefined()
+
+    // Shared rows keep their ids so Payload merges instead of recreating them
+    // (recreated rows silently drop the other locales' values).
+    const savedLinks = saved?.data?.links as Array<Record<string, any>>
+    expect(savedLinks.map((row) => row.id)).toEqual(['row-services', 'row-solutions'])
+
+    // Rows of the localized array lose their ids: they may mirror another
+    // locale's rows, and the target locale must get rows of its own.
+    expect(savedLinks[0].sublinks).toHaveLength(1)
+    expect(savedLinks[0].sublinks[0]).not.toHaveProperty('id')
+    expect(savedLinks[0].sublinks[0].link.label).toBe('Market Map')
+  })
+
   it('mirrors the published source status when saving link updates', async () => {
     const fieldPatterns = ['mainMenu', 'mainMenu[].link', 'mainMenu[].link.custom']
 
