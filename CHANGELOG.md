@@ -1,3 +1,10 @@
+## [2.1.1](https://github.com/nielsreijnders/payload-content-ops/compare/v2.1.0...v2.1.1) (2026-08-13)
+
+
+### Bug Fixes
+
+* document status issues ([f94dafe](https://github.com/nielsreijnders/payload-content-ops/commit/f94dafeb56356b56fd7d0001b857c0e6e307105d))
+
 # [2.1.0](https://github.com/nielsreijnders/payload-content-ops/compare/v2.0.0...v2.1.0) (2026-08-12)
 
 
