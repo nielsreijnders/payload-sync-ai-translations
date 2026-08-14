@@ -58,11 +58,13 @@ export function cloneWithoutDocumentMetadataDeep<T>(value: T): T {
 type LoadDocumentOptions =
   | {
       collection: string
+      draft?: boolean
       fallbackLocale?: boolean
       id: number | string
       locale: string
     }
   | {
+      draft?: boolean
       fallbackLocale?: boolean
       global: string
       locale: string
@@ -72,7 +74,7 @@ export async function loadLocalizedDocument(
   payload: Payload,
   options: LoadDocumentOptions,
 ): Promise<null | Record<string, unknown>> {
-  const { fallbackLocale = false, locale } = options
+  const { draft = false, fallbackLocale = false, locale } = options
 
   try {
     const doc =
@@ -81,6 +83,7 @@ export async function loadLocalizedDocument(
             id: options.id,
             collection: options.collection,
             depth: 0,
+            draft,
             // @ts-expect-error temp
             fallbackLocale,
             locale,
@@ -88,6 +91,7 @@ export async function loadLocalizedDocument(
         : await payload.findGlobal({
             slug: options.global,
             depth: 0,
+            draft,
             // @ts-expect-error temp
             fallbackLocale,
             locale,

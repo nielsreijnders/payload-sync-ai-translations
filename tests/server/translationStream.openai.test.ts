@@ -15,19 +15,23 @@ describeIfApiKey('streamTranslations (OpenAI live)', () => {
       title: 'Hello world',
     }
 
+    let savedData: Record<string, unknown> | undefined
     const payloadMock = {
       findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
         if (locale === 'en') {
           return baseDoc
         }
 
-        return { id: '1' }
+        return { id: '1', ...savedData }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => {
+        savedData = (args as { data?: Record<string, unknown> }).data
+        return args
+      }),
     } satisfies Partial<Payload>
 
     const request: TranslateRequestPayload = {

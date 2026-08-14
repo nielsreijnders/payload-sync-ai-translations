@@ -17,9 +17,22 @@ vi.mock('../../src/server/openAiTranslationClient.js', () => ({
 
 const translateTextsMock = vi.mocked(openAiTranslateTexts)
 
+// The stream verifies saves by re-reading the target locale afterwards; these
+// helpers make the payload mocks echo whatever was saved so that read sees it.
+let savedLocaleData: Record<string, Record<string, unknown> | undefined> = {}
+
+const recordSave = <T extends { data?: unknown; locale?: unknown }>(args: T): T => {
+  savedLocaleData[String(args.locale)] = args.data as Record<string, unknown>
+  return args
+}
+
+const savedFor = (locale: unknown): Record<string, unknown> =>
+  savedLocaleData[String(locale)] ?? {}
+
 describe('streamTranslations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    savedLocaleData = {}
     configureTranslationState([], { defaultLocale: 'en', locales: ['en', 'nl'] })
   })
 
@@ -40,13 +53,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: '1' }
+        return { id: '1', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Hallo wereld'])
@@ -135,13 +148,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: 'global:menu' }
+        return { id: 'global:menu', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Menukaart'])
@@ -220,13 +233,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: 'global:menu' }
+        return { id: 'global:menu', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Menukaart', 'link-1'])
@@ -294,13 +307,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: 'global:menu' }
+        return { id: 'global:menu', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Menukaart'])
@@ -404,13 +417,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: 'global:menu' }
+        return { id: 'global:menu', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Marktkaart'])
@@ -497,13 +510,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: 'global:menu' }
+        return { id: 'global:menu', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => args),
+      updateGlobal: vi.fn<Payload['updateGlobal']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Marktkaart'])
@@ -576,13 +589,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: '1' }
+        return { id: '1', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Hallo wereld'])
@@ -634,7 +647,7 @@ describe('streamTranslations', () => {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Voorbeeld product'])
@@ -691,13 +704,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: '2' }
+        return { id: '2', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Primaire heading'])
@@ -796,7 +809,7 @@ describe('streamTranslations', () => {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Primaire heading', 'Belangrijkste functies'])
@@ -871,13 +884,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: '1', settings: {} }
+        return { id: '1', settings: {}, ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Hallo daar', 'Welkom bezoeker'])
@@ -997,7 +1010,7 @@ describe('streamTranslations', () => {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Startpagina'])
@@ -1080,13 +1093,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: '88' }
+        return { id: '88', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Hallo wereld'])
@@ -1243,13 +1256,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: '88' }
+        return { id: '88', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Eerste item', 'Geneste content'])
@@ -1328,13 +1341,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: '1' }
+        return { id: '1', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Hallo wereld', 'Korte beschrijving', 'Bel ons'])
@@ -1418,13 +1431,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: '1' }
+        return { id: '1', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock
@@ -1523,13 +1536,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: '1', settings: {} }
+        return { id: '1', settings: {}, ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock
@@ -1638,7 +1651,7 @@ describe('streamTranslations', () => {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock
@@ -1739,13 +1752,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: '1' }
+        return { id: '1', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce([
@@ -1844,13 +1857,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: '1' }
+        return { id: '1', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce([])
@@ -1916,13 +1929,13 @@ describe('streamTranslations', () => {
           return baseDoc
         }
 
-        return { id: baseDoc.id }
+        return { id: baseDoc.id, ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     let callIndex = 0
@@ -1983,13 +1996,13 @@ describe('streamTranslations', () => {
           return structuredClone(baseDoc)
         }
 
-        return { id: '1' }
+        return { id: '1', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Hallo wereld'])
@@ -2036,13 +2049,13 @@ describe('streamTranslations', () => {
           return structuredClone(baseDoc)
         }
 
-        return { id: '1' }
+        return { id: '1', ...savedFor(locale) }
       }),
       logger: {
         error: vi.fn(),
         info: vi.fn(),
       },
-      update: vi.fn<Payload['update']>(async (args) => args),
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
     } satisfies Partial<Payload>
 
     translateTextsMock.mockResolvedValueOnce(['Hallo wereld'])
@@ -2075,5 +2088,106 @@ describe('streamTranslations', () => {
     )
     expect(payloadMock.update.mock.calls[0][0]).not.toHaveProperty('publishSpecificLocale')
     expect(payloadMock.update.mock.calls[0][0]?.data).not.toHaveProperty('_status')
+  })
+
+  it('tags plugin saves with a contentOps context marker', async () => {
+    const baseDoc = { id: '1', title: 'Hello world' }
+
+    const payloadMock = {
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: '1', ...savedFor(locale) }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => recordSave(args)),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Hallo wereld'])
+
+    const request: TranslateRequestPayload = {
+      id: '1',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [[{ lexical: false, path: 'title', text: 'Hello world' }]],
+          code: 'nl',
+        },
+      ],
+    }
+
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      if (event.type === 'error') {
+        throw new Error(event.message)
+      }
+    }
+
+    expect(payloadMock.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: {
+          contentOps: {
+            operation: 'translationSync',
+            sourceLocale: 'en',
+            targetLocale: 'nl',
+          },
+        },
+      }),
+    )
+  })
+
+  it('emits an error when a saved translation does not persist in the target locale', async () => {
+    const baseDoc = { id: '1', title: 'Hello world' }
+
+    const payloadMock = {
+      // The target locale keeps returning an empty document even after the
+      // save — the signature of a rerouted locale (e.g. a consumer hook
+      // passing req with another locale into a nested operation).
+      findByID: vi.fn<Payload['findByID']>().mockImplementation(async ({ locale }) => {
+        if (locale === 'en') {
+          return baseDoc
+        }
+
+        return { id: '1' }
+      }),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+      },
+      update: vi.fn<Payload['update']>(async (args) => args),
+    } satisfies Partial<Payload>
+
+    translateTextsMock.mockResolvedValueOnce(['Hallo wereld'])
+
+    const request: TranslateRequestPayload = {
+      id: '1',
+      collection: 'pages',
+      from: 'en',
+      locales: [
+        {
+          chunks: [[{ lexical: false, path: 'title', text: 'Hello world' }]],
+          code: 'nl',
+        },
+      ],
+    }
+
+    const events: unknown[] = []
+    for await (const event of streamTranslations(payloadMock as Payload, request)) {
+      events.push(event)
+    }
+
+    expect(payloadMock.update).toHaveBeenCalledTimes(1)
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        message: expect.stringContaining('did not persist at "title"'),
+        type: 'error',
+      }),
+    )
+    expect(events).not.toContainEqual(expect.objectContaining({ type: 'applied' }))
   })
 })

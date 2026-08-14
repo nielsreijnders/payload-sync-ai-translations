@@ -27,6 +27,7 @@ import { cloneLocaleData, mergeStructuralData, setValueAtPath } from './localeSt
 import { getMaxCharsPerRequest } from './openAiSettings.js'
 import { openAiTranslateTexts } from './openAiTranslationClient.js'
 import { readDocumentStatus, resolveSaveStatusFlags } from './saveStatus.js'
+import { findMissingTranslation } from './saveVerification.js'
 import { buildSyncSnapshot, buildTargetKey, recordSyncSnapshot } from './syncStatusStore.js'
 import { getStoredTarget } from './translationStateStore.js'
 
@@ -853,10 +854,21 @@ export async function* streamTranslations(
       const statusFlags = resolveSaveStatusFlags(sourceStatus, locale)
       const dataToSave = statusFlags.data ? { ...saveData, ...statusFlags.data } : saveData
 
+      // Marker for consumer hooks: lets derive-on-save hooks (labels, slugs,
+      // reading time, …) recognize plugin saves and their direction.
+      const saveContext = {
+        contentOps: {
+          operation: locale === from ? 'apply' : 'translationSync',
+          sourceLocale: from,
+          targetLocale: locale,
+        },
+      }
+
       if (isCollectionTarget) {
         await payload.update({
           id: documentId as number | string,
           collection: collectionSlug as string,
+          context: saveContext,
           data: dataToSave,
           locale,
           overrideAccess: true,
@@ -868,6 +880,7 @@ export async function* streamTranslations(
       } else {
         await payload.updateGlobal({
           slug: globalSlug as string,
+          context: saveContext,
           data: dataToSave,
           locale,
           overrideAccess: true,
@@ -900,6 +913,68 @@ export async function* streamTranslations(
       })
       yield { type: 'error', message }
       return
+    }
+
+    // Post-save verification: a save can succeed while the target locale
+    // stays empty — e.g. a consumer hook that passes `req` into a nested
+    // local operation with a different `locale` makes payload mutate
+    // `req.locale`, rerouting every localized value of the remaining update
+    // into that other locale. Fail loudly instead of corrupting silently.
+    {
+      const verifyStatusFlags = resolveSaveStatusFlags(sourceStatus, locale)
+      const persistedDoc = await loadLocalizedDocument(
+        payload,
+        isCollectionTarget
+          ? {
+              id: documentId as number | string,
+              collection: collectionSlug as string,
+              draft: Boolean(verifyStatusFlags.draft),
+              fallbackLocale: false,
+              locale,
+            }
+          : {
+              draft: Boolean(verifyStatusFlags.draft),
+              fallbackLocale: false,
+              global: globalSlug as string,
+              locale,
+            },
+      )
+
+      if (persistedDoc) {
+        const missing = findMissingTranslation({
+          expectedData: localeData,
+          paths: collectTranslatedPaths(localeEntry),
+          persistedDoc,
+        })
+
+        if (missing) {
+          const message =
+            `Translation for ${targetLabel} (${locale}) was saved but did not persist at "${missing.path}". ` +
+            `The value was rerouted or dropped during the save — usually a collection hook that passes req ` +
+            `into a nested operation with another locale (payload then mutates req.locale), or a locale merge ` +
+            `issue. Aborting the sync for this document; inspect the collection's hooks before retrying.`
+          payload.logger?.error?.(`[AI Translate] ${message}`)
+          logDebug(payload, '[AI Translate] Post-save verification failed.', {
+            collection: collectionSlug,
+            documentId: translationDocumentId,
+            expected: missing.expected.slice(0, 120),
+            from,
+            global: globalSlug,
+            locale,
+            path: missing.path,
+          })
+          yield { type: 'error', message }
+          return
+        }
+      } else {
+        logDebug(payload, '[AI Translate] Skipped post-save verification: could not re-read document.', {
+          collection: collectionSlug,
+          documentId: translationDocumentId,
+          from,
+          global: globalSlug,
+          locale,
+        })
+      }
     }
 
     payload.logger?.info?.(`[AI Translate] Saved translations for ${targetLabel} (${locale}).`)

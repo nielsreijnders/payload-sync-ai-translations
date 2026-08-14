@@ -227,6 +227,45 @@ When enabled, the plugin adds a **Translate** button to your Payload admin panel
 4. **Apply Updates**  
    Confirmed translations are synced across all language versions automatically.
 
+### Save integrity
+
+Every locale save the plugin performs carries a context marker, so your own
+hooks can recognize plugin writes and their direction:
+
+```ts
+// req.context during a plugin save
+{
+  contentOps: {
+    operation: 'translationSync', // or 'apply' for grammar fixes / find & replace
+    sourceLocale: 'en',
+    targetLocale: 'nl',
+  }
+}
+```
+
+Use it in derive-on-save hooks (labels, slugs, reading time, …) that should
+not run — or should behave differently — during a translation sync.
+
+After each save the plugin re-reads the target locale and verifies that the
+translated values actually persisted. A save can succeed while the target
+locale stays empty: for example, a collection hook that passes `req` into a
+nested local operation with a different `locale` makes Payload mutate
+`req.locale`, silently rerouting every localized value of the remaining
+update into that other locale. When verification fails the sync stops with a
+clear error instead of corrupting documents quietly.
+
+> ⚠️ If you call nested local operations (`payload.findByID`, …) inside
+> collection hooks with an explicit `locale` **and** pass `req` along, save
+> and restore `req.locale` around the call — Payload mutates it.
+
+These guarantees are regression-tested end to end against a real Payload +
+Postgres instance (`tests/int/`): first-ever locale translations, shared
+block-row survival, draft-status handling, and detection of hooks that
+reroute `req.locale`. The suite creates its own disposable database and
+self-skips when no server is reachable; point `INT_DATABASE_URI` at a
+Postgres maintenance database to enable it (defaults to
+`postgres://postgres:postgres@127.0.0.1:5555/postgres`).
+
 ### SEO overview
 
 For collections with `seo` enabled, the plugin adds **Plugins → SEO Overview**. A full scan:
