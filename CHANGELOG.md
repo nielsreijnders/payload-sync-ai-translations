@@ -1,3 +1,10 @@
+## [2.1.3](https://github.com/nielsreijnders/payload-content-ops/compare/v2.1.2...v2.1.3) (2026-08-13)
+
+
+### Bug Fixes
+
+* apply link sync inside localized arrays and store same-origin urls relative ([d129534](https://github.com/nielsreijnders/payload-content-ops/commit/d129534119bf1b1df3587d42670593aeb86abc09))
+
 ## [2.1.2](https://github.com/nielsreijnders/payload-content-ops/compare/v2.1.1...v2.1.2) (2026-08-13)
 
 
