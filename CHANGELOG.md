@@ -1,3 +1,10 @@
+# [2.2.0](https://github.com/nielsreijnders/payload-content-ops/compare/v2.1.3...v2.2.0) (2026-08-14)
+
+
+### Features
+
+* verify saved translations persist and add contentOps save context ([d7d6cae](https://github.com/nielsreijnders/payload-content-ops/commit/d7d6cae5d16c533f0decb7501d350c8bb67375ae))
+
 ## [2.1.3](https://github.com/nielsreijnders/payload-content-ops/compare/v2.1.2...v2.1.3) (2026-08-13)
 
 
